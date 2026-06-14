@@ -1,0 +1,15 @@
+name: Flotis
+options:
+  bundleIdPrefix: com.flotis
+targets:
+  Flotis:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSUIElement: YES
+        SWIFT_VERSION: "5.0"
