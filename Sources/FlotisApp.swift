@@ -14,11 +14,13 @@ struct FlotisApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate {
     var panelController: FloatingPanelController?
     let appState = AppState()
+    var voiceController: VoiceInputController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState.checkAccessibility()
+        voiceController = VoiceInputController(appState: appState)
         
-        panelController = FloatingPanelController(appState: appState)
+        panelController = FloatingPanelController(appState: appState, voiceController: voiceController!)
         panelController?.showWindow(nil)
         
         HotkeyManager.shared.onHotkeyPressed = { [weak self] index in
@@ -44,6 +46,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 self.panelController?.close()
             }
+        }
+        
+        HotkeyManager.shared.onToggleVoice = { [weak self] in
+            self?.voiceController?.toggleRecording()
         }
         
         HotkeyManager.shared.start()

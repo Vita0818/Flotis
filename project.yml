@@ -12,4 +12,6 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_LSUIElement: YES
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Flotis 需要使用语音识别将你的讲话转换成文本。"
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Flotis 需要使用麦克风进行语音输入。"
         SWIFT_VERSION: "5.0"

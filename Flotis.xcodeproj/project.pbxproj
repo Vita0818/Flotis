@@ -8,11 +8,21 @@
 
 /* Begin PBXBuildFile section */
 		0850AA90C1F8263C3F91C472 /* FloatingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4870673D17AED2AEEA2C8888 /* FloatingPanelView.swift */; };
+		0C2DABC27130BEFF74EC2C14 /* TranscriptionProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2258DDE97281959D47AFA0 /* TranscriptionProviderConfig.swift */; };
 		12D8B87F7ACDED25FFA8208C /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */; };
+		1FCC2B05574D24B5EF9624A5 /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E191E5960904FE3E47E368B /* VoiceSettingsView.swift */; };
+		3CC69B258CCE415AB8D742A5 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B664305F0CD080359F4805C /* AudioRecorder.swift */; };
+		4A16429EBD257E78D640CA53 /* KeychainSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDC913FD7D554D2CE1907DE1 /* KeychainSecretStore.swift */; };
 		57AB57D982A94CD3435A0B24 /* FloatingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BBF7A2EA671843393D7EC84 /* FloatingPanelController.swift */; };
 		5903B47B6E7EA4C4CFC905E7 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1FAF23099B773370D196C7 /* AccessibilityPermission.swift */; };
+		6ADFB5F5BE4ECD1DDF56424C /* AppleSpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0DE932E98EE5E21BEC2266 /* AppleSpeechTranscriber.swift */; };
 		6BB5C4DC8280498389A538A6 /* ClipboardPasteInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B469AE165B6A3D1E473465BF /* ClipboardPasteInjector.swift */; };
+		71D483F9575A992D46AA337B /* SpeechTranscribing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */; };
+		7E53DA5A841B526F8C26FA33 /* VoiceInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */; };
 		908B06542C699CCF600A9A15 /* FlotisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B6CA344D7973B66338D7B8 /* FlotisApp.swift */; };
+		92A2EC65360DE79F0B75F334 /* VoiceInputMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB09830441419AD70C4D275 /* VoiceInputMode.swift */; };
+		9785713B2A2E925285362578 /* OpenAICompatibleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */; };
+		AB1A4C45D0FDF934E5454F0A /* TranscriptionProviderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EDBDA061681E8E23B5828C /* TranscriptionProviderStore.swift */; };
 		B1249DC6C5CCA64E9F455EB2 /* PromptCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337239F7248B3215B400149F /* PromptCommand.swift */; };
 		D67AB5E81EF3127FFCE12412 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4EA57CC02DBDDF39517D35E /* AppState.swift */; };
 		F24F1E3405E2B9B322A3DE3F /* CommandStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A786D9C1F54E699CAEE3681D /* CommandStore.swift */; };
@@ -20,15 +30,25 @@
 
 /* Begin PBXFileReference section */
 		1BBF7A2EA671843393D7EC84 /* FloatingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelController.swift; sourceTree = "<group>"; };
+		1E191E5960904FE3E47E368B /* VoiceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
+		2B664305F0CD080359F4805C /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
 		337239F7248B3215B400149F /* PromptCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCommand.swift; sourceTree = "<group>"; };
+		3C0DE932E98EE5E21BEC2266 /* AppleSpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechTranscriber.swift; sourceTree = "<group>"; };
 		4870673D17AED2AEEA2C8888 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		5DC2C707A76B11BD3BB34777 /* Flotis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flotis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
+		9CB09830441419AD70C4D275 /* VoiceInputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputMode.swift; sourceTree = "<group>"; };
+		A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
 		A6B6CA344D7973B66338D7B8 /* FlotisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisApp.swift; sourceTree = "<group>"; };
 		A786D9C1F54E699CAEE3681D /* CommandStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandStore.swift; sourceTree = "<group>"; };
 		AA1FAF23099B773370D196C7 /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
 		B469AE165B6A3D1E473465BF /* ClipboardPasteInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteInjector.swift; sourceTree = "<group>"; };
 		B4EA57CC02DBDDF39517D35E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		BF2258DDE97281959D47AFA0 /* TranscriptionProviderConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderConfig.swift; sourceTree = "<group>"; };
+		D1EDBDA061681E8E23B5828C /* TranscriptionProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderStore.swift; sourceTree = "<group>"; };
 		E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
+		E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleTranscriber.swift; sourceTree = "<group>"; };
+		FDC913FD7D554D2CE1907DE1 /* KeychainSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -52,14 +72,24 @@
 			isa = PBXGroup;
 			children = (
 				AA1FAF23099B773370D196C7 /* AccessibilityPermission.swift */,
+				3C0DE932E98EE5E21BEC2266 /* AppleSpeechTranscriber.swift */,
 				B4EA57CC02DBDDF39517D35E /* AppState.swift */,
+				2B664305F0CD080359F4805C /* AudioRecorder.swift */,
 				B469AE165B6A3D1E473465BF /* ClipboardPasteInjector.swift */,
 				A786D9C1F54E699CAEE3681D /* CommandStore.swift */,
 				1BBF7A2EA671843393D7EC84 /* FloatingPanelController.swift */,
 				4870673D17AED2AEEA2C8888 /* FloatingPanelView.swift */,
 				A6B6CA344D7973B66338D7B8 /* FlotisApp.swift */,
 				E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */,
+				FDC913FD7D554D2CE1907DE1 /* KeychainSecretStore.swift */,
+				E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */,
 				337239F7248B3215B400149F /* PromptCommand.swift */,
+				A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */,
+				BF2258DDE97281959D47AFA0 /* TranscriptionProviderConfig.swift */,
+				D1EDBDA061681E8E23B5828C /* TranscriptionProviderStore.swift */,
+				971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */,
+				9CB09830441419AD70C4D275 /* VoiceInputMode.swift */,
+				1E191E5960904FE3E47E368B /* VoiceSettingsView.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -121,13 +151,23 @@
 			files = (
 				5903B47B6E7EA4C4CFC905E7 /* AccessibilityPermission.swift in Sources */,
 				D67AB5E81EF3127FFCE12412 /* AppState.swift in Sources */,
+				6ADFB5F5BE4ECD1DDF56424C /* AppleSpeechTranscriber.swift in Sources */,
+				3CC69B258CCE415AB8D742A5 /* AudioRecorder.swift in Sources */,
 				6BB5C4DC8280498389A538A6 /* ClipboardPasteInjector.swift in Sources */,
 				F24F1E3405E2B9B322A3DE3F /* CommandStore.swift in Sources */,
 				57AB57D982A94CD3435A0B24 /* FloatingPanelController.swift in Sources */,
 				0850AA90C1F8263C3F91C472 /* FloatingPanelView.swift in Sources */,
 				908B06542C699CCF600A9A15 /* FlotisApp.swift in Sources */,
 				12D8B87F7ACDED25FFA8208C /* HotkeyManager.swift in Sources */,
+				4A16429EBD257E78D640CA53 /* KeychainSecretStore.swift in Sources */,
+				9785713B2A2E925285362578 /* OpenAICompatibleTranscriber.swift in Sources */,
 				B1249DC6C5CCA64E9F455EB2 /* PromptCommand.swift in Sources */,
+				71D483F9575A992D46AA337B /* SpeechTranscribing.swift in Sources */,
+				0C2DABC27130BEFF74EC2C14 /* TranscriptionProviderConfig.swift in Sources */,
+				AB1A4C45D0FDF934E5454F0A /* TranscriptionProviderStore.swift in Sources */,
+				7E53DA5A841B526F8C26FA33 /* VoiceInputController.swift in Sources */,
+				92A2EC65360DE79F0B75F334 /* VoiceInputMode.swift in Sources */,
+				1FCC2B05574D24B5EF9624A5 /* VoiceSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -141,6 +181,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Flotis 需要使用麦克风进行语音输入。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Flotis 需要使用语音识别将你的讲话转换成文本。";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -221,6 +263,8 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Flotis 需要使用麦克风进行语音输入。";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Flotis 需要使用语音识别将你的讲话转换成文本。";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -6,6 +6,7 @@ final class HotkeyManager {
     
     var onHotkeyPressed: ((Int) -> Void)?
     var onTogglePanel: (() -> Void)?
+    var onToggleVoice: (() -> Void)?
     
     private var eventMonitor: Any?
     
@@ -42,6 +43,11 @@ final class HotkeyManager {
         
         if event.keyCode == 0x1D { // '0' key code
             onTogglePanel?()
+            return
+        }
+        
+        if event.keyCode == 0x0F { // 'R' key code
+            onToggleVoice?()
             return
         }
         

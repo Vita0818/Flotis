@@ -27,7 +27,7 @@ final class ClipboardPasteInjector {
         
         simulateCmdV()
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             pasteboard.clearContents()
             if let items = previousItems, !items.isEmpty {
                 pasteboard.writeObjects(items)
@@ -44,10 +44,10 @@ final class ClipboardPasteInjector {
         let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
         
-        keyDown?.flags = .maskCommand
-        keyUp?.flags = .maskCommand
+        keyDown?.flags = CGEventFlags.maskCommand
+        keyUp?.flags = CGEventFlags.maskCommand
         
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
+        keyDown?.post(tap: CGEventTapLocation.cghidEventTap)
+        keyUp?.post(tap: CGEventTapLocation.cghidEventTap)
     }
 }

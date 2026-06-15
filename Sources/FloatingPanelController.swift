@@ -3,9 +3,9 @@ import SwiftUI
 
 class FloatingPanelController: NSWindowController {
     
-    init(appState: AppState) {
+    init(appState: AppState, voiceController: VoiceInputController) {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 180),
+            contentRect: NSRect(x: 0, y: 0, width: 380, height: 280),
             styleMask: [.nonactivatingPanel, .titled, .closable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -21,11 +21,11 @@ class FloatingPanelController: NSWindowController {
         panel.isOpaque = false
         
         let visualEffect = NSVisualEffectView()
-        visualEffect.material = .hudWindow
+        visualEffect.material = .popover
         visualEffect.state = .active
         visualEffect.blendingMode = .behindWindow
         
-        let hostingView = NSHostingView(rootView: FloatingPanelView(appState: appState))
+        let hostingView = NSHostingView(rootView: FloatingPanelView(appState: appState, voiceController: voiceController))
         
         visualEffect.addSubview(hostingView)
         hostingView.translatesAutoresizingMaskIntoConstraints = false
