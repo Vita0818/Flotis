@@ -18,6 +18,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         appState.checkAccessibility()
+        _ = ClipboardPasteInjector.shared
         voiceController = VoiceInputController(appState: appState)
         
         panelController = FloatingPanelController(appState: appState, voiceController: voiceController!)

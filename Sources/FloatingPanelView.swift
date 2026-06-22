@@ -18,7 +18,7 @@ struct FloatingPanelView: View {
                     Button(action: {
                         injectCommand(command)
                     }) {
-                        Text("\(command.title) ⌘⇧\(command.shortcutIndex ?? 0)")
+                        Text("\(command.title) ⌘⌥⇧\(command.shortcutIndex ?? 0)")
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(.primary)
                             .frame(maxWidth: .infinity, minHeight: 28)
