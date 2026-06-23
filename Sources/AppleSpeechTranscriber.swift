@@ -1,102 +1,136 @@
+import AVFoundation
 import Foundation
 import Speech
-import AVFoundation
 
-final class AppleSpeechTranscriber: NSObject, SpeechTranscribing {
+final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
     var partialTranscriptHandler: ((String) -> Void)?
-    
+    var finalTranscriptHandler: ((String) -> Void)?
+    var errorHandler: ((String) -> Void)?
+
     private let speechRecognizer: SFSpeechRecognizer?
     private let audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
-    
-    private var finalTranscript: String = ""
+
+    private var finalTranscript = ""
     private var isStopping = false
-    
+
     init(localeIdentifier: String) {
-        self.speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
+        speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
         super.init()
     }
-    
+
     func start() async throws {
-        // Request permissions
-        let authStatus = await withCheckedContinuation { continuation in
-            SFSpeechRecognizer.requestAuthorization { status in
-                continuation.resume(returning: status)
-            }
+        let speechStatus = await requestSpeechAuthorization()
+        guard speechStatus == .authorized else {
+            throw NSError(
+                domain: "AppleSpeechTranscriber",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "需要开启 Speech Recognition 权限。"]
+            )
         }
-        
-        guard authStatus == .authorized else {
-            throw NSError(domain: "AppleSpeechTranscriber", code: 1, userInfo: [NSLocalizedDescriptionKey: "需要开启麦克风和语音识别权限。"])
+
+        let microphoneGranted = await requestMicrophoneAccess()
+        guard microphoneGranted else {
+            throw NSError(
+                domain: "AppleSpeechTranscriber",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "需要开启麦克风权限。"]
+            )
         }
-        
-        #if os(iOS)
-        // AVAudioSession configuration is mostly for iOS, on macOS we just use the engine
-        #endif
-        
-        if audioEngine.isRunning {
-            audioEngine.stop()
-            recognitionRequest?.endAudio()
+
+        guard let speechRecognizer, speechRecognizer.isAvailable else {
+            throw NSError(
+                domain: "AppleSpeechTranscriber",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "当前语言的 Apple Speech 不可用。"]
+            )
         }
-        
-        recognitionTask?.cancel()
-        recognitionTask = nil
+
+        stopEngineAndTask(cancelTask: true)
         finalTranscript = ""
         isStopping = false
-        
+
         let inputNode = audioEngine.inputNode
-        
-        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest = recognitionRequest else {
-            throw NSError(domain: "AppleSpeechTranscriber", code: 2, userInfo: [NSLocalizedDescriptionKey: "无法创建语音识别请求。"])
-        }
-        
-        recognitionRequest.shouldReportPartialResults = true
-        
-        recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { [weak self] result, error in
-            guard let self = self else { return }
-            var isFinal = false
-            
-            if let result = result {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        recognitionRequest = request
+
+        recognitionTask = speechRecognizer.recognitionTask(with: request) { [weak self] result, error in
+            guard let self else { return }
+
+            if let result {
                 self.finalTranscript = result.bestTranscription.formattedString
                 self.partialTranscriptHandler?(self.finalTranscript)
-                isFinal = result.isFinal
+
+                if result.isFinal {
+                    self.finalTranscriptHandler?(self.finalTranscript)
+                    self.stopEngineAndTask(cancelTask: false)
+                }
             }
-            
-            if error != nil || isFinal || self.isStopping {
-                self.audioEngine.stop()
-                inputNode.removeTap(onBus: 0)
-                self.recognitionRequest = nil
-                self.recognitionTask = nil
+
+            if let error, !self.isStopping {
+                self.errorHandler?(error.localizedDescription)
+                self.stopEngineAndTask(cancelTask: true)
             }
         }
-        
+
         let recordingFormat = inputNode.outputFormat(forBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
-            self.recognitionRequest?.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
+            self?.recognitionRequest?.append(buffer)
         }
-        
+
         audioEngine.prepare()
         try audioEngine.start()
     }
-    
+
+    func appendAudio(_ data: Data) async throws {
+        // Apple Speech owns its AVAudioEngine path and does not accept external chunks.
+    }
+
     func stop() async throws -> String {
         isStopping = true
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
-        
-        // Let the task finish processing the final buffer
+
         try await Task.sleep(nanoseconds: 500_000_000)
-        
+        finalTranscriptHandler?(finalTranscript)
         return finalTranscript
     }
-    
+
     func cancel() {
         isStopping = true
-        audioEngine.stop()
+        stopEngineAndTask(cancelTask: true)
+    }
+
+    private func stopEngineAndTask(cancelTask: Bool) {
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
-        recognitionTask?.cancel()
+        recognitionRequest = nil
+
+        if cancelTask {
+            recognitionTask?.cancel()
+        }
+        recognitionTask = nil
+    }
+
+    private func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {
+        await withCheckedContinuation { continuation in
+            SFSpeechRecognizer.requestAuthorization { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+
+    private func requestMicrophoneAccess() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
+            }
+        }
     }
 }

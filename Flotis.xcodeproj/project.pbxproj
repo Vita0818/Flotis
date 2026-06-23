@@ -12,6 +12,7 @@
 		12D8B87F7ACDED25FFA8208C /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */; };
 		1FCC2B05574D24B5EF9624A5 /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E191E5960904FE3E47E368B /* VoiceSettingsView.swift */; };
 		3CC69B258CCE415AB8D742A5 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B664305F0CD080359F4805C /* AudioRecorder.swift */; };
+		476C3DF5140B5808998A94F7 /* StreamingAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2F10711A00FA93521D92D1 /* StreamingAudioCapture.swift */; };
 		4A16429EBD257E78D640CA53 /* KeychainSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDC913FD7D554D2CE1907DE1 /* KeychainSecretStore.swift */; };
 		57AB57D982A94CD3435A0B24 /* FloatingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BBF7A2EA671843393D7EC84 /* FloatingPanelController.swift */; };
 		5903B47B6E7EA4C4CFC905E7 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1FAF23099B773370D196C7 /* AccessibilityPermission.swift */; };
@@ -19,6 +20,7 @@
 		6BB5C4DC8280498389A538A6 /* ClipboardPasteInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B469AE165B6A3D1E473465BF /* ClipboardPasteInjector.swift */; };
 		71D483F9575A992D46AA337B /* SpeechTranscribing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */; };
 		7E53DA5A841B526F8C26FA33 /* VoiceInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */; };
+		8027E75F1F7F896D45A6303A /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60DC9D8D296CBFC6E42B2BBD /* OpenAIRealtimeTranscriber.swift */; };
 		908B06542C699CCF600A9A15 /* FlotisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B6CA344D7973B66338D7B8 /* FlotisApp.swift */; };
 		92A2EC65360DE79F0B75F334 /* VoiceInputMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB09830441419AD70C4D275 /* VoiceInputMode.swift */; };
 		9785713B2A2E925285362578 /* OpenAICompatibleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */; };
@@ -36,6 +38,7 @@
 		3C0DE932E98EE5E21BEC2266 /* AppleSpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechTranscriber.swift; sourceTree = "<group>"; };
 		4870673D17AED2AEEA2C8888 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		5DC2C707A76B11BD3BB34777 /* Flotis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flotis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		60DC9D8D296CBFC6E42B2BBD /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
 		9CB09830441419AD70C4D275 /* VoiceInputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputMode.swift; sourceTree = "<group>"; };
 		A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
@@ -45,6 +48,7 @@
 		B469AE165B6A3D1E473465BF /* ClipboardPasteInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteInjector.swift; sourceTree = "<group>"; };
 		B4EA57CC02DBDDF39517D35E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		BF2258DDE97281959D47AFA0 /* TranscriptionProviderConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderConfig.swift; sourceTree = "<group>"; };
+		BF2F10711A00FA93521D92D1 /* StreamingAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingAudioCapture.swift; sourceTree = "<group>"; };
 		D1EDBDA061681E8E23B5828C /* TranscriptionProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderStore.swift; sourceTree = "<group>"; };
 		E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleTranscriber.swift; sourceTree = "<group>"; };
@@ -83,8 +87,10 @@
 				E8CB7BB7F80F65F2C451C570 /* HotkeyManager.swift */,
 				FDC913FD7D554D2CE1907DE1 /* KeychainSecretStore.swift */,
 				E9E75C1AFF5BC9CD9E59004D /* OpenAICompatibleTranscriber.swift */,
+				60DC9D8D296CBFC6E42B2BBD /* OpenAIRealtimeTranscriber.swift */,
 				337239F7248B3215B400149F /* PromptCommand.swift */,
 				A3D8566F46FA3DA6BFA20070 /* SpeechTranscribing.swift */,
+				BF2F10711A00FA93521D92D1 /* StreamingAudioCapture.swift */,
 				BF2258DDE97281959D47AFA0 /* TranscriptionProviderConfig.swift */,
 				D1EDBDA061681E8E23B5828C /* TranscriptionProviderStore.swift */,
 				971E03CD8D3F6FDE2A253006 /* VoiceInputController.swift */,
@@ -161,8 +167,10 @@
 				12D8B87F7ACDED25FFA8208C /* HotkeyManager.swift in Sources */,
 				4A16429EBD257E78D640CA53 /* KeychainSecretStore.swift in Sources */,
 				9785713B2A2E925285362578 /* OpenAICompatibleTranscriber.swift in Sources */,
+				8027E75F1F7F896D45A6303A /* OpenAIRealtimeTranscriber.swift in Sources */,
 				B1249DC6C5CCA64E9F455EB2 /* PromptCommand.swift in Sources */,
 				71D483F9575A992D46AA337B /* SpeechTranscribing.swift in Sources */,
+				476C3DF5140B5808998A94F7 /* StreamingAudioCapture.swift in Sources */,
 				0C2DABC27130BEFF74EC2C14 /* TranscriptionProviderConfig.swift in Sources */,
 				AB1A4C45D0FDF934E5454F0A /* TranscriptionProviderStore.swift in Sources */,
 				7E53DA5A841B526F8C26FA33 /* VoiceInputController.swift in Sources */,

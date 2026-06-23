@@ -5,7 +5,16 @@ final class AudioRecorder: NSObject {
     private var audioRecorder: AVAudioRecorder?
     private var recordingURL: URL?
     
-    func startRecording() throws {
+    func startRecording() async throws {
+        let microphoneGranted = await requestMicrophoneAccess()
+        guard microphoneGranted else {
+            throw NSError(
+                domain: "AudioRecorder",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "需要开启麦克风权限。"]
+            )
+        }
+
         #if os(iOS)
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: .duckOthers)
@@ -45,5 +54,13 @@ final class AudioRecorder: NSObject {
             try? FileManager.default.removeItem(at: url)
         }
         recordingURL = nil
+    }
+
+    private func requestMicrophoneAccess() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                continuation.resume(returning: granted)
+            }
+        }
     }
 }

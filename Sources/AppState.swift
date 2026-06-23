@@ -5,6 +5,7 @@ final class AppState: ObservableObject {
     @Published var hasAccessibilityPermission: Bool = false
     @Published var isPanelVisible: Bool = true
     @Published var pasteError: String? = nil
+    @Published var hotkeyError: String? = nil
     
     @Published var voiceMode: VoiceInputMode = .appleSpeech
     @Published var voiceState: VoiceInputState = .idle
