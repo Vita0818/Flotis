@@ -26,7 +26,7 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
             throw NSError(
                 domain: "AppleSpeechTranscriber",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "需要开启 Speech Recognition 权限。"]
+                userInfo: [NSLocalizedDescriptionKey: "需要开启语音识别权限。"]
             )
         }
 
@@ -43,7 +43,7 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
             throw NSError(
                 domain: "AppleSpeechTranscriber",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "当前语言的 Apple Speech 不可用。"]
+                userInfo: [NSLocalizedDescriptionKey: "当前语言的 Apple 语音识别不可用。"]
             )
         }
 

@@ -126,7 +126,7 @@ enum KeyCodeDisplay {
         45: "N",
         46: "M",
         47: ".",
-        49: "Space",
+        49: "空格",
         51: "⌫",
         53: "Esc",
         96: "F5",
@@ -148,6 +148,6 @@ enum KeyCodeDisplay {
     ]
 
     static func label(for keyCode: UInt32) -> String {
-        labelsByKeyCode[keyCode] ?? "Key \(keyCode)"
+        labelsByKeyCode[keyCode] ?? "按键 \(keyCode)"
     }
 }

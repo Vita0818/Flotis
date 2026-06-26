@@ -7,7 +7,7 @@ targets:
     platform: macOS
     deploymentTarget: "13.0"
     sources:
-      - path: Sources
+      - path: Flotis
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

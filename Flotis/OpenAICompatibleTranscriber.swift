@@ -12,7 +12,7 @@ final class OpenAIHTTPTranscriber: FileSpeechTranscribing {
             throw NSError(
                 domain: "OpenAIHTTPTranscriber",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Base URL 或 Endpoint Path 非法。"]
+                userInfo: [NSLocalizedDescriptionKey: "基础地址或接口路径非法。"]
             )
         }
 

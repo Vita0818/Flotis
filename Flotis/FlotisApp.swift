@@ -79,7 +79,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if !success {
-                    self.appState.pasteError = "粘贴失败，可能没有权限。"
+                    self.appState.pasteError = UIStrings.pasteFailed
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         self.appState.pasteError = nil
                     }

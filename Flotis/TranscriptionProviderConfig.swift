@@ -10,11 +10,11 @@ enum SpeechProviderKind: String, Codable, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .appleSpeechLive:
-            return "Apple Speech Live"
+            return UIStrings.appleSpeech
         case .openAIRealtimeTranscription:
-            return "OpenAI Realtime"
+            return "OpenAI \(UIStrings.realtimeTranscription)"
         case .openAIHTTPTranscription:
-            return "OpenAI HTTP"
+            return "OpenAI \(UIStrings.httpTranscription)"
         }
     }
 }
@@ -48,7 +48,7 @@ struct SpeechProviderConfig: Identifiable, Codable, Equatable {
 
     static let appleSpeech = SpeechProviderConfig(
         id: appleSpeechID,
-        name: "Apple Speech",
+        name: UIStrings.appleSpeech,
         kind: .appleSpeechLive,
         model: "",
         language: "zh-CN",
@@ -67,7 +67,7 @@ struct SpeechProviderConfig: Identifiable, Codable, Equatable {
 
     static let openAIRealtime = SpeechProviderConfig(
         id: openAIRealtimeID,
-        name: "OpenAI Realtime",
+        name: "OpenAI \(UIStrings.realtimeTranscription)",
         kind: .openAIRealtimeTranscription,
         model: "gpt-4o-mini-transcribe",
         language: "zh",
@@ -86,7 +86,7 @@ struct SpeechProviderConfig: Identifiable, Codable, Equatable {
 
     static let openAIHTTP = SpeechProviderConfig(
         id: openAIHTTPID,
-        name: "OpenAI HTTP Transcription",
+        name: "OpenAI \(UIStrings.httpTranscription)",
         kind: .openAIHTTPTranscription,
         model: "gpt-4o-mini-transcribe",
         language: "zh",
@@ -111,3 +111,22 @@ struct SpeechProviderConfig: Identifiable, Codable, Equatable {
 }
 
 typealias TranscriptionProviderConfig = SpeechProviderConfig
+
+extension SpeechProviderConfig {
+    var displayNameForUI: String {
+        switch name {
+        case "Apple Speech", "Apple Speech Live":
+            return UIStrings.appleSpeech
+        case "OpenAI Realtime":
+            return "OpenAI \(UIStrings.realtimeTranscription)"
+        case "OpenAI HTTP", "OpenAI HTTP Transcription":
+            return "OpenAI \(UIStrings.httpTranscription)"
+        case "Custom Realtime":
+            return UIStrings.customRealtime
+        case "Custom HTTP":
+            return UIStrings.customHTTP
+        default:
+            return name
+        }
+    }
+}

@@ -25,7 +25,7 @@ final class VoiceInputController {
             guard !isTransitioning else { return }
             stopAndInject()
         case .requestingPermission, .connecting, .stopping, .transcribing, .injecting:
-            showShortStatus("语音输入正在处理中。")
+            showShortStatus(UIStrings.speechBusy)
         }
     }
 
@@ -81,7 +81,7 @@ final class VoiceInputController {
 
     private func startRealtime(provider: SpeechProviderConfig) {
         guard let apiKey = apiKey(for: provider) else {
-            fail("请先配置该 Realtime provider 的 API Key。")
+            fail("请先配置该实时提供商的 API Key。")
             return
         }
 
@@ -121,7 +121,7 @@ final class VoiceInputController {
 
     private func startHTTPRecording(provider: SpeechProviderConfig) {
         guard apiKey(for: provider) != nil else {
-            fail("请先配置该 HTTP provider 的 API Key。")
+            fail("请先配置该 HTTP 转写提供商的 API Key。")
             return
         }
 
@@ -134,7 +134,7 @@ final class VoiceInputController {
             do {
                 try await recorder.startRecording()
                 self.appState.voiceState = .recording
-                self.appState.transcriptPreview = "正在听写…"
+                self.appState.transcriptPreview = UIStrings.dictating
                 self.isTransitioning = false
             } catch {
                 self.fail(error.localizedDescription)
@@ -185,7 +185,7 @@ final class VoiceInputController {
 
         isTransitioning = true
         appState.voiceState = .transcribing
-        appState.transcriptPreview = "上传中…"
+        appState.transcriptPreview = UIStrings.uploading
 
         guard let fileURL = recorder.stopRecording() else {
             fail("录音文件创建失败。")

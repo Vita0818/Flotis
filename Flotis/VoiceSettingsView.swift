@@ -1,25 +1,128 @@
 import AppKit
 import SwiftUI
 
+enum SettingsCloseMode {
+    case back
+    case done
+
+    var buttonTitle: String {
+        switch self {
+        case .back:
+            return UIStrings.back
+        case .done:
+            return UIStrings.done
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var commandStore: CommandStore
     @ObservedObject var providerStore: SpeechProviderStore
+    @Environment(\.dismiss) private var dismiss
+
+    let closeMode: SettingsCloseMode
+    let onClose: (() -> Void)?
+
+    init(
+        appState: AppState,
+        commandStore: CommandStore,
+        providerStore: SpeechProviderStore,
+        closeMode: SettingsCloseMode = .done,
+        onClose: (() -> Void)? = nil
+    ) {
+        _appState = ObservedObject(wrappedValue: appState)
+        _commandStore = ObservedObject(wrappedValue: commandStore)
+        _providerStore = ObservedObject(wrappedValue: providerStore)
+        self.closeMode = closeMode
+        self.onClose = onClose
+    }
 
     var body: some View {
-        TabView {
-            CommandsSettingsView(commandStore: commandStore)
-                .tabItem {
-                    Text("Commands")
+        VStack(spacing: 0) {
+            ZStack {
+                Text(UIStrings.settings)
+                    .font(.headline)
+
+                HStack {
+                    Button(closeMode.buttonTitle) {
+                        closeSettings()
+                    }
+                    .keyboardShortcut("w", modifiers: .command)
+
+                    Spacer()
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider()
+
+            TabView {
+                CommandsSettingsView(commandStore: commandStore)
+                    .tabItem {
+                        Text(UIStrings.commands)
+                    }
+
+                SpeechSettingsOverviewView(appState: appState, providerStore: providerStore)
+                    .tabItem {
+                        Text(UIStrings.speech)
+                    }
+
+                SpeechProviderSettingsView(appState: appState, providerStore: providerStore)
+                    .tabItem {
+                        Text(UIStrings.transcriptionProviders)
+                    }
+            }
+            .padding()
+        }
+        .frame(width: 720, height: 540)
+        .onExitCommand {
+            closeSettings()
+        }
+    }
+
+    private func closeSettings() {
+        if let onClose {
+            onClose()
+            return
+        }
+
+        dismiss()
+        NSApp.keyWindow?.performClose(nil)
+    }
+}
+
+struct SpeechSettingsOverviewView: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var providerStore: SpeechProviderStore
+
+    var body: some View {
+        Form {
+            Section(header: Text(UIStrings.speech)) {
+                Picker(UIStrings.currentProvider, selection: Binding(
+                    get: { providerStore.activeProviderID },
+                    set: { providerStore.setActiveProvider(id: $0) }
+                )) {
+                    ForEach(providerStore.providers) { provider in
+                        Text(provider.displayNameForUI).tag(provider.id)
+                    }
                 }
 
-            SpeechProviderSettingsView(appState: appState, providerStore: providerStore)
-                .tabItem {
-                    Text("Speech Providers")
+                LabeledContent(UIStrings.status, value: appState.voiceState.displayText)
+                LabeledContent(UIStrings.language, value: providerStore.activeProvider.language ?? appState.selectedSpeechLocale)
+            }
+
+            Section(header: Text(UIStrings.permissions)) {
+                LabeledContent(UIStrings.accessibility, value: appState.hasAccessibilityPermission ? UIStrings.enabledStatus : UIStrings.disabledStatus)
+                LabeledContent(UIStrings.microphone, value: UIStrings.managedByMacOS)
+                LabeledContent(UIStrings.speechRecognition, value: UIStrings.managedByMacOS)
+
+                Button(UIStrings.openSettings) {
+                    AccessibilityPermission.openSettings()
                 }
+            }
         }
-        .padding()
-        .frame(width: 720, height: 540)
     }
 }
 
@@ -46,9 +149,9 @@ struct CommandsSettingsView: View {
                             .labelsHidden()
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(command.title.isEmpty ? "未命名命令" : command.title)
+                                Text(command.title.isEmpty ? UIStrings.untitledCommand : command.title)
                                     .lineLimit(1)
-                                Text(command.shortcut?.displayString ?? "无快捷键")
+                                Text(command.shortcut?.displayString ?? UIStrings.noShortcut)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -61,12 +164,12 @@ struct CommandsSettingsView: View {
                 .frame(minWidth: 250)
 
                 HStack {
-                    Button("新增") {
+                    Button(UIStrings.add) {
                         commandStore.addCommand()
                         selectedCommandID = sortedCommands.last?.id
                     }
 
-                    Button("删除") {
+                    Button(UIStrings.delete) {
                         guard let selectedCommandID else { return }
                         commandStore.deleteCommand(id: selectedCommandID)
                         self.selectedCommandID = sortedCommands.first?.id
@@ -75,20 +178,20 @@ struct CommandsSettingsView: View {
 
                     Spacer()
 
-                    Button("上移") {
+                    Button(UIStrings.moveUp) {
                         guard let selectedCommandID else { return }
                         commandStore.moveCommand(id: selectedCommandID, direction: -1)
                     }
                     .disabled(selectedCommandID == nil)
 
-                    Button("下移") {
+                    Button(UIStrings.moveDown) {
                         guard let selectedCommandID else { return }
                         commandStore.moveCommand(id: selectedCommandID, direction: 1)
                     }
                     .disabled(selectedCommandID == nil)
                 }
 
-                Button("重置默认") {
+                Button(UIStrings.resetDefaults) {
                     commandStore.resetToDefaults()
                     selectedCommandID = commandStore.commands.first?.id
                 }
@@ -106,7 +209,7 @@ struct CommandsSettingsView: View {
                         validationMessage: $validationMessage
                     )
                 } else {
-                    Text("选择一个命令进行编辑。")
+                    Text(UIStrings.selectCommandToEdit)
                         .foregroundColor(.secondary)
                 }
 
@@ -148,12 +251,12 @@ struct CommandEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Command")
+            Text(UIStrings.commands)
                 .font(.headline)
 
-            TextField("Title", text: $command.title)
+            TextField(UIStrings.title, text: $command.title)
 
-            Text("Content")
+            Text(UIStrings.content)
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -165,19 +268,19 @@ struct CommandEditorView: View {
                         .stroke(Color.secondary.opacity(0.25))
                 )
 
-            Toggle("Enabled", isOn: $command.isEnabled)
+            Toggle(UIStrings.enabled, isOn: $command.isEnabled)
 
             HStack(spacing: 8) {
-                Text("Shortcut:")
+                Text("\(UIStrings.shortcut):")
                     .foregroundColor(.secondary)
-                Text(command.shortcut?.displayString ?? "无")
+                Text(command.shortcut?.displayString ?? UIStrings.none)
                     .font(.system(size: 13, weight: .medium))
                 Spacer()
-                Button(recordingCommandID == command.id ? "Recording..." : "Record Shortcut") {
+                Button(recordingCommandID == command.id ? UIStrings.recordingShortcut : UIStrings.recordShortcut) {
                     validationMessage = nil
                     recordingCommandID = command.id
                 }
-                Button("Clear") {
+                Button(UIStrings.clear) {
                     command.shortcut = nil
                     validationMessage = nil
                 }
@@ -228,7 +331,7 @@ struct SpeechProviderSettingsView: View {
                     ForEach(providerStore.providers) { provider in
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(provider.name)
+                                Text(provider.displayNameForUI)
                                     .lineLimit(1)
                                 Text(provider.kind.displayName)
                                     .font(.caption)
@@ -246,25 +349,25 @@ struct SpeechProviderSettingsView: View {
                 .frame(minWidth: 250)
 
                 HStack {
-                    Menu("新增") {
-                        Button("Custom Realtime") {
+                    Menu(UIStrings.add) {
+                        Button(UIStrings.customRealtime) {
                             providerStore.addProvider(kind: .openAIRealtimeTranscription)
                             selectedProviderID = providerStore.activeProviderID
                             apiKeyInput = ""
                         }
-                        Button("Custom HTTP") {
+                        Button(UIStrings.customHTTP) {
                             providerStore.addProvider(kind: .openAIHTTPTranscription)
                             selectedProviderID = providerStore.activeProviderID
                             apiKeyInput = ""
                         }
-                        Button("Apple Speech") {
+                        Button(UIStrings.appleSpeech) {
                             providerStore.addProvider(kind: .appleSpeechLive)
                             selectedProviderID = providerStore.activeProviderID
                             apiKeyInput = ""
                         }
                     }
 
-                    Button("删除") {
+                    Button(UIStrings.delete) {
                         providerStore.deleteProvider(id: selectedID)
                         selectedProviderID = providerStore.activeProviderID
                         apiKeyInput = ""
@@ -273,7 +376,7 @@ struct SpeechProviderSettingsView: View {
 
                     Spacer()
 
-                    Button("设为当前") {
+                    Button(UIStrings.setAsCurrent) {
                         providerStore.setActiveProvider(id: selectedID)
                         syncAppStateFromActiveProvider()
                     }
@@ -291,7 +394,7 @@ struct SpeechProviderSettingsView: View {
                         message: $message
                     )
                 } else {
-                    Text("选择一个 provider。")
+                    Text(UIStrings.selectProviderToEdit)
                         .foregroundColor(.secondary)
                 }
 
@@ -343,52 +446,52 @@ struct SpeechProviderEditorView: View {
     var body: some View {
         Form {
             Section {
-                TextField("Provider Name", text: $provider.name)
+                TextField(UIStrings.providerName, text: $provider.name)
 
-                Picker("Provider Kind", selection: $provider.kind) {
+                Picker(UIStrings.providerKind, selection: $provider.kind) {
                     ForEach(SpeechProviderKind.allCases) { kind in
                         Text(kind.displayName).tag(kind)
                     }
                 }
 
-                TextField("Model", text: $provider.model)
+                TextField(UIStrings.model, text: $provider.model)
                     .disabled(provider.kind == .appleSpeechLive)
 
-                TextField("Language", text: optionalStringBinding(\.language))
+                TextField(UIStrings.language, text: optionalStringBinding(\.language))
             }
 
             if provider.kind == .openAIHTTPTranscription {
-                Section(header: Text("HTTP Transcription")) {
-                    TextField("Base URL", text: $provider.baseURL)
-                    TextField("Endpoint Path", text: $provider.endpointPath)
-                    TextField("Prompt", text: optionalStringBinding(\.prompt))
-                    TextField("Temperature", text: doubleBinding(\.temperature))
+                Section(header: Text(UIStrings.httpTranscriptionSection)) {
+                    TextField(UIStrings.baseURL, text: $provider.baseURL)
+                    TextField(UIStrings.endpointPath, text: $provider.endpointPath)
+                    TextField(UIStrings.prompt, text: optionalStringBinding(\.prompt))
+                    TextField(UIStrings.temperature, text: doubleBinding(\.temperature))
                 }
             }
 
             if provider.kind == .openAIRealtimeTranscription {
-                Section(header: Text("Realtime Streaming")) {
-                    TextField("Realtime URL", text: optionalStringBinding(\.realtimeURL))
-                    TextField("Realtime Path", text: optionalStringBinding(\.realtimePath))
-                    TextField("Input Audio Format", text: optionalStringBinding(\.inputAudioFormat))
-                    TextField("Sample Rate", text: intBinding(\.sampleRate))
-                    TextField("Channels", text: intBinding(\.channels))
-                    TextField("Prompt", text: optionalStringBinding(\.prompt))
-                    Toggle("Server VAD", isOn: $provider.enableServerVAD)
+                Section(header: Text(UIStrings.realtimeStreamingSection)) {
+                    TextField(UIStrings.realtimeURL, text: optionalStringBinding(\.realtimeURL))
+                    TextField(UIStrings.realtimePath, text: optionalStringBinding(\.realtimePath))
+                    TextField(UIStrings.inputAudioFormat, text: optionalStringBinding(\.inputAudioFormat))
+                    TextField(UIStrings.sampleRate, text: intBinding(\.sampleRate))
+                    TextField(UIStrings.channels, text: intBinding(\.channels))
+                    TextField(UIStrings.prompt, text: optionalStringBinding(\.prompt))
+                    Toggle(UIStrings.serverVAD, isOn: $provider.enableServerVAD)
                 }
             }
 
             if provider.kind != .appleSpeechLive {
-                Section(header: Text("API Key")) {
+                Section(header: Text(UIStrings.apiKey)) {
                     HStack {
-                        SecureField(providerStore.hasAPIKey(for: provider) ? "已保存，输入新值可覆盖" : "API Key", text: $apiKeyInput)
-                        Button("保存 Key") {
+                        SecureField(providerStore.hasAPIKey(for: provider) ? UIStrings.apiKeySavedPlaceholder : UIStrings.apiKey, text: $apiKeyInput)
+                        Button(UIStrings.saveAPIKey) {
                             saveAPIKey()
                         }
                         .disabled(apiKeyInput.isEmpty)
                     }
 
-                    Text("API Key 只保存到 Keychain，不写入配置文件。")
+                    Text(UIStrings.apiKeyStoredInKeychain)
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -434,9 +537,9 @@ struct SpeechProviderEditorView: View {
 
         if providerStore.saveAPIKey(apiKeyInput, for: provider) {
             apiKeyInput = ""
-            message = "API Key 已保存。"
+            message = UIStrings.apiKeySaved
         } else {
-            message = "API Key 保存失败。"
+            message = UIStrings.apiKeySaveFailed
         }
     }
 }
@@ -478,7 +581,7 @@ final class ShortcutRecorderCaptureView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSColor.controlAccentColor.withAlphaComponent(0.08).setFill()
         dirtyRect.fill()
-        let text = "按下快捷键，Esc 取消"
+        let text = UIStrings.shortcutCaptureHint
         let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 12, weight: .medium),
             .foregroundColor: NSColor.secondaryLabelColor

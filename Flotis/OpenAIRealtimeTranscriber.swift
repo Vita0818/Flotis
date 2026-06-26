@@ -184,7 +184,7 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             return message
         }
 
-        return "Realtime provider 返回错误。"
+        return "实时提供商返回错误。"
     }
 
     private func makeRealtimeURL() throws -> URL {
@@ -193,7 +193,7 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             throw NSError(
                 domain: "OpenAIRealtimeTranscriber",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "当前 provider 不支持实时转写，请切换到 HTTP 转写模式。"]
+                userInfo: [NSLocalizedDescriptionKey: "当前提供商不支持实时转写，请切换到 HTTP 转写模式。"]
             )
         }
 
@@ -203,7 +203,7 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             throw NSError(
                 domain: "OpenAIRealtimeTranscriber",
                 code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "Realtime URL 非法。"]
+                userInfo: [NSLocalizedDescriptionKey: "实时地址非法。"]
             )
         }
 
@@ -218,7 +218,7 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             throw NSError(
                 domain: "OpenAIRealtimeTranscriber",
                 code: 3,
-                userInfo: [NSLocalizedDescriptionKey: "Realtime URL 生成失败。"]
+                userInfo: [NSLocalizedDescriptionKey: "实时地址生成失败。"]
             )
         }
         return url

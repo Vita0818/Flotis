@@ -37,7 +37,7 @@ final class SpeechProviderStore: ObservableObject {
         case .appleSpeechLive:
             provider = SpeechProviderConfig(
                 id: UUID(),
-                name: "Apple Speech",
+                name: UIStrings.appleSpeech,
                 kind: .appleSpeechLive,
                 model: "",
                 language: "zh-CN",
@@ -56,13 +56,13 @@ final class SpeechProviderStore: ObservableObject {
         case .openAIRealtimeTranscription:
             var copy = SpeechProviderConfig.openAIRealtime
             copy.id = UUID()
-            copy.name = "Custom Realtime"
+            copy.name = UIStrings.customRealtime
             copy.apiKeyReference = "flotis.speechprovider.\(copy.id.uuidString).apikey"
             provider = copy
         case .openAIHTTPTranscription:
             var copy = SpeechProviderConfig.openAIHTTP
             copy.id = UUID()
-            copy.name = "Custom HTTP"
+            copy.name = UIStrings.customHTTP
             copy.apiKeyReference = "flotis.speechprovider.\(copy.id.uuidString).apikey"
             provider = copy
         }
@@ -86,7 +86,7 @@ final class SpeechProviderStore: ObservableObject {
 
     func deleteProvider(id: UUID) {
         guard providers.count > 1 else {
-            lastError = "至少需要保留一个语音 provider。"
+            lastError = "至少需要保留一个语音提供商。"
             return
         }
 
@@ -124,7 +124,7 @@ final class SpeechProviderStore: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: configKey),
            let snapshot = try? decoder.decode(SpeechProviderStoreSnapshot.self, from: data),
            !snapshot.providers.isEmpty {
-            providers = snapshot.providers
+            providers = snapshot.providers.map(localizedProviderName)
             activeProviderID = snapshot.providers.contains(where: { $0.id == snapshot.activeProviderID })
                 ? snapshot.activeProviderID
                 : snapshot.providers[0].id
@@ -134,6 +134,12 @@ final class SpeechProviderStore: ObservableObject {
         providers = SpeechProviderConfig.defaultProviders
         activeProviderID = SpeechProviderConfig.appleSpeechID
         save()
+    }
+
+    private func localizedProviderName(_ provider: SpeechProviderConfig) -> SpeechProviderConfig {
+        var localized = provider
+        localized.name = provider.displayNameForUI
+        return localized
     }
 
     private func save() {
@@ -147,7 +153,7 @@ final class SpeechProviderStore: ObservableObject {
             UserDefaults.standard.set(data, forKey: configKey)
             lastError = nil
         } catch {
-            lastError = "语音 provider 配置保存失败。"
+            lastError = "语音提供商配置保存失败。"
         }
     }
 }
