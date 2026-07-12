@@ -11,8 +11,11 @@ protocol StreamingSpeechTranscribing: AnyObject {
     func cancel()
 }
 
-protocol FileSpeechTranscribing {
-    func transcribeFile(_ fileURL: URL, config: SpeechProviderConfig) async throws -> String
+protocol FileSpeechTranscribing: AnyObject {
+    var partialTranscriptHandler: ((String) -> Void)? { get set }
+
+    func transcribeFile(_ fileURL: URL) async throws -> String
+    func cancel()
 }
 
 typealias SpeechTranscribing = StreamingSpeechTranscribing

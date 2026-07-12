@@ -57,11 +57,14 @@ struct FloatingPanelView: View {
                         set: { providerStore.setActiveProvider(id: $0) }
                     )) {
                         ForEach(providerStore.providers) { provider in
-                            Text(provider.displayNameForUI).tag(provider.id)
+                            Text(provider.name)
+                                .tag(provider.id)
+                                .disabled(!providerStore.isProviderReady(provider))
                         }
                     }
                     .pickerStyle(.menu)
                     .frame(maxWidth: 128)
+                    .disabled(!canChangeProvider)
 
                     Spacer()
 
@@ -216,11 +219,9 @@ struct FloatingPanelView: View {
     private var voiceButtonIcon: String {
         switch appState.voiceState {
         case .idle: return "mic.fill"
-        case .requestingPermission: return "mic.circle"
-        case .connecting: return "network"
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return "xmark.circle.fill"
         case .recording, .streaming: return "stop.circle.fill"
-        case .stopping: return "stopwatch"
-        case .transcribing: return "hourglass"
         case .injecting: return "square.and.arrow.down.fill"
         case .failed: return "exclamationmark.triangle.fill"
         }
@@ -229,12 +230,10 @@ struct FloatingPanelView: View {
     private var voiceButtonText: String {
         switch appState.voiceState {
         case .idle: return UIStrings.start
-        case .requestingPermission: return UIStrings.requestInProgress
-        case .connecting: return UIStrings.connectingShort
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return UIStrings.cancel
         case .recording: return UIStrings.stop
         case .streaming: return UIStrings.stop
-        case .stopping: return UIStrings.stoppingShort
-        case .transcribing: return UIStrings.transcribingShort
         case .injecting: return UIStrings.injectingShort
         case .failed: return UIStrings.retry
         }
@@ -253,7 +252,7 @@ struct FloatingPanelView: View {
 
     private var previewText: String {
         if case .failed(let errorMessage) = appState.voiceState {
-            return "失败：\(errorMessage)"
+            return "\(UIStrings.failed)：\(errorMessage)"
         }
 
         if !appState.transcriptPreview.isEmpty {
@@ -287,6 +286,15 @@ struct FloatingPanelView: View {
             return .red
         }
         return .secondary
+    }
+
+    private var canChangeProvider: Bool {
+        switch appState.voiceState {
+        case .idle, .failed:
+            return true
+        case .requestingPermission, .connecting, .recording, .streaming, .stopping, .transcribing, .injecting:
+            return false
+        }
     }
 }
 

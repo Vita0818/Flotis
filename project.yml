@@ -15,3 +15,15 @@ targets:
         INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Flotis 需要使用语音识别将你的讲话转换成文本。"
         INFOPLIST_KEY_NSMicrophoneUsageDescription: "Flotis 需要使用麦克风进行语音输入。"
         SWIFT_VERSION: "5.0"
+  FlotisTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: FlotisTests
+    dependencies:
+      - target: Flotis
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"

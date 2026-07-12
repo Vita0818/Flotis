@@ -1,14 +1,16 @@
 import AppKit
 import SwiftUI
 
-class FloatingPanelController: NSWindowController {
-    
+class FloatingPanelController: NSWindowController, NSWindowDelegate {
+    private let appState: AppState
+
     init(
         appState: AppState,
         commandStore: CommandStore,
         providerStore: SpeechProviderStore,
         voiceController: VoiceInputController
     ) {
+        self.appState = appState
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
             styleMask: [.nonactivatingPanel, .titled, .closable, .resizable, .fullSizeContentView],
@@ -65,6 +67,7 @@ class FloatingPanelController: NSWindowController {
         }
         
         super.init(window: panel)
+        panel.delegate = self
     }
     
     required init?(coder: NSCoder) {
@@ -74,6 +77,11 @@ class FloatingPanelController: NSWindowController {
     override func showWindow(_ sender: Any?) {
         super.showWindow(sender)
         window?.orderFrontRegardless()
+        appState.isPanelVisible = true
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        appState.isPanelVisible = false
     }
 
     private static func applyPreferredContentSize(_ preferredSize: CGSize, to panel: NSPanel) {

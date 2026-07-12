@@ -44,11 +44,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         HotkeyManager.shared.onTogglePanel = { [weak self] in
             guard let self else { return }
-            self.appState.isPanelVisible.toggle()
-            if self.appState.isPanelVisible {
-                self.panelController?.showWindow(nil)
-            } else {
+            if self.panelController?.window?.isVisible == true {
                 self.panelController?.close()
+            } else {
+                self.panelController?.showWindow(nil)
             }
         }
 
@@ -57,10 +56,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         HotkeyManager.shared.onRegistrationError = { [weak self] message in
-            self?.showHotkeyError(message)
+            self?.appState.hotkeyError = message
         }
 
-        commandStore.onCommandsChanged = { commands in
+        commandStore.onHotkeyConfigurationChanged = { commands in
             DispatchQueue.main.async {
                 HotkeyManager.shared.updateCommands(commands)
             }
@@ -88,12 +87,4 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func showHotkeyError(_ message: String) {
-        appState.hotkeyError = message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
-            if self?.appState.hotkeyError == message {
-                self?.appState.hotkeyError = nil
-            }
-        }
-    }
 }

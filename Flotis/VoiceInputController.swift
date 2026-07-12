@@ -5,15 +5,27 @@ final class VoiceInputController {
     let appState: AppState
 
     private let providerStore: SpeechProviderStore
-    private var activeStreamingTranscriber: StreamingSpeechTranscribing?
+    private let runtimeFactory: TranscriptionRuntimeFactory
+    private var activeRuntime: TranscriptionRuntimePlan?
     private var realtimeAudioCapture: StreamingAudioCapture?
     private var audioRecorder: AudioRecorder?
-    private var activeProvider: SpeechProviderConfig?
+
+    private var operationTask: Task<Void, Never>?
+    private var realtimeAudioWriterTask: Task<Void, Error>?
+    private var realtimeAudioContinuation: AsyncStream<Data>.Continuation?
+    private var recordingLimitTask: Task<Void, Never>?
+
+    private var sessionGeneration: UInt64 = 0
     private var isTransitioning = false
 
-    init(appState: AppState, providerStore: SpeechProviderStore = .shared) {
+    init(
+        appState: AppState,
+        providerStore: SpeechProviderStore = .shared,
+        runtimeFactory: TranscriptionRuntimeFactory = .shared
+    ) {
         self.appState = appState
         self.providerStore = providerStore
+        self.runtimeFactory = runtimeFactory
     }
 
     func toggleRecording() {
@@ -24,208 +36,378 @@ final class VoiceInputController {
         case .recording, .streaming:
             guard !isTransitioning else { return }
             stopAndInject()
-        case .requestingPermission, .connecting, .stopping, .transcribing, .injecting:
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            cancel()
+        case .injecting:
             showShortStatus(UIStrings.speechBusy)
         }
     }
 
     func cancel() {
-        activeStreamingTranscriber?.cancel()
-        realtimeAudioCapture?.cancel()
-        audioRecorder?.cancelRecording()
-        activeStreamingTranscriber = nil
-        realtimeAudioCapture = nil
-        audioRecorder = nil
-        activeProvider = nil
-        isTransitioning = false
+        invalidateSessionAndCancelResources()
         appState.voiceState = .idle
         appState.transcriptPreview = ""
     }
 
     private func start() {
         let provider = providerStore.activeProvider
-        activeProvider = provider
-        appState.transcriptPreview = ""
+        if let validationError = runtimeValidationError(for: provider) {
+            failWithoutActiveSession(validationError)
+            return
+        }
 
-        switch provider.kind {
-        case .appleSpeechLive:
-            startAppleSpeech(provider: provider)
-        case .openAIRealtimeTranscription:
-            startRealtime(provider: provider)
-        case .openAIHTTPTranscription:
-            startHTTPRecording(provider: provider)
+        do {
+            let requiresAPIKey = try runtimeFactory.requiresAPIKey(for: provider)
+            let resolvedAPIKey = requiresAPIKey ? apiKey(for: provider) : nil
+            if requiresAPIKey, resolvedAPIKey == nil {
+                throw TranscriptionAdapterRegistryError.missingAPIKey
+            }
+            let runtime = try runtimeFactory.makeRuntime(
+                connection: provider,
+                apiKey: resolvedAPIKey,
+                fallbackLocaleIdentifier: appState.selectedSpeechLocale
+            )
+            let sessionID = beginSession(runtime: runtime)
+            appState.transcriptPreview = ""
+
+            switch runtime {
+            case .ownedCapture(let transcriber, let automaticallyStopsOnFinal):
+                startOwnedCapture(
+                    transcriber: transcriber,
+                    automaticallyStopsOnFinal: automaticallyStopsOnFinal,
+                    sessionID: sessionID
+                )
+            case .pcmStream(let transcriber, let audio):
+                startPCMStream(
+                    transcriber: transcriber,
+                    audio: audio,
+                    sessionID: sessionID
+                )
+            case .recordedFile(let transcriber, let audio):
+                startRecordedFile(
+                    transcriber: transcriber,
+                    audio: audio,
+                    sessionID: sessionID
+                )
+            }
+        } catch {
+            failWithoutActiveSession(error.localizedDescription)
         }
     }
 
-    private func startAppleSpeech(provider: SpeechProviderConfig) {
+    private func startOwnedCapture(
+        transcriber: StreamingSpeechTranscribing,
+        automaticallyStopsOnFinal: Bool,
+        sessionID: UInt64
+    ) {
         isTransitioning = true
         appState.voiceState = .requestingPermission
 
-        let localeIdentifier = provider.language?.isEmpty == false
-            ? provider.language!
-            : appState.selectedSpeechLocale
-        let transcriber = AppleSpeechTranscriber(localeIdentifier: localeIdentifier)
-        configureStreamingHandlers(for: transcriber)
-        activeStreamingTranscriber = transcriber
+        configureStreamingHandlers(
+            for: transcriber,
+            sessionID: sessionID,
+            automaticallyStopOnFinal: automaticallyStopsOnFinal
+        )
 
-        Task {
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 try await transcriber.start()
+                guard self.isCurrent(sessionID) else {
+                    transcriber.cancel()
+                    return
+                }
+                self.operationTask = nil
                 self.appState.voiceState = .recording
                 self.isTransitioning = false
+            } catch is CancellationError {
+                // A newer session or an explicit cancel owns the UI now.
             } catch {
-                self.fail(error.localizedDescription)
+                self.fail(error.localizedDescription, for: sessionID)
             }
         }
     }
 
-    private func startRealtime(provider: SpeechProviderConfig) {
-        guard let apiKey = apiKey(for: provider) else {
-            fail("请先配置该实时提供商的 API Key。")
+    private func startPCMStream(
+        transcriber: StreamingSpeechTranscribing,
+        audio: PCMStreamRuntimeConfiguration,
+        sessionID: UInt64
+    ) {
+        isTransitioning = true
+        appState.voiceState = .connecting
+
+        let capture = StreamingAudioCapture()
+        configureStreamingHandlers(for: transcriber, sessionID: sessionID, automaticallyStopOnFinal: false)
+
+        var streamContinuation: AsyncStream<Data>.Continuation?
+        let audioStream = AsyncStream<Data>(bufferingPolicy: .bufferingOldest(audio.bufferCapacity)) {
+            streamContinuation = $0
+        }
+        guard let continuation = streamContinuation else {
+            fail("实时音频队列创建失败。", for: sessionID)
             return
         }
 
-        isTransitioning = true
-        appState.voiceState = .connecting
-        let transcriber = OpenAIRealtimeTranscriber(config: provider, apiKey: apiKey)
-        let capture = StreamingAudioCapture()
-        configureStreamingHandlers(for: transcriber)
         capture.audioChunkHandler = { [weak self] data in
-            Task { @MainActor in
-                await self?.appendRealtimeAudio(data)
+            switch continuation.yield(data) {
+            case .enqueued:
+                break
+            case .dropped:
+                continuation.finish()
+                Task { @MainActor [weak self] in
+                    self?.fail("网络发送速度跟不上录音，已停止以避免丢失音频。", for: sessionID)
+                }
+            case .terminated:
+                break
+            @unknown default:
+                continuation.finish()
             }
         }
         capture.errorHandler = { [weak self] message in
-            Task { @MainActor in
-                self?.fail(message)
+            Task { @MainActor [weak self] in
+                self?.fail(message, for: sessionID)
             }
         }
 
-        activeStreamingTranscriber = transcriber
         realtimeAudioCapture = capture
+        realtimeAudioContinuation = continuation
 
-        Task {
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 try await transcriber.start()
+                guard self.isCurrent(sessionID) else {
+                    transcriber.cancel()
+                    return
+                }
+
+                let writerTask = Task<Void, Error> { @MainActor [weak self] in
+                    do {
+                        for await data in audioStream {
+                            try Task.checkCancellation()
+                            try await transcriber.appendAudio(data)
+                        }
+                    } catch {
+                        self?.fail(error.localizedDescription, for: sessionID)
+                        throw error
+                    }
+                }
+                self.realtimeAudioWriterTask = writerTask
+
                 try await capture.start(
-                    sampleRate: provider.sampleRate ?? 24000,
-                    channels: provider.channels ?? 1
+                    sampleRate: audio.sampleRate,
+                    channels: audio.channels
                 )
+                guard self.isCurrent(sessionID) else {
+                    capture.cancel()
+                    continuation.finish()
+                    writerTask.cancel()
+                    transcriber.cancel()
+                    return
+                }
+
+                self.operationTask = nil
                 self.appState.voiceState = .streaming
                 self.isTransitioning = false
+            } catch is CancellationError {
+                continuation.finish()
+                transcriber.cancel()
             } catch {
-                self.fail(error.localizedDescription)
+                continuation.finish()
+                self.fail(error.localizedDescription, for: sessionID)
             }
         }
     }
 
-    private func startHTTPRecording(provider: SpeechProviderConfig) {
-        guard apiKey(for: provider) != nil else {
-            fail("请先配置该 HTTP 转写提供商的 API Key。")
-            return
-        }
-
+    private func startRecordedFile(
+        transcriber: FileSpeechTranscribing,
+        audio: RecordedFileRuntimeConfiguration,
+        sessionID: UInt64
+    ) {
         isTransitioning = true
         appState.voiceState = .requestingPermission
         let recorder = AudioRecorder()
         audioRecorder = recorder
+        transcriber.partialTranscriptHandler = { [weak self] text in
+            Task { @MainActor [weak self] in
+                guard let self, self.isCurrent(sessionID) else { return }
+                self.appState.transcriptPreview = text
+            }
+        }
 
-        Task {
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
-                try await recorder.startRecording()
+                try await recorder.startRecording(
+                    format: audio.format,
+                    sampleRate: audio.sampleRate,
+                    channels: audio.channels
+                )
+                guard self.isCurrent(sessionID) else {
+                    recorder.cancelRecording()
+                    return
+                }
+
+                self.operationTask = nil
                 self.appState.voiceState = .recording
-                self.appState.transcriptPreview = UIStrings.dictating
                 self.isTransitioning = false
+
+                if let maximumDuration = audio.maximumRecordingDurationSeconds {
+                    let safeMaximum = max(
+                        1,
+                        maximumDuration - audio.stopLeadSeconds
+                    )
+                    self.startRecordingCountdown(
+                        sessionID: sessionID,
+                        maximumSeconds: safeMaximum
+                    )
+                } else {
+                    self.appState.transcriptPreview = UIStrings.dictating
+                }
+            } catch is CancellationError {
+                recorder.cancelRecording()
             } catch {
-                self.fail(error.localizedDescription)
+                self.fail(error.localizedDescription, for: sessionID)
             }
         }
     }
 
     private func stopAndInject() {
-        guard let provider = activeProvider else {
+        guard let runtime = activeRuntime else {
             appState.voiceState = .idle
             return
         }
+        let sessionID = sessionGeneration
 
-        switch provider.kind {
-        case .appleSpeechLive, .openAIRealtimeTranscription:
-            stopStreamingAndInject()
-        case .openAIHTTPTranscription:
-            stopHTTPAndInject(provider: provider)
+        switch runtime {
+        case .ownedCapture, .pcmStream:
+            stopStreamingAndInject(sessionID: sessionID)
+        case .recordedFile:
+            stopRecordedFileAndInject(sessionID: sessionID)
         }
     }
 
-    private func stopStreamingAndInject() {
-        guard let transcriber = activeStreamingTranscriber else { return }
+    private func stopStreamingAndInject(sessionID: UInt64) {
+        guard isCurrent(sessionID),
+              let runtime = activeRuntime else { return }
+        let transcriber: StreamingSpeechTranscribing
+        switch runtime {
+        case .ownedCapture(let owned, _), .pcmStream(let owned, _):
+            transcriber = owned
+        case .recordedFile:
+            return
+        }
         isTransitioning = true
         appState.voiceState = .stopping
-        realtimeAudioCapture?.stop()
 
-        Task {
+        realtimeAudioCapture?.stop()
+        realtimeAudioContinuation?.finish()
+        let writerTask = realtimeAudioWriterTask
+
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
+                if let writerTask {
+                    try await writerTask.value
+                }
+                guard self.isCurrent(sessionID) else { return }
+
                 let text = try await transcriber.stop()
-                self.activeStreamingTranscriber = nil
-                self.realtimeAudioCapture = nil
-                self.activeProvider = nil
-                self.isTransitioning = false
-                self.injectFinalTranscript(text)
+                guard self.isCurrent(sessionID) else { return }
+
+                self.releaseCompletedSessionResources()
+                self.injectFinalTranscript(text, sessionID: sessionID)
+            } catch is CancellationError {
+                // Explicit cancel or a newer session invalidated this stop.
             } catch {
-                self.fail(error.localizedDescription)
+                self.fail(error.localizedDescription, for: sessionID)
             }
         }
     }
 
-    private func stopHTTPAndInject(provider: SpeechProviderConfig) {
-        guard let recorder = audioRecorder,
-              let apiKey = apiKey(for: provider) else {
-            fail("HTTP 转写未正确启动。")
+    private func stopRecordedFileAndInject(sessionID: UInt64) {
+        guard isCurrent(sessionID),
+              let recorder = audioRecorder,
+              let runtime = activeRuntime else {
+            fail("HTTP 转写未正确启动。", for: sessionID)
             return
         }
+        let transcriber: FileSpeechTranscribing
+        let audio: RecordedFileRuntimeConfiguration
+        guard case .recordedFile(let plannedTranscriber, let plannedAudio) = runtime else {
+            fail("文件转写 runtime 类型不匹配。", for: sessionID)
+            return
+        }
+        transcriber = plannedTranscriber
+        audio = plannedAudio
 
         isTransitioning = true
+        recordingLimitTask?.cancel()
+        recordingLimitTask = nil
         appState.voiceState = .transcribing
         appState.transcriptPreview = UIStrings.uploading
 
         guard let fileURL = recorder.stopRecording() else {
-            fail("录音文件创建失败。")
+            fail("录音文件创建失败。", for: sessionID)
             return
         }
         audioRecorder = nil
 
-        Task {
+        if let maximumUploadBytes = audio.maximumUploadBytes,
+           let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+           fileSize > maximumUploadBytes {
+            try? FileManager.default.removeItem(at: fileURL)
+            fail("录音超过 \(maximumUploadBytes / 1_024 / 1_024) MB，未发送。", for: sessionID)
+            return
+        }
+
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             defer {
                 try? FileManager.default.removeItem(at: fileURL)
             }
 
             do {
-                let transcriber = OpenAIHTTPTranscriber(apiKey: apiKey)
-                let text = try await transcriber.transcribeFile(fileURL, config: provider)
-                self.activeProvider = nil
-                self.isTransitioning = false
-                self.injectFinalTranscript(text)
+                let text = try await transcriber.transcribeFile(fileURL)
+                guard self.isCurrent(sessionID) else { return }
+
+                self.releaseCompletedSessionResources()
+                self.injectFinalTranscript(text, sessionID: sessionID)
+            } catch is CancellationError {
+                // Explicit cancel owns the state transition.
             } catch {
-                self.fail(error.localizedDescription)
+                self.fail(error.localizedDescription, for: sessionID)
             }
         }
     }
 
-    private func appendRealtimeAudio(_ data: Data) async {
-        guard case .streaming = appState.voiceState,
-              let transcriber = activeStreamingTranscriber else { return }
+    private func startRecordingCountdown(sessionID: UInt64, maximumSeconds: Int) {
+        recordingLimitTask?.cancel()
+        recordingLimitTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for remaining in stride(from: maximumSeconds, through: 1, by: -1) {
+                guard self.isCurrent(sessionID), self.appState.voiceState == .recording else { return }
+                self.appState.transcriptPreview = "正在录音，剩余 \(remaining) 秒"
+                do {
+                    try await Task.sleep(nanoseconds: 1_000_000_000)
+                } catch {
+                    return
+                }
+            }
 
-        do {
-            try await transcriber.appendAudio(data)
-        } catch {
-            fail(error.localizedDescription)
+            guard self.isCurrent(sessionID), self.appState.voiceState == .recording else { return }
+            self.recordingLimitTask = nil
+            self.stopAndInject()
         }
     }
 
-    private func injectFinalTranscript(_ rawText: String) {
+    private func injectFinalTranscript(_ rawText: String, sessionID: UInt64) {
+        guard isCurrent(sessionID) else { return }
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
             appState.voiceState = .idle
             appState.transcriptPreview = ""
+            isTransitioning = false
             return
         }
 
@@ -233,62 +415,135 @@ final class VoiceInputController {
         appState.voiceState = .injecting
 
         ClipboardPasteInjector.shared.inject(text: text) { [weak self] success in
-            DispatchQueue.main.async {
-                guard let self else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.isCurrent(sessionID) else { return }
                 if success {
                     self.appState.voiceState = .idle
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        if self.appState.voiceState == .idle {
-                            self.appState.transcriptPreview = ""
+                    Task { @MainActor [weak self] in
+                        do {
+                            try await Task.sleep(nanoseconds: 2_000_000_000)
+                        } catch {
+                            return
                         }
+                        guard let self,
+                              self.isCurrent(sessionID),
+                              self.appState.voiceState == .idle else { return }
+                        self.appState.transcriptPreview = ""
                     }
                 } else {
-                    self.appState.voiceState = .failed("注入失败，可能没有权限。")
+                    self.appState.voiceState = .failed(
+                        "注入失败：目标应用未就绪、修饰键未释放或辅助功能权限不足。"
+                    )
                 }
                 self.isTransitioning = false
             }
         }
     }
 
-    private func configureStreamingHandlers(for transcriber: StreamingSpeechTranscribing) {
+    private func configureStreamingHandlers(
+        for transcriber: StreamingSpeechTranscribing,
+        sessionID: UInt64,
+        automaticallyStopOnFinal: Bool
+    ) {
         transcriber.partialTranscriptHandler = { [weak self] text in
-            DispatchQueue.main.async {
-                self?.appState.transcriptPreview = text
+            Task { @MainActor [weak self] in
+                guard let self, self.isCurrent(sessionID) else { return }
+                self.appState.transcriptPreview = text
             }
         }
         transcriber.finalTranscriptHandler = { [weak self] text in
-            DispatchQueue.main.async {
-                self?.appState.transcriptPreview = text
+            Task { @MainActor [weak self] in
+                guard let self, self.isCurrent(sessionID) else { return }
+                self.appState.transcriptPreview = text
+                if automaticallyStopOnFinal,
+                   self.appState.voiceState == .recording,
+                   !self.isTransitioning {
+                    self.stopStreamingAndInject(sessionID: sessionID)
+                }
             }
         }
         transcriber.errorHandler = { [weak self] message in
-            DispatchQueue.main.async {
-                self?.fail(message)
+            Task { @MainActor [weak self] in
+                self?.fail(message, for: sessionID)
             }
         }
     }
 
     private func apiKey(for provider: SpeechProviderConfig) -> String? {
         guard let reference = provider.apiKeyReference else { return nil }
-        let key = KeychainSecretStore.shared.load(for: reference) ?? ""
+        let key = (KeychainSecretStore.shared.load(for: reference) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return key.isEmpty ? nil : key
     }
 
-    private func fail(_ message: String) {
-        activeStreamingTranscriber?.cancel()
+    private func runtimeValidationError(for provider: SpeechProviderConfig) -> String? {
+        provider.configurationValidationError()
+    }
+
+    private func beginSession(runtime: TranscriptionRuntimePlan) -> UInt64 {
+        invalidateSessionAndCancelResources()
+        activeRuntime = runtime
+        isTransitioning = false
+        return sessionGeneration
+    }
+
+    private func isCurrent(_ sessionID: UInt64) -> Bool {
+        sessionGeneration == sessionID
+    }
+
+    private func invalidateSessionAndCancelResources() {
+        sessionGeneration &+= 1
+        operationTask?.cancel()
+        realtimeAudioContinuation?.finish()
+        realtimeAudioWriterTask?.cancel()
+        recordingLimitTask?.cancel()
+        activeRuntime?.cancel()
         realtimeAudioCapture?.cancel()
         audioRecorder?.cancelRecording()
-        activeStreamingTranscriber = nil
+
+        operationTask = nil
+        realtimeAudioContinuation = nil
+        realtimeAudioWriterTask = nil
+        recordingLimitTask = nil
+        activeRuntime = nil
         realtimeAudioCapture = nil
         audioRecorder = nil
-        activeProvider = nil
         isTransitioning = false
+    }
+
+    private func releaseCompletedSessionResources() {
+        recordingLimitTask?.cancel()
+        realtimeAudioContinuation?.finish()
+
+        operationTask = nil
+        realtimeAudioContinuation = nil
+        realtimeAudioWriterTask = nil
+        recordingLimitTask = nil
+        activeRuntime = nil
+        realtimeAudioCapture = nil
+        audioRecorder = nil
+        isTransitioning = false
+    }
+
+    private func fail(_ message: String, for sessionID: UInt64) {
+        guard isCurrent(sessionID) else { return }
+        invalidateSessionAndCancelResources()
+        appState.voiceState = .failed(message)
+    }
+
+    private func failWithoutActiveSession(_ message: String) {
+        invalidateSessionAndCancelResources()
         appState.voiceState = .failed(message)
     }
 
     private func showShortStatus(_ message: String) {
         appState.pasteError = message
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+        Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 1_500_000_000)
+            } catch {
+                return
+            }
             if self?.appState.pasteError == message {
                 self?.appState.pasteError = nil
             }

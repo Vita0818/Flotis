@@ -7,7 +7,7 @@ final class HotkeyManager {
     var onCommandHotkeyPressed: ((UUID) -> Void)?
     var onTogglePanel: (() -> Void)?
     var onToggleVoice: (() -> Void)?
-    var onRegistrationError: ((String) -> Void)?
+    var onRegistrationError: ((String?) -> Void)?
 
     private enum FixedHotKeyID {
         static let togglePanel: UInt32 = 100
@@ -15,40 +15,178 @@ final class HotkeyManager {
         static let firstCommand: UInt32 = 1000
     }
 
+    private struct DesiredHotKey {
+        let descriptor: KeyboardShortcutDescriptor
+        let commandID: UUID?
+        let displayName: String
+    }
+
     private let hotKeySignature: OSType = 0x464C5448 // "FLTH"
-    private var hotKeyRefs: [EventHotKeyRef] = []
+    private let retryDelay: TimeInterval = 2
+    private var desiredHotKeysByID: [UInt32: DesiredHotKey] = [:]
+    private var hotKeyRefsByID: [UInt32: EventHotKeyRef] = [:]
+    private var activeDescriptorsByID: [UInt32: KeyboardShortcutDescriptor] = [:]
     private var commandIDsByHotKeyID: [UInt32: UUID] = [:]
+    private var hotKeyIDsByCommandID: [UUID: UInt32] = [:]
+    private var registrationFailureStatusByID: [UInt32: OSStatus] = [:]
+    private var configurationFailureMessages: [String] = []
+    private var eventHandlerFailureStatus: OSStatus?
     private var eventHandlerRef: EventHandlerRef?
-    private var registeredCommands: [PromptCommand] = []
+    private var retryWorkItem: DispatchWorkItem?
+    private var nextCommandHotKeyID = FixedHotKeyID.firstCommand
+    private var lastPublishedError: String?
+    private var isStarted = false
 
     private init() {}
 
     func start(commands: [PromptCommand]) {
-        registeredCommands = commands
-        stop()
-        installEventHandler()
-        registerConfiguredHotKeys(commands: commands)
+        performOnMainThread {
+            self.isStarted = true
+            self.updateDesiredHotKeys(commands: commands)
+            self.synchronizeRegistrations()
+        }
     }
 
     func updateCommands(_ commands: [PromptCommand]) {
-        registeredCommands = commands
-        start(commands: commands)
+        performOnMainThread {
+            guard self.isStarted else {
+                self.start(commands: commands)
+                return
+            }
+            self.updateDesiredHotKeys(commands: commands)
+            self.synchronizeRegistrations()
+        }
     }
 
     func stop() {
-        for hotKeyRef in hotKeyRefs {
-            UnregisterEventHotKey(hotKeyRef)
-        }
-        hotKeyRefs.removeAll()
-        commandIDsByHotKeyID.removeAll()
+        performOnMainThread {
+            self.isStarted = false
+            self.retryWorkItem?.cancel()
+            self.retryWorkItem = nil
 
-        if let eventHandlerRef {
-            RemoveEventHandler(eventHandlerRef)
-            self.eventHandlerRef = nil
+            for hotKeyRef in self.hotKeyRefsByID.values {
+                UnregisterEventHotKey(hotKeyRef)
+            }
+            self.hotKeyRefsByID.removeAll()
+            self.activeDescriptorsByID.removeAll()
+            self.commandIDsByHotKeyID.removeAll()
+            self.registrationFailureStatusByID.removeAll()
+            self.configurationFailureMessages.removeAll()
+            self.desiredHotKeysByID.removeAll()
+            self.hotKeyIDsByCommandID.removeAll()
+            self.nextCommandHotKeyID = FixedHotKeyID.firstCommand
+
+            if let eventHandlerRef = self.eventHandlerRef {
+                RemoveEventHandler(eventHandlerRef)
+                self.eventHandlerRef = nil
+            }
+            self.eventHandlerFailureStatus = nil
+            self.publishRegistrationState()
         }
     }
 
-    private func installEventHandler() {
+    private func performOnMainThread(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
+        }
+    }
+
+    private func updateDesiredHotKeys(commands: [PromptCommand]) {
+        var desiredHotKeys: [UInt32: DesiredHotKey] = [
+            FixedHotKeyID.togglePanel: DesiredHotKey(
+                descriptor: .togglePanel,
+                commandID: nil,
+                displayName: "显示/隐藏浮窗"
+            ),
+            FixedHotKeyID.toggleVoice: DesiredHotKey(
+                descriptor: .toggleVoice,
+                commandID: nil,
+                displayName: "语音输入"
+            )
+        ]
+        var configurationFailures: [String] = []
+        let currentCommandIDs = Set(commands.map(\.id))
+
+        for commandID in Array(hotKeyIDsByCommandID.keys) where !currentCommandIDs.contains(commandID) {
+            hotKeyIDsByCommandID.removeValue(forKey: commandID)
+        }
+
+        for command in commands.sorted(by: commandSortOrder) {
+            guard command.isEnabled, let shortcut = command.shortcut else { continue }
+            if let message = CommandStore.shortcutSafetyError(shortcut) {
+                configurationFailures.append("快捷键 \(shortcut.displayString) 未注册：\(message)")
+                continue
+            }
+
+            let hotKeyID = hotKeyIDsByCommandID[command.id] ?? allocateHotKeyID(for: command.id)
+            desiredHotKeys[hotKeyID] = DesiredHotKey(
+                descriptor: shortcut,
+                commandID: command.id,
+                displayName: command.title.isEmpty ? shortcut.displayString : command.title
+            )
+        }
+
+        desiredHotKeysByID = desiredHotKeys
+        configurationFailureMessages = configurationFailures
+    }
+
+    private func commandSortOrder(_ lhs: PromptCommand, _ rhs: PromptCommand) -> Bool {
+        if lhs.sortIndex == rhs.sortIndex {
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        return lhs.sortIndex < rhs.sortIndex
+    }
+
+    private func allocateHotKeyID(for commandID: UUID) -> UInt32 {
+        let hotKeyID = nextCommandHotKeyID
+        nextCommandHotKeyID &+= 1
+        hotKeyIDsByCommandID[commandID] = hotKeyID
+        return hotKeyID
+    }
+
+    private func synchronizeRegistrations() {
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
+
+        for hotKeyID in Array(hotKeyRefsByID.keys) {
+            guard let activeDescriptor = activeDescriptorsByID[hotKeyID],
+                  let desiredHotKey = desiredHotKeysByID[hotKeyID],
+                  activeDescriptor == desiredHotKey.descriptor,
+                  commandIDsByHotKeyID[hotKeyID] == desiredHotKey.commandID else {
+                unregisterHotKey(id: hotKeyID)
+                continue
+            }
+        }
+
+        for hotKeyID in Array(registrationFailureStatusByID.keys) {
+            guard desiredHotKeysByID[hotKeyID] != nil else {
+                registrationFailureStatusByID.removeValue(forKey: hotKeyID)
+                continue
+            }
+        }
+
+        guard installEventHandlerIfNeeded() else {
+            publishRegistrationState()
+            scheduleRetryIfNeeded()
+            return
+        }
+
+        for hotKeyID in desiredHotKeysByID.keys.sorted() where hotKeyRefsByID[hotKeyID] == nil {
+            registerHotKey(id: hotKeyID, desiredHotKey: desiredHotKeysByID[hotKeyID]!)
+        }
+
+        publishRegistrationState()
+        scheduleRetryIfNeeded()
+    }
+
+    private func installEventHandlerIfNeeded() -> Bool {
+        if eventHandlerRef != nil {
+            eventHandlerFailureStatus = nil
+            return true
+        }
+
         var eventType = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard),
             eventKind: UInt32(kEventHotKeyPressed)
@@ -67,70 +205,123 @@ final class HotkeyManager {
                 nil,
                 &hotKeyID
             )
-
             guard status == noErr else { return status }
 
             let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
+            guard hotKeyID.signature == manager.hotKeySignature else { return noErr }
             DispatchQueue.main.async {
                 manager.handleHotKey(id: hotKeyID.id)
             }
-
             return noErr
         }
 
+        var installedHandlerRef: EventHandlerRef?
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             handler,
             1,
             &eventType,
             UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-            &eventHandlerRef
+            &installedHandlerRef
         )
 
-        if status != noErr {
-            onRegistrationError?("快捷键事件监听注册失败：\(status)")
+        guard status == noErr, let installedHandlerRef else {
+            eventHandlerRef = nil
+            eventHandlerFailureStatus = status == noErr ? OSStatus(-1) : status
+            return false
         }
+
+        eventHandlerRef = installedHandlerRef
+        eventHandlerFailureStatus = nil
+        return true
     }
 
-    private func registerConfiguredHotKeys(commands: [PromptCommand]) {
-        registerHotKey(id: FixedHotKeyID.togglePanel, descriptor: .togglePanel)
-        registerHotKey(id: FixedHotKeyID.toggleVoice, descriptor: .toggleVoice)
-
-        var nextHotKeyID = FixedHotKeyID.firstCommand
-        for command in commands.sorted(by: { $0.sortIndex < $1.sortIndex }) {
-            guard command.isEnabled, let shortcut = command.shortcut else { continue }
-            let hotKeyID = nextHotKeyID
-            nextHotKeyID += 1
-            if registerHotKey(id: hotKeyID, descriptor: shortcut) {
-                commandIDsByHotKeyID[hotKeyID] = command.id
-            }
-        }
-    }
-
-    @discardableResult
-    private func registerHotKey(id: UInt32, descriptor: KeyboardShortcutDescriptor) -> Bool {
-        let hotKeyID = EventHotKeyID(signature: hotKeySignature, id: id)
+    private func registerHotKey(id: UInt32, desiredHotKey: DesiredHotKey) {
+        let eventHotKeyID = EventHotKeyID(signature: hotKeySignature, id: id)
         var hotKeyRef: EventHotKeyRef?
-
         let status = RegisterEventHotKey(
-            descriptor.keyCode,
-            descriptor.modifiers.carbonFlags,
-            hotKeyID,
+            desiredHotKey.descriptor.keyCode,
+            desiredHotKey.descriptor.modifiers.carbonFlags,
+            eventHotKeyID,
             GetApplicationEventTarget(),
             0,
             &hotKeyRef
         )
 
-        if status == noErr, let hotKeyRef {
-            hotKeyRefs.append(hotKeyRef)
-            return true
+        guard status == noErr, let hotKeyRef else {
+            if let hotKeyRef {
+                UnregisterEventHotKey(hotKeyRef)
+            }
+            registrationFailureStatusByID[id] = status == noErr ? OSStatus(-1) : status
+            commandIDsByHotKeyID.removeValue(forKey: id)
+            return
         }
 
-        onRegistrationError?("快捷键 \(descriptor.displayString) 注册失败：\(status)")
-        return false
+        hotKeyRefsByID[id] = hotKeyRef
+        activeDescriptorsByID[id] = desiredHotKey.descriptor
+        registrationFailureStatusByID.removeValue(forKey: id)
+        if let commandID = desiredHotKey.commandID {
+            commandIDsByHotKeyID[id] = commandID
+        } else {
+            commandIDsByHotKeyID.removeValue(forKey: id)
+        }
+    }
+
+    private func unregisterHotKey(id: UInt32) {
+        if let hotKeyRef = hotKeyRefsByID.removeValue(forKey: id) {
+            UnregisterEventHotKey(hotKeyRef)
+        }
+        activeDescriptorsByID.removeValue(forKey: id)
+        commandIDsByHotKeyID.removeValue(forKey: id)
+        registrationFailureStatusByID.removeValue(forKey: id)
+    }
+
+    private func scheduleRetryIfNeeded() {
+        guard isStarted,
+              eventHandlerFailureStatus != nil || !registrationFailureStatusByID.isEmpty else {
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isStarted else { return }
+            self.synchronizeRegistrations()
+        }
+        retryWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + retryDelay, execute: workItem)
+    }
+
+    private func publishRegistrationState() {
+        var messages = configurationFailureMessages.sorted()
+        if let eventHandlerFailureStatus {
+            messages.append("快捷键事件监听注册失败：\(eventHandlerFailureStatus)")
+        }
+        for hotKeyID in registrationFailureStatusByID.keys.sorted() {
+            guard let status = registrationFailureStatusByID[hotKeyID],
+                  let desiredHotKey = desiredHotKeysByID[hotKeyID] else {
+                continue
+            }
+            messages.append(
+                "快捷键 \(desiredHotKey.descriptor.displayString)（\(desiredHotKey.displayName)）注册失败：\(status)"
+            )
+        }
+
+        let message: String?
+        if messages.isEmpty {
+            message = nil
+        } else if messages.count == 1 {
+            message = messages[0]
+        } else {
+            message = "\(messages[0])；另有 \(messages.count - 1) 项快捷键异常。"
+        }
+
+        guard message != lastPublishedError else { return }
+        lastPublishedError = message
+        onRegistrationError?(message)
     }
 
     private func handleHotKey(id: UInt32) {
+        guard isStarted, hotKeyRefsByID[id] != nil else { return }
+
         if id == FixedHotKeyID.togglePanel {
             onTogglePanel?()
             return

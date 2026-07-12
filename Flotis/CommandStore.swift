@@ -7,6 +7,7 @@ final class CommandStore: ObservableObject {
     @Published var lastError: String?
 
     var onCommandsChanged: (([PromptCommand]) -> Void)?
+    var onHotkeyConfigurationChanged: (([PromptCommand]) -> Void)?
 
     private let fileURL: URL
     private let encoder = JSONEncoder()
@@ -62,17 +63,17 @@ final class CommandStore: ObservableObject {
                 commands = Self.defaultCommands
                 try saveToDisk()
             }
-            publishChange()
+            publishChange(hotkeysChanged: true)
         } catch {
             commands = Self.defaultCommands
             lastError = "命令配置读取失败，已使用默认配置。"
-            publishChange()
+            publishChange(hotkeysChanged: true)
         }
     }
 
     func resetToDefaults() {
         commands = Self.defaultCommands
-        persistAndPublish()
+        persistAndPublish(hotkeysChanged: true)
     }
 
     func addCommand() {
@@ -86,20 +87,30 @@ final class CommandStore: ObservableObject {
             shortcut: nil
         )
         commands.append(command)
-        persistAndPublish()
+        persistAndPublish(hotkeysChanged: true)
     }
 
     func updateCommand(_ command: PromptCommand) {
         guard let index = commands.firstIndex(where: { $0.id == command.id }) else { return }
+        let existingCommand = commands[index]
+        if command.shortcut != existingCommand.shortcut,
+           let shortcut = command.shortcut,
+           let message = validateShortcut(shortcut, for: command.id) {
+            lastError = message
+            return
+        }
+
+        let hotkeysChanged = existingCommand.isEnabled != command.isEnabled
+            || existingCommand.shortcut != command.shortcut
         commands[index] = command
         commands = normalized(commands)
-        persistAndPublish()
+        persistAndPublish(hotkeysChanged: hotkeysChanged)
     }
 
     func deleteCommand(id: UUID) {
         commands.removeAll { $0.id == id }
         commands = normalized(commands)
-        persistAndPublish()
+        persistAndPublish(hotkeysChanged: true)
     }
 
     func moveCommand(id: UUID, direction: Int) {
@@ -111,7 +122,7 @@ final class CommandStore: ObservableObject {
         var reordered = sorted
         reordered.swapAt(currentIndex, targetIndex)
         commands = normalized(reordered)
-        persistAndPublish()
+        persistAndPublish(hotkeysChanged: false)
     }
 
     func setEnabled(_ isEnabled: Bool, for id: UUID) {
@@ -131,9 +142,7 @@ final class CommandStore: ObservableObject {
     }
 
     func validateShortcut(_ shortcut: KeyboardShortcutDescriptor, for commandID: UUID?) -> String? {
-        guard shortcut.modifiers.hasAnyModifier else {
-            return "快捷键至少需要一个修饰键。"
-        }
+        if let message = Self.shortcutSafetyError(shortcut) { return message }
 
         if shortcut == .togglePanel {
             return "该快捷键已用于显示/隐藏浮窗。"
@@ -147,6 +156,31 @@ final class CommandStore: ObservableObject {
             command.id != commandID && command.shortcut == shortcut
         }) {
             return "快捷键已被“\(conflicting.title)”使用。"
+        }
+
+        return nil
+    }
+
+    static func shortcutSafetyError(_ shortcut: KeyboardShortcutDescriptor) -> String? {
+        guard shortcut.modifiers.hasAnyModifier else {
+            return "快捷键至少需要一个修饰键。"
+        }
+
+        let modifiers = shortcut.modifiers
+        let hasAdditionalCommandModifier = modifiers.option || modifiers.shift || modifiers.control
+        if shortcut.keyCode == 9,
+           modifiers.command,
+           !hasAdditionalCommandModifier {
+            return "不能使用 ⌘V；它会与文本注入使用的粘贴快捷键冲突。"
+        }
+
+        if Self.printableKeyCodes.contains(shortcut.keyCode) {
+            guard modifiers.command else {
+                return "字母、数字和符号类全局快捷键必须包含 ⌘。"
+            }
+            guard hasAdditionalCommandModifier else {
+                return "字母、数字和符号类全局快捷键除 ⌘ 外还需至少一个修饰键。"
+            }
         }
 
         return nil
@@ -168,14 +202,21 @@ final class CommandStore: ObservableObject {
             }
     }
 
-    private func persistAndPublish() {
+    private static let printableKeyCodes: Set<UInt32> = [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+        18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33,
+        34, 35, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 49, 50,
+        65, 67, 69, 75, 78, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92
+    ]
+
+    private func persistAndPublish(hotkeysChanged: Bool) {
         do {
             try saveToDisk()
             lastError = nil
         } catch {
             lastError = "命令配置保存失败。"
         }
-        publishChange()
+        publishChange(hotkeysChanged: hotkeysChanged)
     }
 
     private func saveToDisk() throws {
@@ -185,7 +226,10 @@ final class CommandStore: ObservableObject {
         try data.write(to: fileURL, options: [.atomic])
     }
 
-    private func publishChange() {
+    private func publishChange(hotkeysChanged: Bool) {
         onCommandsChanged?(commands)
+        if hotkeysChanged {
+            onHotkeyConfigurationChanged?(commands)
+        }
     }
 }
