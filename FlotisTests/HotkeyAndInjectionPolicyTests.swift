@@ -2,6 +2,21 @@ import XCTest
 @testable import Flotis
 
 final class HotkeyAndInjectionPolicyTests: XCTestCase {
+    func testVoiceHotkeyFollowsRecordReviewInjectSequence() {
+        XCTAssertEqual(VoiceInputState.idle.hotkeyAction, .start)
+        XCTAssertEqual(VoiceInputState.recording.hotkeyAction, .stop)
+        XCTAssertEqual(VoiceInputState.streaming.hotkeyAction, .stop)
+        XCTAssertEqual(VoiceInputState.reviewing.hotkeyAction, .inject)
+    }
+
+    func testVoiceHotkeyCancelsOnlyInFlightPreparationStates() {
+        XCTAssertEqual(VoiceInputState.requestingPermission.hotkeyAction, .cancel)
+        XCTAssertEqual(VoiceInputState.connecting.hotkeyAction, .cancel)
+        XCTAssertEqual(VoiceInputState.stopping.hotkeyAction, .cancel)
+        XCTAssertEqual(VoiceInputState.transcribing.hotkeyAction, .cancel)
+        XCTAssertEqual(VoiceInputState.injecting.hotkeyAction, .none)
+    }
+
     func testPrintableGlobalShortcutRequiresCommandAndAnotherModifier() {
         let shiftA = KeyboardShortcutDescriptor(
             keyCode: 0,

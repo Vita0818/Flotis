@@ -17,7 +17,6 @@ enum SettingsCloseMode {
 
 struct SettingsView: View {
     @ObservedObject var appState: AppState
-    @ObservedObject var commandStore: CommandStore
     @ObservedObject var providerStore: SpeechProviderStore
     @Environment(\.dismiss) private var dismiss
 
@@ -26,13 +25,11 @@ struct SettingsView: View {
 
     init(
         appState: AppState,
-        commandStore: CommandStore,
         providerStore: SpeechProviderStore,
         closeMode: SettingsCloseMode = .done,
         onClose: (() -> Void)? = nil
     ) {
         _appState = ObservedObject(wrappedValue: appState)
-        _commandStore = ObservedObject(wrappedValue: commandStore)
         _providerStore = ObservedObject(wrappedValue: providerStore)
         self.closeMode = closeMode
         self.onClose = onClose
@@ -59,11 +56,6 @@ struct SettingsView: View {
             Divider()
 
             TabView {
-                CommandsSettingsView(commandStore: commandStore)
-                    .tabItem {
-                        Text(UIStrings.commands)
-                    }
-
                 SpeechSettingsOverviewView(appState: appState, providerStore: providerStore)
                     .tabItem {
                         Text(UIStrings.speech)

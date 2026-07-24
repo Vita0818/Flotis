@@ -24,11 +24,35 @@ enum VoiceInputState: Equatable {
     case streaming
     case stopping
     case transcribing
+    case reviewing
     case injecting
     case failed(String)
 }
 
+enum VoiceHotkeyAction: Equatable {
+    case start
+    case stop
+    case cancel
+    case inject
+    case none
+}
+
 extension VoiceInputState {
+    var hotkeyAction: VoiceHotkeyAction {
+        switch self {
+        case .idle, .failed:
+            return .start
+        case .recording, .streaming:
+            return .stop
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return .cancel
+        case .reviewing:
+            return .inject
+        case .injecting:
+            return .none
+        }
+    }
+
     var displayText: String {
         switch self {
         case .idle:
@@ -45,6 +69,8 @@ extension VoiceInputState {
             return UIStrings.stopping
         case .transcribing:
             return UIStrings.transcribing
+        case .reviewing:
+            return UIStrings.reviewing
         case .injecting:
             return UIStrings.injecting
         case .failed(let message):

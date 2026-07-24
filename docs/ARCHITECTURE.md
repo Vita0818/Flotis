@@ -1,34 +1,36 @@
 # ARCHITECTURE
 
-最近自查日期：2026-07-11
+最近自查日期：2026-07-12
 
 ## 总体架构
 
-Flotis 是一个 `LSUIElement` macOS app。用户通过 Carbon 全局热键或非激活浮窗触发命令/录音；转写完成后，app 在严格核验目标应用和剪贴板状态后用 `CGEvent` 发送 `⌘V`。
+Flotis V0.8 是一个 `LSUIElement` macOS app。用户通过 Carbon 全局热键控制非激活悬浮语音胶囊；最终转写先进入可编辑审阅态，用户再次确认后，app 才在严格核验目标应用和剪贴板状态后用 `CGEvent` 发送 `⌘V`。
 
 ```text
 HotkeyManager / FloatingPanelView
             │
-            ├── PromptCommand ───────────────┐
-            │                                │
-            └── VoiceInputController         │
-                    │                        │
-                    └── Runtime plan         │
-                         ├── ownedCapture    │
-                         ├── pcmStream       │
-                         └── recordedFile    │
-                                  │          │
-              TranscriptionAdapterRegistry  │
-                                  │          │
-                       adapter runtime ──────┤
-                                             ▼
+            ▼
+VoiceInputController
+            │
+            └── Runtime plan
+                 ├── ownedCapture
+                 ├── pcmStream
+                 └── recordedFile
+                          │
+      TranscriptionAdapterRegistry
+                          │
+               adapter runtime
+                          ▼
+                 editable review
+                          │ confirm
+                          ▼
                                 ClipboardPasteInjector
                                              │
                                              ▼
                                   verified target app
 ```
 
-`AppDelegate` 装配 `AppState`、`CommandStore`、`SpeechProviderStore`、`VoiceInputController`、`FloatingPanelController` 与 `HotkeyManager`。应用退出时先停止热键并取消当前语音会话。
+`AppDelegate` 装配 `AppState`、`SpeechProviderStore`、`VoiceInputController`、`FloatingPanelController` 与 `HotkeyManager`。应用退出时先停止热键并取消当前语音会话。旧 `CommandStore`/`PromptCommand` 源码和数据格式仍保留，但 V0.8 主入口不实例化或展示它们。
 
 ## Connection、Adapter 与 Preset
 
@@ -45,14 +47,14 @@ HotkeyManager / FloatingPanelView
 - `VoiceInputController` 只处理 `ownedCapture`、`pcmStream`、`recordedFile` 三类执行计划，不读取厂商名，也不按 adapter/wire protocol switch。
 - `TranscriptionProviderPreset` 是独立 catalog。选择预设只为当前 draft 填入默认字段，不改变 connection identity，也不成为 runtime discriminator。
 
-## 热键与命令链路
+## V0.8 热键链路与旧命令兼容
 
 1. `HotkeyManager` 安装 Carbon `kEventHotKeyPressed` handler。
-2. 固定热键 ID：panel `100`、voice `200`；命令从 `1000` 开始，并按 command UUID 保存稳定映射。
-3. 命令变化只在 enabled/shortcut 改变时触发热键更新；标题、正文和排序不会导致全量 unregister/register。
-4. 注册采用差异同步；失败消息保持在 UI，并每 2 秒重试。event handler 安装失败时不会注册孤立 hotkey。
-5. 可打印键的全局快捷键必须包含 Command 与至少一个额外修饰键；固定 toggle、重复快捷键和危险的裸系统组合会被拒绝。
-6. 命令编辑器使用本地 draft，只有 Save 才写 `commands.json`。
+2. V0.8 App 只传入空 command 列表，因此只注册 panel `100`（`⌘⌥⇧0`）和 voice `200`（`⌘⌥⇧R`）。底层从 `1000` 开始的命令 ID 映射仍为旧数据兼容实现，但当前不可达。
+3. 注册仍采用差异同步；失败消息保持在胶囊，并每 2 秒重试。event handler 安装失败时不会注册孤立 hotkey。
+4. `VoiceInputState.hotkeyAction` 是纯策略映射：idle/failed→start，recording/streaming→stop，reviewing→inject，准备/停止/转写中→cancel，injecting→none。
+5. 固定语音热键触发时会先确保胶囊可见。注入器仍等待该组合的修饰键实际释放后才允许发 `⌘V`。
+6. 旧 `commands.json` 不被 V0.8 主入口加载、修改或删除；恢复命令产品能力必须另行做显式产品与迁移决策。
 
 ## 语音会话状态机
 
@@ -60,8 +62,10 @@ HotkeyManager / FloatingPanelView
 
 ```text
 idle → requestingPermission → connecting → recording/streaming
-     → stopping → transcribing → injecting → idle
-                                      └─────→ failed
+     → stopping → transcribing → reviewing → injecting → idle
+                                │       ▲         │
+                                │       └─ retry ─┘
+                                └──────────────→ failed
 ```
 
 关键生命周期约束：
@@ -69,8 +73,10 @@ idle → requestingPermission → connecting → recording/streaming
 - 每次 `beginSession` / cancel / fail 都推进 `sessionGeneration`。所有异步 callback/task 回主线程前必须匹配 generation，旧会话不能清理或注入新会话。
 - controller 保存 operation task、realtime writer task、recording limit task、streaming/file transcriber、capture/recorder；取消会统一终止这些资源。
 - connection 配置与 API key 在会话开始时快照到 adapter runtime。录音期间切换/删除 connection 或清除 Keychain 不会让已开始会话在 stop 时重新查错配置。
-- requesting/connecting/stopping/transcribing 状态都向 UI 暴露 Cancel；provider picker 在 active session 期间禁用。
-- Apple Speech 收到真正 final 时会自动走 stop/inject，不会把 UI 留在 recording。
+- requesting/connecting/stopping/transcribing 状态都向 UI 暴露 Cancel；provider 只在 Settings 中切换。
+- adapter 完成后先释放 capture/transcriber/runtime，再将 trim 后的最终文本写入 `transcriptPreview` 并进入 reviewing；reviewing 不持有录音或网络资源。
+- reviewing 中可直接编辑；确认后才调用 `ClipboardPasteInjector`。注入失败回到 reviewing 并保留文本，成功才清空并回 idle。
+- Apple Speech 收到真正 final 时会自动走 graceful stop/review，不会把 UI 留在 recording，也不会自动注入。
 
 ## 实时音频管线
 
@@ -84,6 +90,7 @@ controller 将 chunk 写入容量为 512 的有界 `AsyncStream`，由单一 wri
 
 - `AppleSpeechTranscriber` 运行时请求麦克风与 Speech 权限。
 - 必须满足 `supportsOnDeviceRecognition`，并设置 `requiresOnDeviceRecognition = true`。
+- `AppleTranscriptAccumulator` 使用 `SFTranscriptionSegment` 的 timestamp/duration 保存时间片段；重叠片段替换旧假设，非重叠片段追加。空 final 保留最后一个有效 partial，handler 始终发布完整累积文本。
 - 等待真实 final/error；不再用固定 sleep 猜测尾句。
 
 ### OpenAI Realtime transcription
@@ -172,7 +179,7 @@ adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBo
 6. post `⌘V` 后等待目标读取窗口。只有 pasteboard 仍是 app 写入的版本才恢复原 snapshot；若用户或 clipboard manager 已写新内容，则保留新内容。
 7. completion=true 表示安全前置条件成立、事件已 post、剪贴板恢复/保留成功；不宣称任意目标控件一定消费了事件。
 
-浮窗的红色关闭按钮通过 `NSWindowDelegate` 同步 `AppState.isPanelVisible`；toggle 以真实 `window.isVisible` 为准。
+V0.8 胶囊为 borderless panel，不提供红色关闭按钮；panel toggle 仍以真实 `window.isVisible` 为准，voice hotkey 在 panel 隐藏时会先恢复可见性。
 
 ## 线程与安全约束
 

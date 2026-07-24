@@ -2,6 +2,45 @@ import XCTest
 @testable import Flotis
 
 final class TranscriptAssemblyTests: XCTestCase {
+    func testAppleAccumulatorKeepsUsefulPartialWhenFinalIsEmpty() {
+        var accumulator = AppleTranscriptAccumulator()
+        XCTAssertEqual(
+            accumulator.apply("你好", startTime: 0.2, endTime: 0.8),
+            "你好"
+        )
+        XCTAssertEqual(
+            accumulator.apply("", startTime: nil, endTime: nil),
+            "你好"
+        )
+    }
+
+    func testAppleAccumulatorPreservesSegmentsSeparatedBySilence() {
+        var accumulator = AppleTranscriptAccumulator()
+        _ = accumulator.apply("hello", startTime: 0.2, endTime: 0.8)
+        XCTAssertEqual(
+            accumulator.apply("world", startTime: 4.5, endTime: 5.0),
+            "hello world"
+        )
+    }
+
+    func testAppleAccumulatorReplacesOverlappingHypothesisWithoutDuplication() {
+        var accumulator = AppleTranscriptAccumulator()
+        _ = accumulator.apply("你号", startTime: 0.2, endTime: 0.8)
+        XCTAssertEqual(
+            accumulator.apply("你好", startTime: 0.2, endTime: 0.9),
+            "你好"
+        )
+    }
+
+    func testAppleAccumulatorKeepsAdjacentTimedSegments() {
+        var accumulator = AppleTranscriptAccumulator()
+        _ = accumulator.apply("one", startTime: 0.2, endTime: 0.8)
+        XCTAssertEqual(
+            accumulator.apply("two", startTime: 0.8, endTime: 1.2),
+            "one two"
+        )
+    }
+
     func testOpenAIAssemblerUsesConversationOrderWhenCompletionsArriveOutOfOrder() {
         var assembler = OpenAITranscriptAssembler()
 

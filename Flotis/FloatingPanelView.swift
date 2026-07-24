@@ -3,94 +3,40 @@ import SwiftUI
 
 struct FloatingPanelView: View {
     @ObservedObject var appState: AppState
-    @ObservedObject var commandStore: CommandStore
     @ObservedObject var providerStore: SpeechProviderStore
     let voiceController: VoiceInputController
     let onPreferredSizeChange: (CGSize) -> Void
+
     @State private var showingSettings = false
     @State private var lastReportedPreferredSize: CGSize = .zero
 
     private var layout: FloatingPanelLayout {
         FloatingPanelLayout(
-            commands: commandStore.enabledCommands,
-            hasStatusArea: hasStatusArea
+            state: appState.voiceState,
+            hasStatusArea: statusMessage != nil
         )
-    }
-
-    private var hasStatusArea: Bool {
-        !appState.hasAccessibilityPermission
-            || appState.pasteError != nil
-            || appState.hotkeyError != nil
-            || commandStore.lastError != nil
-            || providerStore.lastError != nil
     }
 
     var body: some View {
         let layout = layout
 
-        VStack(spacing: FloatingPanelLayout.verticalSpacing) {
-            commandArea(layout: layout)
+        VStack(spacing: 0) {
+            capsuleHeader
+                .padding(.horizontal, 12)
+                .frame(height: FloatingPanelLayout.headerHeight)
 
-            if hasStatusArea {
-                statusArea
-                    .frame(height: FloatingPanelLayout.statusAreaHeight)
+            if appState.voiceState == .reviewing {
+                reviewEditor
             }
 
-            Divider().background(Color.primary.opacity(0.15))
-
-            VStack(alignment: .leading, spacing: FloatingPanelLayout.previewSpacing) {
-                HStack {
-                    Button(action: {
-                        voiceController.toggleRecording()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: voiceButtonIcon)
-                            Text(voiceButtonText)
-                        }
-                        .font(.system(size: 12, weight: .bold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(voiceButtonColor)
-
-                    Picker("", selection: Binding(
-                        get: { providerStore.activeProviderID },
-                        set: { providerStore.setActiveProvider(id: $0) }
-                    )) {
-                        ForEach(providerStore.providers) { provider in
-                            Text(provider.name)
-                                .tag(provider.id)
-                                .disabled(!providerStore.isProviderReady(provider))
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 128)
-                    .disabled(!canChangeProvider)
-
-                    Spacer()
-
-                    Button(UIStrings.settings) {
-                        showingSettings = true
-                    }
-                    .buttonStyle(.bordered)
-                    .font(.system(size: 11))
-                }
-
-                Text(previewText)
-                    .font(.system(size: 11))
-                    .foregroundColor(previewColor)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 32, alignment: .topLeading)
+            if let statusMessage {
+                statusArea(message: statusMessage)
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
-            .frame(height: FloatingPanelLayout.bottomAreaHeight, alignment: .top)
         }
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
         .sheet(isPresented: $showingSettings) {
             SettingsView(
                 appState: appState,
-                commandStore: commandStore,
                 providerStore: providerStore,
                 closeMode: .back,
                 onClose: {
@@ -105,106 +51,255 @@ struct FloatingPanelView: View {
         .onChange(of: layout.panelSize) { newSize in
             reportPreferredSize(newSize)
         }
+        .onExitCommand {
+            voiceController.cancel()
+        }
         .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
             appState.checkAccessibility()
         }
     }
 
-    @ViewBuilder
-    private func commandArea(layout: FloatingPanelLayout) -> some View {
-        if commandStore.enabledCommands.isEmpty {
-            Text(UIStrings.noEnabledCommands)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.secondary)
-                .frame(maxWidth: .infinity)
-                .frame(height: layout.commandAreaHeight)
-                .padding(.horizontal, FloatingPanelLayout.horizontalPadding)
-        } else if layout.requiresCommandScroll {
-            ScrollView {
-                commandGrid(layout: layout)
-            }
-            .frame(height: layout.commandAreaHeight)
-        } else {
-            commandGrid(layout: layout)
-                .frame(height: layout.commandAreaHeight, alignment: .top)
-        }
-    }
+    private var capsuleHeader: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.16))
+                    .frame(width: 32, height: 32)
 
-    private func commandGrid(layout: FloatingPanelLayout) -> some View {
-        LazyVGrid(columns: layout.gridColumns, spacing: FloatingPanelLayout.buttonSpacing) {
-            ForEach(commandStore.enabledCommands) { command in
-                Button(action: {
-                    injectCommand(command)
-                }) {
-                    VStack(spacing: 2) {
-                        Text(command.title.isEmpty ? UIStrings.untitledCommand : command.title)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                            .minimumScaleFactor(0.85)
-                        if let shortcut = command.shortcut {
-                            Text(shortcut.displayString)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.primary)
-                    .frame(width: layout.buttonWidth, height: FloatingPanelLayout.buttonHeight)
-                    .background(Color.primary.opacity(0.1))
-                    .cornerRadius(6)
-                    .contentShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
-                .onHover { hovering in
-                    if hovering {
-                        NSCursor.pointingHand.push()
-                    } else {
-                        NSCursor.pop()
-                    }
-                }
+                Image(systemName: statusIcon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(statusColor)
             }
-        }
-        .padding(.horizontal, FloatingPanelLayout.horizontalPadding)
-        .padding(.top, FloatingPanelLayout.commandTopPadding)
-        .padding(.bottom, FloatingPanelLayout.commandBottomPadding)
-    }
 
-    @ViewBuilder
-    private var statusArea: some View {
-        if !appState.hasAccessibilityPermission {
-            VStack(spacing: 4) {
-                Text(UIStrings.accessibilityPastePermission)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(statusTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+
+                Text(statusDetail)
                     .font(.system(size: 10))
-                    .foregroundColor(.yellow)
-                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
+            Button {
+                showingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(UIStrings.settings)
+
+            Button {
+                voiceController.toggleRecording()
+            } label: {
+                Image(systemName: actionIcon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(actionColor)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(appState.voiceState == .injecting)
+            .help(actionHelp)
+        }
+    }
+
+    private var reviewEditor: some View {
+        VStack(spacing: 8) {
+            Divider()
+
+            TextEditor(text: $appState.transcriptPreview)
+                .font(.system(size: 12))
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .background(Color.primary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .frame(height: 72)
+
+            HStack(spacing: 8) {
+                Button(UIStrings.cancel) {
+                    voiceController.cancel()
+                }
+                .buttonStyle(.borderless)
+
+                Spacer()
+
+                Text("\(KeyboardShortcutDescriptor.toggleVoice.displayString) 再按输入")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+
+                Button(UIStrings.insertText) {
+                    voiceController.toggleRecording()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(
+                    appState.transcriptPreview
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .isEmpty
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 10)
+    }
+
+    private func statusArea(message: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.orange)
+
+            Text(message)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .lineLimit(2)
+
+            Spacer(minLength: 4)
+
+            if !appState.hasAccessibilityPermission {
                 Button(UIStrings.openSettings) {
                     AccessibilityPermission.openSettings()
                 }
-                .font(.system(size: 10, weight: .bold))
-                .buttonStyle(.plain)
-                .foregroundColor(.blue)
+                .font(.system(size: 10, weight: .semibold))
+                .buttonStyle(.borderless)
             }
-            .padding(.horizontal, 12)
-        } else if let error = appState.pasteError ?? appState.hotkeyError ?? commandStore.lastError ?? providerStore.lastError {
-            Text(error)
-                .font(.system(size: 10))
-                .foregroundColor(.red)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 12)
+        }
+        .padding(.horizontal, 12)
+        .frame(height: FloatingPanelLayout.statusAreaHeight)
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 
-    private func injectCommand(_ command: PromptCommand) {
-        ClipboardPasteInjector.shared.inject(text: command.content) { success in
-            if !success {
-                appState.pasteError = UIStrings.pasteFailed
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    appState.pasteError = nil
-                }
+    private var statusMessage: String? {
+        if !appState.hasAccessibilityPermission {
+            return UIStrings.accessibilityPastePermission
+        }
+        return appState.pasteError ?? appState.hotkeyError ?? providerStore.lastError
+    }
+
+    private var statusTitle: String {
+        switch appState.voiceState {
+        case .idle:
+            return "Flotis"
+        case .requestingPermission:
+            return UIStrings.requestingPermission
+        case .connecting:
+            return UIStrings.connecting
+        case .recording, .streaming:
+            return UIStrings.recording
+        case .stopping:
+            return UIStrings.stopping
+        case .transcribing:
+            return UIStrings.transcribing
+        case .reviewing:
+            return UIStrings.reviewTranscript
+        case .injecting:
+            return UIStrings.injecting
+        case .failed:
+            return UIStrings.failed
+        }
+    }
+
+    private var statusDetail: String {
+        if case .failed(let message) = appState.voiceState {
+            return message
+        }
+
+        switch appState.voiceState {
+        case .idle:
+            return "按 \(KeyboardShortcutDescriptor.toggleVoice.displayString) 开始录音"
+        case .recording, .streaming:
+            if !appState.transcriptPreview.isEmpty,
+               appState.transcriptPreview != UIStrings.dictating {
+                return appState.transcriptPreview
             }
+            return "再按 \(KeyboardShortcutDescriptor.toggleVoice.displayString) 停止"
+        case .reviewing:
+            return UIStrings.reviewThenInsert
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return UIStrings.hotkeyCancelsCurrentOperation
+        case .injecting:
+            return UIStrings.verifyingTarget
+        case .failed:
+            return UIStrings.retry
+        }
+    }
+
+    private var statusIcon: String {
+        switch appState.voiceState {
+        case .idle:
+            return "mic.fill"
+        case .recording, .streaming:
+            return "waveform"
+        case .reviewing:
+            return "text.cursor"
+        case .failed:
+            return "exclamationmark"
+        case .injecting:
+            return "arrow.up.forward"
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return "ellipsis"
+        }
+    }
+
+    private var statusColor: Color {
+        switch appState.voiceState {
+        case .recording, .streaming:
+            return .red
+        case .failed:
+            return .orange
+        case .reviewing:
+            return .green
+        default:
+            return .accentColor
+        }
+    }
+
+    private var actionIcon: String {
+        switch appState.voiceState.hotkeyAction {
+        case .start:
+            return "mic.fill"
+        case .stop:
+            return "stop.fill"
+        case .cancel:
+            return "xmark"
+        case .inject:
+            return "arrow.up.forward"
+        case .none:
+            return "ellipsis"
+        }
+    }
+
+    private var actionColor: Color {
+        switch appState.voiceState.hotkeyAction {
+        case .stop:
+            return .red
+        case .inject:
+            return .green
+        case .cancel:
+            return .orange
+        case .start, .none:
+            return .accentColor
+        }
+    }
+
+    private var actionHelp: String {
+        switch appState.voiceState.hotkeyAction {
+        case .start:
+            return UIStrings.start
+        case .stop:
+            return UIStrings.stop
+        case .cancel:
+            return UIStrings.cancel
+        case .inject:
+            return UIStrings.insertText
+        case .none:
+            return UIStrings.speechBusy
         }
     }
 
@@ -215,195 +310,26 @@ struct FloatingPanelView: View {
             onPreferredSizeChange(size)
         }
     }
-
-    private var voiceButtonIcon: String {
-        switch appState.voiceState {
-        case .idle: return "mic.fill"
-        case .requestingPermission, .connecting, .stopping, .transcribing:
-            return "xmark.circle.fill"
-        case .recording, .streaming: return "stop.circle.fill"
-        case .injecting: return "square.and.arrow.down.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        }
-    }
-
-    private var voiceButtonText: String {
-        switch appState.voiceState {
-        case .idle: return UIStrings.start
-        case .requestingPermission, .connecting, .stopping, .transcribing:
-            return UIStrings.cancel
-        case .recording: return UIStrings.stop
-        case .streaming: return UIStrings.stop
-        case .injecting: return UIStrings.injectingShort
-        case .failed: return UIStrings.retry
-        }
-    }
-
-    private var voiceButtonColor: Color {
-        switch appState.voiceState {
-        case .recording, .streaming:
-            return .red
-        case .failed:
-            return .orange
-        default:
-            return .blue
-        }
-    }
-
-    private var previewText: String {
-        if case .failed(let errorMessage) = appState.voiceState {
-            return "\(UIStrings.failed)：\(errorMessage)"
-        }
-
-        if !appState.transcriptPreview.isEmpty {
-            return appState.transcriptPreview
-        }
-
-        switch appState.voiceState {
-        case .idle:
-            return UIStrings.transcriptPreviewPlaceholder
-        case .requestingPermission:
-            return UIStrings.requestingPermission
-        case .connecting:
-            return UIStrings.connecting
-        case .recording:
-            return UIStrings.dictating
-        case .streaming:
-            return UIStrings.realtimeTranscribing
-        case .stopping:
-            return UIStrings.stopping
-        case .transcribing:
-            return UIStrings.transcribing
-        case .injecting:
-            return UIStrings.injecting
-        case .failed:
-            return UIStrings.failed
-        }
-    }
-
-    private var previewColor: Color {
-        if case .failed = appState.voiceState {
-            return .red
-        }
-        return .secondary
-    }
-
-    private var canChangeProvider: Bool {
-        switch appState.voiceState {
-        case .idle, .failed:
-            return true
-        case .requestingPermission, .connecting, .recording, .streaming, .stopping, .transcribing, .injecting:
-            return false
-        }
-    }
 }
 
 struct FloatingPanelLayout: Equatable {
-    static let minPanelWidth: CGFloat = 300
-    static let minPanelHeight: CGFloat = 188
-    static let maxPanelWidth: CGFloat = 720
-    static let screenCoverage: CGFloat = 0.8
-    static let horizontalPadding: CGFloat = 12
-    static let commandTopPadding: CGFloat = 12
-    static let commandBottomPadding: CGFloat = 0
-    static let buttonMinWidth: CGFloat = 92
-    static let buttonMaxWidth: CGFloat = 220
-    static let buttonHeight: CGFloat = 44
-    static let buttonSpacing: CGFloat = 8
-    static let verticalSpacing: CGFloat = 10
-    static let previewSpacing: CGFloat = 6
-    static let dividerHeight: CGFloat = 1
-    static let statusAreaHeight: CGFloat = 44
-    static let bottomAreaHeight: CGFloat = 82
-    static let emptyCommandHeight: CGFloat = 32
-    static let minimumScrollableCommandAreaHeight: CGFloat = 120
+    static let minPanelWidth: CGFloat = 280
+    static let minPanelHeight: CGFloat = 58
+    static let maxPanelWidth: CGFloat = 520
+    static let maxPanelHeight: CGFloat = 240
+    static let screenCoverage: CGFloat = 0.9
+    static let headerHeight: CGFloat = 58
+    static let reviewWidth: CGFloat = 440
+    static let reviewHeight: CGFloat = 168
+    static let statusAreaHeight: CGFloat = 42
 
     let panelSize: CGSize
-    let commandAreaHeight: CGFloat
-    let buttonWidth: CGFloat
-    let columnCount: Int
-    let requiresCommandScroll: Bool
 
-    var gridColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.fixed(buttonWidth), spacing: Self.buttonSpacing, alignment: .center),
-            count: columnCount
-        )
-    }
-
-    init(commands: [PromptCommand], hasStatusArea: Bool) {
-        let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 900, height: 700)
-        let maxAllowedWidth = max(Self.minPanelWidth, min(Self.maxPanelWidth, visibleFrame.width * Self.screenCoverage))
-        let maxAllowedHeight = max(Self.minPanelHeight, visibleFrame.height * Self.screenCoverage)
-        let buttonWidth = Self.preferredButtonWidth(for: commands)
-        let maxColumns = max(
-            1,
-            Int(floor((maxAllowedWidth - Self.horizontalPadding * 2 + Self.buttonSpacing) / (buttonWidth + Self.buttonSpacing)))
-        )
-        let idealColumns = Self.idealColumnCount(for: commands.count)
-        let columnCount = min(maxColumns, idealColumns)
-        let rowCount = commands.isEmpty ? 1 : Int(ceil(Double(commands.count) / Double(columnCount)))
-        let commandContentHeight: CGFloat
-
-        if commands.isEmpty {
-            commandContentHeight = Self.emptyCommandHeight
-        } else {
-            commandContentHeight = CGFloat(rowCount) * Self.buttonHeight
-                + CGFloat(max(0, rowCount - 1)) * Self.buttonSpacing
-        }
-
-        let naturalCommandAreaHeight = Self.commandTopPadding + commandContentHeight + Self.commandBottomPadding
-        let spacingCount = hasStatusArea ? 3 : 2
-        let fixedHeight = Self.bottomAreaHeight
-            + Self.dividerHeight
-            + CGFloat(spacingCount) * Self.verticalSpacing
-            + (hasStatusArea ? Self.statusAreaHeight : 0)
-        let maxCommandAreaHeight = max(
-            Self.minimumScrollableCommandAreaHeight,
-            maxAllowedHeight - fixedHeight
-        )
-        let requiresCommandScroll = naturalCommandAreaHeight > maxCommandAreaHeight
-        let commandAreaHeight = requiresCommandScroll ? maxCommandAreaHeight : naturalCommandAreaHeight
-        let naturalWidth = Self.horizontalPadding * 2
-            + CGFloat(columnCount) * buttonWidth
-            + CGFloat(max(0, columnCount - 1)) * Self.buttonSpacing
-        let panelWidth = min(maxAllowedWidth, max(Self.minPanelWidth, naturalWidth))
-        let panelHeight = min(maxAllowedHeight, max(Self.minPanelHeight, commandAreaHeight + fixedHeight))
-
-        self.panelSize = CGSize(width: ceil(panelWidth), height: ceil(panelHeight))
-        self.commandAreaHeight = ceil(commandAreaHeight)
-        self.buttonWidth = ceil(buttonWidth)
-        self.columnCount = columnCount
-        self.requiresCommandScroll = requiresCommandScroll
-    }
-
-    private static func idealColumnCount(for commandCount: Int) -> Int {
-        switch commandCount {
-        case ...0:
-            return 1
-        case 1...2:
-            return commandCount
-        case 3...5:
-            return 3
-        case 6...8:
-            return 4
-        default:
-            return max(4, Int(ceil(Double(commandCount) / 2.0)))
-        }
-    }
-
-    private static func preferredButtonWidth(for commands: [PromptCommand]) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 11, weight: .medium)
-        let shortcutFont = NSFont.systemFont(ofSize: 9, weight: .medium)
-        let titleWidth = commands
-            .map { ($0.title.isEmpty ? UIStrings.untitledCommand : $0.title) as NSString }
-            .map { $0.size(withAttributes: [.font: font]).width }
-            .max() ?? Self.buttonMinWidth
-        let shortcutWidth = commands
-            .compactMap { $0.shortcut?.displayString }
-            .map { ($0 as NSString).size(withAttributes: [.font: shortcutFont]).width }
-            .max() ?? 0
-        let measuredWidth = max(titleWidth, shortcutWidth) + 24
-        return min(Self.buttonMaxWidth, max(Self.buttonMinWidth, measuredWidth))
+    init(state: VoiceInputState, hasStatusArea: Bool) {
+        let isReviewing = state == .reviewing
+        let width = isReviewing ? Self.reviewWidth : Self.minPanelWidth
+        let baseHeight = isReviewing ? Self.reviewHeight : Self.headerHeight
+        let height = baseHeight + (hasStatusArea ? Self.statusAreaHeight : 0)
+        panelSize = CGSize(width: width, height: height)
     }
 }

@@ -6,14 +6,18 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
 
     init(
         appState: AppState,
-        commandStore: CommandStore,
         providerStore: SpeechProviderStore,
         voiceController: VoiceInputController
     ) {
         self.appState = appState
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 400, height: 300),
-            styleMask: [.nonactivatingPanel, .titled, .closable, .resizable, .fullSizeContentView],
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: FloatingPanelLayout.minPanelWidth,
+                height: FloatingPanelLayout.minPanelHeight
+            ),
+            styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -22,20 +26,23 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
         panel.backgroundColor = .clear
         panel.isOpaque = false
+        panel.hasShadow = true
+        panel.isMovableByWindowBackground = true
+        panel.becomesKeyOnlyIfNeeded = true
         
         let visualEffect = NSVisualEffectView()
         visualEffect.material = .popover
         visualEffect.state = .active
         visualEffect.blendingMode = .behindWindow
+        visualEffect.wantsLayer = true
+        visualEffect.layer?.cornerRadius = 16
+        visualEffect.layer?.masksToBounds = true
         
         let hostingView = NSHostingView(
             rootView: FloatingPanelView(
                 appState: appState,
-                commandStore: commandStore,
                 providerStore: providerStore,
                 voiceController: voiceController,
                 onPreferredSizeChange: { [weak panel] preferredSize in
@@ -59,11 +66,20 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
             width: FloatingPanelLayout.minPanelWidth,
             height: FloatingPanelLayout.minPanelHeight
         )
+        panel.contentMaxSize = CGSize(
+            width: FloatingPanelLayout.maxPanelWidth,
+            height: FloatingPanelLayout.maxPanelHeight
+        )
         
         if let screen = NSScreen.main {
             let screenRect = screen.visibleFrame
             let panelRect = panel.frame
-            panel.setFrameOrigin(NSPoint(x: screenRect.maxX - panelRect.width - 20, y: screenRect.maxY - panelRect.height - 20))
+            panel.setFrameOrigin(
+                NSPoint(
+                    x: screenRect.midX - panelRect.width / 2,
+                    y: screenRect.minY + 32
+                )
+            )
         }
         
         super.init(window: panel)
@@ -96,7 +112,10 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
                 ),
                 height: max(
                     FloatingPanelLayout.minPanelHeight,
-                    visibleFrame.height * FloatingPanelLayout.screenCoverage
+                    min(
+                        FloatingPanelLayout.maxPanelHeight,
+                        visibleFrame.height * FloatingPanelLayout.screenCoverage
+                    )
                 )
             )
             let targetContentSize = CGSize(
@@ -122,8 +141,8 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
             ).size
             let currentFrame = panel.frame
             var targetOrigin = NSPoint(
-                x: currentFrame.maxX - targetFrameSize.width,
-                y: currentFrame.maxY - targetFrameSize.height
+                x: currentFrame.midX - targetFrameSize.width / 2,
+                y: currentFrame.minY
             )
             targetOrigin = clampedOrigin(
                 targetOrigin,

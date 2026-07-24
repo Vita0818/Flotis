@@ -2,6 +2,89 @@ import AVFoundation
 import Foundation
 import Speech
 
+struct AppleTranscriptAccumulator {
+    private struct Fragment {
+        let startTime: TimeInterval
+        let endTime: TimeInterval
+        let text: String
+    }
+
+    private static let overlapEpsilon: TimeInterval = 0.001
+    private var fragments: [Fragment] = []
+    private var untimedTranscript = ""
+
+    var transcript: String {
+        if fragments.isEmpty {
+            return untimedTranscript
+        }
+        return fragments
+            .sorted { $0.startTime < $1.startTime }
+            .reduce("") { appendTranscriptSegment($1.text, to: $0) }
+    }
+
+    mutating func reset() {
+        fragments.removeAll()
+        untimedTranscript = ""
+    }
+
+    @discardableResult
+    mutating func apply(
+        _ value: String,
+        startTime: TimeInterval?,
+        endTime: TimeInterval?
+    ) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            // Apple can emit an empty final after a useful partial. An empty update is
+            // not evidence that the already recognized speech should be discarded.
+            return transcript
+        }
+
+        if let startTime,
+           let endTime,
+           startTime >= 0,
+           endTime >= startTime {
+            fragments.removeAll {
+                $0.endTime > startTime + Self.overlapEpsilon
+            }
+            fragments.append(
+                Fragment(
+                    startTime: startTime,
+                    endTime: endTime,
+                    text: trimmed
+                )
+            )
+            untimedTranscript = ""
+            return transcript
+        }
+
+        let current = transcript
+        fragments.removeAll()
+        untimedTranscript = mergeUntimedHypothesis(trimmed, with: current)
+        return untimedTranscript
+    }
+
+    private func mergeUntimedHypothesis(_ value: String, with current: String) -> String {
+        guard !current.isEmpty else { return value }
+        if value == current { return current }
+        if value.hasPrefix(current) || current.hasPrefix(value) {
+            return value
+        }
+
+        let maximumOverlap = min(current.count, value.count)
+        if maximumOverlap > 0 {
+            for overlapLength in stride(from: maximumOverlap, through: 1, by: -1) {
+                let currentSuffix = current.suffix(overlapLength)
+                let valuePrefix = value.prefix(overlapLength)
+                if currentSuffix == valuePrefix {
+                    return current + value.dropFirst(overlapLength)
+                }
+            }
+        }
+        return appendTranscriptSegment(value, to: current)
+    }
+}
+
 private final class AppleRecognitionState: @unchecked Sendable {
     struct Status {
         let finalReceived: Bool
@@ -12,7 +95,7 @@ private final class AppleRecognitionState: @unchecked Sendable {
     private let lock = NSLock()
     private var generation: UUID?
     private var acceptingEvents = false
-    private var transcript = ""
+    private var transcriptAccumulator = AppleTranscriptAccumulator()
     private var finalReceived = false
     private var errorMessage: String?
 
@@ -20,19 +103,29 @@ private final class AppleRecognitionState: @unchecked Sendable {
         lock.lock()
         self.generation = generation
         acceptingEvents = true
-        transcript = ""
+        transcriptAccumulator.reset()
         finalReceived = false
         errorMessage = nil
         lock.unlock()
     }
 
-    func applyTranscript(_ value: String, isFinal: Bool, generation: UUID) -> Status? {
+    func applyTranscript(
+        _ value: String,
+        startTime: TimeInterval?,
+        endTime: TimeInterval?,
+        isFinal: Bool,
+        generation: UUID
+    ) -> Status? {
         lock.lock()
         guard self.generation == generation, acceptingEvents else {
             lock.unlock()
             return nil
         }
-        transcript = value
+        let transcript = transcriptAccumulator.apply(
+            value,
+            startTime: startTime,
+            endTime: endTime
+        )
         if isFinal {
             finalReceived = true
         }
@@ -56,7 +149,7 @@ private final class AppleRecognitionState: @unchecked Sendable {
         }
         let status = Status(
             finalReceived: finalReceived,
-            transcript: transcript,
+            transcript: transcriptAccumulator.transcript,
             errorMessage: errorMessage
         )
         lock.unlock()
@@ -69,7 +162,7 @@ private final class AppleRecognitionState: @unchecked Sendable {
         guard self.generation == generation else { return nil }
         return Status(
             finalReceived: finalReceived,
-            transcript: transcript,
+            transcript: transcriptAccumulator.transcript,
             errorMessage: errorMessage
         )
     }
@@ -163,15 +256,25 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
             guard let self else { return }
 
             if let result {
-                let transcript = result.bestTranscription.formattedString
+                let bestTranscription = result.bestTranscription
+                let transcript = bestTranscription.formattedString
+                let segments = bestTranscription.segments
+                let startTime = segments.map(\.timestamp).min()
+                let endTime = segments
+                    .map { $0.timestamp + $0.duration }
+                    .max()
                 guard let status = self.recognitionState.applyTranscript(
                     transcript,
+                    startTime: startTime,
+                    endTime: endTime,
                     isFinal: result.isFinal,
                     generation: generation
                 ) else { return }
-                self.handlers.partialHandler?(transcript)
+                if !status.transcript.isEmpty {
+                    self.handlers.partialHandler?(status.transcript)
+                }
                 if result.isFinal {
-                    self.handlers.finalHandler?(transcript)
+                    self.handlers.finalHandler?(status.transcript)
                     self.endAudioCapture(generation: generation)
                 }
                 if status.finalReceived {

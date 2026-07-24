@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_BUNDLE_ID="com.flotis.Flotis"
+APP_BUNDLE_ID="com.Vita0818.FlotisMac"
 APP_NAME="Flotis.app"
 
 echo "🧹 Cleaning up old builds and TCC permissions..."

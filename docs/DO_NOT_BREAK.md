@@ -1,6 +1,6 @@
 # DO_NOT_BREAK
 
-最近自查日期：2026-07-11
+最近自查日期：2026-07-12
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -17,6 +17,7 @@
 ### 命令
 
 - 路径：`~/Library/Application Support/Flotis/commands.json`。
+- V0.8 主入口不得加载、改写或删除旧命令文件，也不得注册 command ID `1000+` 热键；旧源码暂留兼容。未来删除或迁移必须由明确版本化方案驱动。
 - 格式：`[PromptCommand]` JSON；写入必须继续使用 atomic option。
 - 8 个默认命令 UUID `1111…`–`8888…` 与默认 `⌘⌥⇧1..8` 属于兼容边界；若需迁移必须显式版本化，不能静默重编号。
 - 标题/正文/排序改变不能触发全量热键重注册；仅 enabled/shortcut 改变发出 hotkey configuration change。
@@ -95,11 +96,15 @@
 ### Apple Speech
 
 - 只有 `supportsOnDeviceRecognition == true` 才能启动，并保持 `requiresOnDeviceRecognition = true`。
+- partial/final 不得再次无条件覆盖完整 transcript。空 final 不能清除已有非空 partial；同一时间范围的假设要替换，停顿后不重叠的 segment 要保留并按顺序追加。
+- Apple handler 必须发布 accumulator 的完整文本，而不是本次 callback 的原始局部字符串。
 - final/error 是实际终态；不能改回停止后固定等待若干毫秒。
 
 ## 语音生命周期与并发
 
 - `VoiceInputController` 的 session generation/identity guard 不得绕过。任何异步 callback 在修改 UI、清理资源或注入文本前都必须验证当前 session。
+- V0.8 最终转写必须先进入 `reviewing`，不得恢复“provider 完成即自动注入”。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
+- reviewing 的热键动作必须是显式 inject；注入失败必须保留当前编辑文本并回到 reviewing，成功后才允许清空文本。injecting 期间不得接受重复注入。
 - operation task、audio writer、limit task、streaming/file transcriber、capture/recorder 都必须可取消；App 退出也必须调用 cancel。
 - connection 和 key 在会话开始时快照到 adapter runtime。stop 阶段不得重新依赖一个可能已被 UI 删除/切换的 connection 或 Keychain item。
 - realtime chunk 必须进入有界串行 writer；overflow 应失败并提示，stop 必须先 drain 再 terminal commit/finish。
@@ -116,9 +121,10 @@
 - 剪贴板无法完整复制全部 item/type 时拒绝注入。恢复只在 `changeCount` 未被外部更新时进行，且要检查 `writeObjects` 成功。
 - 修饰键等待超时必须失败，不能超时后照常粘贴。
 - completion=true 只代表安全核验、event post 与 clipboard outcome 成功；不得在 UI 文案中声称已证明目标控件消费文本。
+- 点击胶囊编辑导致 Flotis 获得键盘焦点时，只能使用 `ClipboardPasteInjector` 已记录且重新核验的最近非 Flotis target；不得直接向任意 frontmost app 或未核验 PID 发事件。
 - 可打印全局快捷键必须包含 Command + 至少一个额外修饰键；固定 toggle、重复项与 `⌘V` 等危险组合必须拒绝。
 - hotkey handler 安装失败时不得继续注册；单项失败状态必须可见并自动重试。event signature 必须核验。
-- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步，包括红色关闭按钮路径。
+- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应先恢复胶囊可见性。
 
 ## 临时文件
 

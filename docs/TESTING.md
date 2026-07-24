@@ -1,6 +1,6 @@
 # TESTING
 
-最近验证日期：2026-07-11
+最近验证日期：2026-07-12
 
 ## 环境与边界
 
@@ -37,11 +37,12 @@ git diff --check
 git status --short
 ```
 
-2026-07-11 本轮结果：
+2026-07-12 V0.8 胶囊基线结果：
 
 - `xcodegen generate`：成功。
 - Debug build：`BUILD SUCCEEDED`。
-- XCTest：`TEST SUCCEEDED`，39 tests、0 failures。
+- XCTest：`TEST SUCCEEDED`，45 tests、0 failures。
+- 启动冒烟：`open -n /tmp/FlotisDerivedData/Build/Products/Debug/Flotis.app` 后进程保持运行，随后关闭测试实例；未执行视觉截图或交互矩阵。
 - 测试日志存在非致命环境/未来语言模式提示：macOS 13 deployment target 链接由 macOS 14 构建的 XCTest dylib、test host 下 App Intents `linkd` 连接日志，以及 `AppleSpeechTranscriber` 在 Swift 5 模式下对 async context 中 `NSLock` 的 Swift 6 兼容性 warning；均未造成构建或测试失败。
 - 按用户要求，本轮未创建、读取或使用真实 API key，未请求真实供应商，未采集麦克风，也未触发 Accessibility/`CGEvent` 注入。
 
@@ -49,8 +50,10 @@ git status --short
 
 ### `HotkeyAndInjectionPolicyTests`
 
-5 tests：
+7 tests：
 
+- V0.8 语音热键严格映射 start → stop → reviewing/inject。
+- requesting/connecting/stopping/transcribing 保持 cancel，injecting 拒绝重复动作。
 - 可打印全局快捷键要求 Command + 额外修饰键。
 - `⌘V` 及常见 app 系统快捷键被拒绝。
 - 默认三修饰键命令仍有效。
@@ -59,8 +62,12 @@ git status --short
 
 ### `TranscriptAssemblyTests`
 
-4 tests：
+8 tests：
 
+- Apple 有效 partial 后的空 final 不清空文本。
+- Apple 静音间隔后的非重叠 segment 保留前后两段。
+- Apple 同一时间范围的纠错假设替换而不重复。
+- Apple 时间边界相邻的两个 segment 均保留。
 - OpenAI completion 乱序时按 conversation item 顺序输出。
 - partial 被同 `item_id/content_index` 的 final 正确替换。
 - DashScope 合法重复句保留。
@@ -101,7 +108,7 @@ git status --short
 | 场景 | 操作 | 预期 |
 |---|---|---|
 | 冷启动 | `./run.sh` | 工程生成/构建成功，app 启动；因脚本重置 TCC 需重新授权 |
-| AX 未授权 | 拒绝/撤销 Accessibility 后触发命令 | 显示权限错误，不发送 `CGEvent`，目标 app 不收到文本 |
+| AX 未授权 | 拒绝/撤销 Accessibility 后在 reviewing 触发输入 | 胶囊保留文字并显示权限错误，不发送 `CGEvent`，目标 app 不收到文本 |
 | 麦克风拒绝 | 拒绝 microphone | 会话进入明确 failed，可取消/重试，不遗留 audio engine |
 | Speech 拒绝/设备不支持 | Apple provider 启动 | 明确报告设备端识别不可用，不退回云端 |
 
@@ -109,17 +116,19 @@ git status --short
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 固定 toggle | `⌘⌥⇧0` / `⌘⌥⇧R` | panel 与 voice 各自响应一次 |
-| 红色关闭按钮 | 点击 panel close 后再按 toggle | 第一次 toggle 即重新显示，状态不漂移 |
+| 固定 toggle | `⌘⌥⇧0` / `⌘⌥⇧R` | panel 与 voice 各自响应一次；隐藏时 voice 会先显示胶囊 |
+| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→injecting→idle；不会在转写完成时自动注入 |
+| 胶囊编辑 | reviewing 点击文本并修改，再按 `⌘⌥⇧R` | 修改后文本注入最后一个有效的非 Flotis 输入目标 |
+| 编辑后取消 | reviewing 修改后按 Esc/取消 | 清空本次文本并回 idle，不注入 |
+| 注入失败重试 | reviewing 时让目标退出或撤销 AX 后确认 | 返回 reviewing 且保留修改文本，恢复条件后可再次确认 |
 | 热键冲突 | 在系统/其他 app 占用组合后保存 | 错误持久显示；解除冲突后自动重试成功 |
-| 命令草稿 | 连续编辑标题/正文但不 Save | 不落盘、不抖动热键；Cancel 恢复；Save 后一次生效 |
-| 危险组合 | 尝试 `⌘V`、`⌘C`、`⌘Q`、`⇧A` | 保存被拒绝 |
+| 旧命令兼容 | 启动 V0.8 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
 
 ### 剪贴板注入
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 普通命令 | 目标 app 文本框有焦点，触发命令 | 文本注入，原剪贴板恢复 |
+| 普通语音确认 | 目标 app 文本框有焦点，reviewing 再按语音热键 | 审阅文本注入，原剪贴板恢复 |
 | 修饰键不释放 | 持续按住触发组合超过 timeout | 不粘贴，返回失败 |
 | 快速连按 | 连续触发超过队列/burst 上限 | 新请求受控失败，不产生长期 backlog/过期粘贴 |
 | 目标退出 | 入队后立即退出目标 app | 不向其他 frontmost app 粘贴 |
@@ -153,7 +162,7 @@ git status --short
 
 | Provider | 手动步骤 | 必验结果 |
 |---|---|---|
-| Apple Speech | 说短句、自然 final、手动 stop、cancel | 只用设备端；final 自动进入注入；无 orphan recording |
+| Apple Speech | 说“你好”；再说两个词并在中间静音 3–5 秒；测试同段纠错、重复词、自然 final、手动 stop、cancel | 短句不被空 final 清空；停顿前后都保留；纠错不重复拼接；只用设备端；final 进入 reviewing 而非注入；无 orphan recording |
 | OpenAI Realtime | 多个停顿形成多 item，再 stop | partial 连续；乱序 final 不丢句；commit 后等待终态；可取消 |
 | DashScope | 说“好的。好的。”再 stop | 重复句保留；finish-task 后结果收至 task-finished |
 | Volcengine | 开/关二遍识别，各录一段 | resource ID/model name 正确；terminal packet 后完成；错误包有提示 |

@@ -29,16 +29,18 @@ final class VoiceInputController {
     }
 
     func toggleRecording() {
-        switch appState.voiceState {
-        case .idle, .failed:
+        switch appState.voiceState.hotkeyAction {
+        case .start:
             guard !isTransitioning else { return }
             start()
-        case .recording, .streaming:
+        case .stop:
             guard !isTransitioning else { return }
-            stopAndInject()
-        case .requestingPermission, .connecting, .stopping, .transcribing:
+            stopAndPrepareReview()
+        case .cancel:
             cancel()
-        case .injecting:
+        case .inject:
+            injectReviewedTranscript()
+        case .none:
             showShortStatus(UIStrings.speechBusy)
         }
     }
@@ -47,6 +49,7 @@ final class VoiceInputController {
         invalidateSessionAndCancelResources()
         appState.voiceState = .idle
         appState.transcriptPreview = ""
+        appState.pasteError = nil
     }
 
     private func start() {
@@ -69,6 +72,7 @@ final class VoiceInputController {
             )
             let sessionID = beginSession(runtime: runtime)
             appState.transcriptPreview = ""
+            appState.pasteError = nil
 
             switch runtime {
             case .ownedCapture(let transcriber, let automaticallyStopsOnFinal):
@@ -272,7 +276,7 @@ final class VoiceInputController {
         }
     }
 
-    private func stopAndInject() {
+    private func stopAndPrepareReview() {
         guard let runtime = activeRuntime else {
             appState.voiceState = .idle
             return
@@ -281,13 +285,13 @@ final class VoiceInputController {
 
         switch runtime {
         case .ownedCapture, .pcmStream:
-            stopStreamingAndInject(sessionID: sessionID)
+            stopStreamingAndPrepareReview(sessionID: sessionID)
         case .recordedFile:
-            stopRecordedFileAndInject(sessionID: sessionID)
+            stopRecordedFileAndPrepareReview(sessionID: sessionID)
         }
     }
 
-    private func stopStreamingAndInject(sessionID: UInt64) {
+    private func stopStreamingAndPrepareReview(sessionID: UInt64) {
         guard isCurrent(sessionID),
               let runtime = activeRuntime else { return }
         let transcriber: StreamingSpeechTranscribing
@@ -316,7 +320,7 @@ final class VoiceInputController {
                 guard self.isCurrent(sessionID) else { return }
 
                 self.releaseCompletedSessionResources()
-                self.injectFinalTranscript(text, sessionID: sessionID)
+                self.prepareTranscriptForReview(text, sessionID: sessionID)
             } catch is CancellationError {
                 // Explicit cancel or a newer session invalidated this stop.
             } catch {
@@ -325,7 +329,7 @@ final class VoiceInputController {
         }
     }
 
-    private func stopRecordedFileAndInject(sessionID: UInt64) {
+    private func stopRecordedFileAndPrepareReview(sessionID: UInt64) {
         guard isCurrent(sessionID),
               let recorder = audioRecorder,
               let runtime = activeRuntime else {
@@ -372,7 +376,7 @@ final class VoiceInputController {
                 guard self.isCurrent(sessionID) else { return }
 
                 self.releaseCompletedSessionResources()
-                self.injectFinalTranscript(text, sessionID: sessionID)
+                self.prepareTranscriptForReview(text, sessionID: sessionID)
             } catch is CancellationError {
                 // Explicit cancel owns the state transition.
             } catch {
@@ -397,43 +401,48 @@ final class VoiceInputController {
 
             guard self.isCurrent(sessionID), self.appState.voiceState == .recording else { return }
             self.recordingLimitTask = nil
-            self.stopAndInject()
+            self.stopAndPrepareReview()
         }
     }
 
-    private func injectFinalTranscript(_ rawText: String, sessionID: UInt64) {
+    private func prepareTranscriptForReview(_ rawText: String, sessionID: UInt64) {
         guard isCurrent(sessionID) else { return }
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else {
-            appState.voiceState = .idle
             appState.transcriptPreview = ""
-            isTransitioning = false
+            fail(UIStrings.emptyTranscript, for: sessionID)
             return
         }
 
         appState.transcriptPreview = text
+        appState.voiceState = .reviewing
+        appState.pasteError = nil
+        isTransitioning = false
+    }
+
+    private func injectReviewedTranscript() {
+        guard !isTransitioning, appState.voiceState == .reviewing else { return }
+        let sessionID = sessionGeneration
+        let text = appState.transcriptPreview.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            showShortStatus(UIStrings.emptyTranscript)
+            return
+        }
+
+        isTransitioning = true
         appState.voiceState = .injecting
+        appState.pasteError = nil
 
         ClipboardPasteInjector.shared.inject(text: text) { [weak self] success in
             Task { @MainActor [weak self] in
                 guard let self, self.isCurrent(sessionID) else { return }
                 if success {
                     self.appState.voiceState = .idle
-                    Task { @MainActor [weak self] in
-                        do {
-                            try await Task.sleep(nanoseconds: 2_000_000_000)
-                        } catch {
-                            return
-                        }
-                        guard let self,
-                              self.isCurrent(sessionID),
-                              self.appState.voiceState == .idle else { return }
-                        self.appState.transcriptPreview = ""
-                    }
+                    self.appState.transcriptPreview = ""
+                    self.appState.pasteError = nil
                 } else {
-                    self.appState.voiceState = .failed(
-                        "注入失败：目标应用未就绪、修饰键未释放或辅助功能权限不足。"
-                    )
+                    self.appState.voiceState = .reviewing
+                    self.appState.pasteError = UIStrings.reviewInjectionFailed
                 }
                 self.isTransitioning = false
             }
@@ -458,7 +467,7 @@ final class VoiceInputController {
                 if automaticallyStopOnFinal,
                    self.appState.voiceState == .recording,
                    !self.isTransitioning {
-                    self.stopStreamingAndInject(sessionID: sessionID)
+                    self.stopStreamingAndPrepareReview(sessionID: sessionID)
                 }
             }
         }
