@@ -13,6 +13,9 @@ final class AppState: ObservableObject {
     @Published var selectedSpeechLocale: String = "zh-CN"
     
     func checkAccessibility() {
-        self.hasAccessibilityPermission = AccessibilityPermission.check()
+        let currentValue = AccessibilityPermission.check()
+        if hasAccessibilityPermission != currentValue {
+            hasAccessibilityPermission = currentValue
+        }
     }
 }

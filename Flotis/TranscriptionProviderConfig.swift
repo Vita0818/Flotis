@@ -1127,7 +1127,44 @@ extension TranscriptionConnection {
         makeAPIKeyReference(providerID: providerID, adapterID: wireProtocol.adapterID, nonce: nonce)
     }
 
-    var displayNameForUI: String { name }
+    var displayNameForUI: String {
+        let knownDefaultNames: Set<String>
+        let localizedDefaultName: String
+
+        switch id {
+        case Self.appleSpeechID:
+            knownDefaultNames = ["Apple 语音识别", "Apple Speech Recognition"]
+            localizedDefaultName = UIStrings.appleSpeech
+        case Self.openAIRealtimeID:
+            knownDefaultNames = ["OpenAI 实时转写", "OpenAI Realtime Transcription"]
+            localizedDefaultName = "OpenAI \(UIStrings.realtimeTranscription)"
+        case Self.openAIHTTPID:
+            knownDefaultNames = ["OpenAI HTTP 转写", "OpenAI HTTP Transcription"]
+            localizedDefaultName = "OpenAI \(UIStrings.httpTranscription)"
+        case Self.qwenParaformerRealtimeID:
+            knownDefaultNames = [
+                "Qwen/百炼 Paraformer 实时转写",
+                "Qwen/DashScope Paraformer Realtime Transcription"
+            ]
+            localizedDefaultName = UIStrings.qwenParaformerRealtime
+        case Self.volcengineBigASRRealtimeID:
+            knownDefaultNames = [
+                "火山豆包流式语音识别",
+                "Volcengine Doubao Streaming Speech Recognition"
+            ]
+            localizedDefaultName = UIStrings.volcengineBigASRRealtime
+        case Self.glmASRHTTPStreamID:
+            knownDefaultNames = [
+                "GLM-ASR 流式 HTTP 转写",
+                "GLM-ASR Streaming HTTP Transcription"
+            ]
+            localizedDefaultName = UIStrings.glmASRHTTPStream
+        default:
+            return name
+        }
+
+        return knownDefaultNames.contains(name) ? localizedDefaultName : name
+    }
 
     private var credentialDestinationComponents: URLComponents? {
         guard let endpoint else { return nil }

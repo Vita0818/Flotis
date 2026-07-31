@@ -521,15 +521,151 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         XCTAssertNotNil(provider.configurationValidationError())
     }
 
+    func testLocalSecretStorePersistsReplacesAndDeletesWithPrivatePermissions() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "FlotisLocalSecretStoreTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let directoryURL = rootURL.appendingPathComponent("Flotis", isDirectory: true)
+        let fileURL = directoryURL.appendingPathComponent("secrets.json")
+        let store = LocalSecretStore(fileURL: fileURL)
+
+        XCTAssertTrue(store.save(secret: "  synthetic-secret-one  ", for: " reference-one "))
+        XCTAssertEqual(store.load(for: "reference-one"), "synthetic-secret-one")
+        XCTAssertEqual(
+            LocalSecretStore(fileURL: fileURL).load(for: "reference-one"),
+            "synthetic-secret-one"
+        )
+        XCTAssertEqual(try posixPermissions(at: directoryURL), 0o700)
+        XCTAssertEqual(try posixPermissions(at: fileURL), 0o600)
+        XCTAssertEqual(
+            try posixPermissions(
+                at: directoryURL.appendingPathComponent(".secrets.lock")
+            ),
+            0o600
+        )
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o644)],
+            ofItemAtPath: fileURL.path
+        )
+        XCTAssertEqual(store.load(for: "reference-one"), "synthetic-secret-one")
+        XCTAssertEqual(try posixPermissions(at: fileURL), 0o600)
+
+        XCTAssertTrue(store.save(secret: "replacement-secret", for: "reference-one"))
+        XCTAssertTrue(store.save(secret: "synthetic-secret-two", for: "reference-two"))
+        XCTAssertEqual(store.load(for: "reference-one"), "replacement-secret")
+        XCTAssertEqual(store.load(for: "reference-two"), "synthetic-secret-two")
+
+        XCTAssertTrue(store.delete(for: "reference-one"))
+        XCTAssertNil(store.load(for: "reference-one"))
+        XCTAssertEqual(store.load(for: "reference-two"), "synthetic-secret-two")
+        XCTAssertTrue(store.delete(for: "reference-two"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    func testLocalSecretStoreSerializesConcurrentInstancesWithoutLostUpdates() {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "FlotisConcurrentSecretStoreTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let fileURL = rootURL
+            .appendingPathComponent("Flotis", isDirectory: true)
+            .appendingPathComponent("secrets.json")
+        let resultLock = NSLock()
+        var saveResults: [Int: Bool] = [:]
+
+        DispatchQueue.concurrentPerform(iterations: 32) { index in
+            let result = LocalSecretStore(fileURL: fileURL).save(
+                secret: "synthetic-secret-\(index)",
+                for: "reference-\(index)"
+            )
+            resultLock.lock()
+            saveResults[index] = result
+            resultLock.unlock()
+        }
+
+        XCTAssertEqual(saveResults.count, 32)
+        XCTAssertTrue(saveResults.values.allSatisfy { $0 })
+        let reloaded = LocalSecretStore(fileURL: fileURL)
+        for index in 0..<32 {
+            XCTAssertEqual(
+                reloaded.load(for: "reference-\(index)"),
+                "synthetic-secret-\(index)"
+            )
+        }
+    }
+
+    func testLocalSecretStoreRefusesToOverwriteMalformedData() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "FlotisMalformedSecretStoreTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let directoryURL = rootURL.appendingPathComponent("Flotis", isDirectory: true)
+        let fileURL = directoryURL.appendingPathComponent("secrets.json")
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: NSNumber(value: 0o700)]
+        )
+        let malformedData = Data("{not-valid-json".utf8)
+        try malformedData.write(to: fileURL)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: 0o600)],
+            ofItemAtPath: fileURL.path
+        )
+
+        let store = LocalSecretStore(fileURL: fileURL)
+        XCTAssertNil(store.load(for: "reference"))
+        XCTAssertFalse(store.save(secret: "synthetic-secret", for: "reference"))
+        XCTAssertEqual(try Data(contentsOf: fileURL), malformedData)
+    }
+
+    func testLocalSecretStoreRejectsSymbolicLinkDestination() throws {
+        let rootURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "FlotisSymlinkSecretStoreTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? FileManager.default.removeItem(at: rootURL) }
+        let directoryURL = rootURL.appendingPathComponent("Flotis", isDirectory: true)
+        let fileURL = directoryURL.appendingPathComponent("secrets.json")
+        let targetURL = rootURL.appendingPathComponent("unrelated.json")
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: NSNumber(value: 0o700)]
+        )
+        let originalTargetData = Data("do-not-change".utf8)
+        try originalTargetData.write(to: targetURL)
+        try FileManager.default.createSymbolicLink(
+            at: fileURL,
+            withDestinationURL: targetURL
+        )
+
+        let store = LocalSecretStore(fileURL: fileURL)
+        XCTAssertNil(store.load(for: "reference"))
+        XCTAssertFalse(store.save(secret: "synthetic-secret", for: "reference"))
+        XCTAssertFalse(store.delete(for: "reference"))
+        XCTAssertEqual(try Data(contentsOf: targetURL), originalTargetData)
+    }
+
     private func makeIsolatedDefaults() -> (UserDefaults, String) {
         let suiteName = "FlotisTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
         return (defaults, suiteName)
     }
+
+    private func posixPermissions(at url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
+    }
 }
 
-private final class InMemorySecretStore: KeychainSecretStoring {
+private final class InMemorySecretStore: SecretStoring {
     var secrets: [String: String] = [:]
     var deletionFailures: Set<String> = []
     var saveFailures: Set<String> = []

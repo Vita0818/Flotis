@@ -66,7 +66,10 @@ final class CommandStore: ObservableObject {
             publishChange(hotkeysChanged: true)
         } catch {
             commands = Self.defaultCommands
-            lastError = "命令配置读取失败，已使用默认配置。"
+            lastError = UIStrings.localized(
+                english: "Could not read the command configuration. Default commands are being used.",
+                simplifiedChinese: "命令配置读取失败，已使用默认配置。"
+            )
             publishChange(hotkeysChanged: true)
         }
     }
@@ -80,7 +83,10 @@ final class CommandStore: ObservableObject {
         let nextIndex = (commands.map(\.sortIndex).max() ?? -1) + 1
         let command = PromptCommand(
             id: UUID(),
-            title: "新命令",
+            title: UIStrings.localized(
+                english: "New Command",
+                simplifiedChinese: "新命令"
+            ),
             content: "",
             isEnabled: true,
             sortIndex: nextIndex,
@@ -145,17 +151,26 @@ final class CommandStore: ObservableObject {
         if let message = Self.shortcutSafetyError(shortcut) { return message }
 
         if shortcut == .togglePanel {
-            return "该快捷键已用于显示/隐藏浮窗。"
+            return UIStrings.localized(
+                english: "This shortcut is already used to show or hide the floating panel.",
+                simplifiedChinese: "该快捷键已用于显示/隐藏浮窗。"
+            )
         }
 
         if shortcut == .toggleVoice {
-            return "该快捷键已用于语音输入。"
+            return UIStrings.localized(
+                english: "This shortcut is already used for voice input.",
+                simplifiedChinese: "该快捷键已用于语音输入。"
+            )
         }
 
         if let conflicting = commands.first(where: { command in
             command.id != commandID && command.shortcut == shortcut
         }) {
-            return "快捷键已被“\(conflicting.title)”使用。"
+            return UIStrings.localized(
+                english: "This shortcut is already used by “\(conflicting.title)”.",
+                simplifiedChinese: "快捷键已被“\(conflicting.title)”使用。"
+            )
         }
 
         return nil
@@ -163,7 +178,10 @@ final class CommandStore: ObservableObject {
 
     static func shortcutSafetyError(_ shortcut: KeyboardShortcutDescriptor) -> String? {
         guard shortcut.modifiers.hasAnyModifier else {
-            return "快捷键至少需要一个修饰键。"
+            return UIStrings.localized(
+                english: "A shortcut must include at least one modifier key.",
+                simplifiedChinese: "快捷键至少需要一个修饰键。"
+            )
         }
 
         let modifiers = shortcut.modifiers
@@ -171,15 +189,24 @@ final class CommandStore: ObservableObject {
         if shortcut.keyCode == 9,
            modifiers.command,
            !hasAdditionalCommandModifier {
-            return "不能使用 ⌘V；它会与文本注入使用的粘贴快捷键冲突。"
+            return UIStrings.localized(
+                english: "⌘V cannot be used because it conflicts with the paste shortcut used for text insertion.",
+                simplifiedChinese: "不能使用 ⌘V；它会与文本注入使用的粘贴快捷键冲突。"
+            )
         }
 
         if Self.printableKeyCodes.contains(shortcut.keyCode) {
             guard modifiers.command else {
-                return "字母、数字和符号类全局快捷键必须包含 ⌘。"
+                return UIStrings.localized(
+                    english: "Global shortcuts using letters, numbers, or symbols must include ⌘.",
+                    simplifiedChinese: "字母、数字和符号类全局快捷键必须包含 ⌘。"
+                )
             }
             guard hasAdditionalCommandModifier else {
-                return "字母、数字和符号类全局快捷键除 ⌘ 外还需至少一个修饰键。"
+                return UIStrings.localized(
+                    english: "Global shortcuts using letters, numbers, or symbols must include at least one modifier key in addition to ⌘.",
+                    simplifiedChinese: "字母、数字和符号类全局快捷键除 ⌘ 外还需至少一个修饰键。"
+                )
             }
         }
 
@@ -214,7 +241,10 @@ final class CommandStore: ObservableObject {
             try saveToDisk()
             lastError = nil
         } catch {
-            lastError = "命令配置保存失败。"
+            lastError = UIStrings.localized(
+                english: "Could not save the command configuration.",
+                simplifiedChinese: "命令配置保存失败。"
+            )
         }
         publishChange(hotkeysChanged: hotkeysChanged)
     }

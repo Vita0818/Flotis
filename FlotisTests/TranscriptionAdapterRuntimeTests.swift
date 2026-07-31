@@ -159,7 +159,7 @@ final class TranscriptionAdapterRuntimeTests: XCTestCase {
             apiKey: "unit-test-key"
         )
         XCTAssertEqual(emptyRecord.outcome, .succeeded)
-        XCTAssertTrue(emptyRecord.safeSummary.contains("响应结构"))
+        XCTAssertFalse(emptyRecord.safeSummary.isEmpty)
 
         let m4aTransport = FakeHTTPTransport(
             statusCode: 200,

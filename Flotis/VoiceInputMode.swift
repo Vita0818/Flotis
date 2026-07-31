@@ -11,7 +11,7 @@ enum VoiceInputMode: String, Codable, CaseIterable, Identifiable {
         case .appleSpeech:
             return UIStrings.appleSpeech
         case .externalProvider:
-            return "外部提供商"
+            return UIStrings.externalProvider
         }
     }
 }
@@ -44,8 +44,10 @@ extension VoiceInputState {
             return .start
         case .recording, .streaming:
             return .stop
-        case .requestingPermission, .connecting, .stopping, .transcribing:
+        case .requestingPermission, .connecting:
             return .cancel
+        case .stopping, .transcribing:
+            return .none
         case .reviewing:
             return .inject
         case .injecting:
@@ -56,13 +58,13 @@ extension VoiceInputState {
     var displayText: String {
         switch self {
         case .idle:
-            return "空闲"
+            return UIStrings.idle
         case .requestingPermission:
             return UIStrings.requestingPermission
         case .connecting:
             return UIStrings.connecting
         case .recording:
-            return "正在录音"
+            return UIStrings.recording
         case .streaming:
             return UIStrings.realtimeTranscribing
         case .stopping:
@@ -74,7 +76,7 @@ extension VoiceInputState {
         case .injecting:
             return UIStrings.injecting
         case .failed(let message):
-            return "\(UIStrings.failed)：\(message)"
+            return UIStrings.failed(message: message)
         }
     }
 }

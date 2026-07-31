@@ -169,7 +169,10 @@ private struct MultipartBodyFile {
             throw makeHTTPError(
                 domain: "MultipartBodyFile",
                 code: 1,
-                message: "无法创建转写上传临时文件。"
+                message: UIStrings.localized(
+                    english: "Could not create the temporary transcription upload file.",
+                    simplifiedChinese: "无法创建转写上传临时文件。"
+                )
             )
         }
 
@@ -218,7 +221,10 @@ private struct MultipartBodyFile {
             throw makeHTTPError(
                 domain: "MultipartBodyFile",
                 code: 2,
-                message: "转写上传临时文件为空。"
+                message: UIStrings.localized(
+                    english: "The temporary transcription upload file is empty.",
+                    simplifiedChinese: "转写上传临时文件为空。"
+                )
             )
         }
         return MultipartBodyFile(url: bodyURL, boundary: boundary, byteCount: byteCount)
@@ -255,7 +261,10 @@ private enum HTTPTranscriptionSupport {
             throw makeHTTPError(
                 domain: errorDomain,
                 code: 1,
-                message: "转写地址必须是有效且不含凭据的 https:// 地址。"
+                message: UIStrings.localized(
+                    english: "The transcription URL must be a valid https:// address without embedded credentials.",
+                    simplifiedChinese: "转写地址必须是有效且不含凭据的 https:// 地址。"
+                )
             )
         }
 
@@ -263,7 +272,14 @@ private enum HTTPTranscriptionSupport {
         let path = trimmedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         components.path = "/" + [basePath, path].filter { !$0.isEmpty }.joined(separator: "/")
         guard let url = components.url else {
-            throw makeHTTPError(domain: errorDomain, code: 1, message: "基础地址或接口路径非法。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 1,
+                message: UIStrings.localized(
+                    english: "The base URL or endpoint path is invalid.",
+                    simplifiedChinese: "基础地址或接口路径非法。"
+                )
+            )
         }
         return url
     }
@@ -284,20 +300,37 @@ private enum HTTPTranscriptionSupport {
               values.isRegularFile == true,
               fileManager.isReadableFile(atPath: standardizedURL.path),
               fileSize > 0 else {
-            throw makeHTTPError(domain: errorDomain, code: 5, message: "待转写音频文件不存在、为空或不可读。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 5,
+                message: UIStrings.localized(
+                    english: "The audio file to transcribe is missing, empty, or unreadable.",
+                    simplifiedChinese: "待转写音频文件不存在、为空或不可读。"
+                )
+            )
         }
         guard fileSize <= maximumBytes else {
             throw makeHTTPError(
                 domain: errorDomain,
                 code: 6,
-                message: "音频文件超过 \(maximumBytes / 1_024 / 1_024) MB 上传限制。"
+                message: UIStrings.localized(
+                    english: "The audio file exceeds the \(maximumBytes / 1_024 / 1_024) MB upload limit.",
+                    simplifiedChinese: "音频文件超过 \(maximumBytes / 1_024 / 1_024) MB 上传限制。"
+                )
             )
         }
 
         let fileExtension = standardizedURL.pathExtension.lowercased()
         guard allowedExtensions.contains(fileExtension) else {
             let formats = allowedExtensions.sorted().joined(separator: "/")
-            throw makeHTTPError(domain: errorDomain, code: 7, message: "音频格式不受支持；请使用 \(formats)。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 7,
+                message: UIStrings.localized(
+                    english: "This audio format is not supported. Use \(formats).",
+                    simplifiedChinese: "音频格式不受支持；请使用 \(formats)。"
+                )
+            )
         }
 
         if let maximumDuration {
@@ -306,7 +339,10 @@ private enum HTTPTranscriptionSupport {
                 throw makeHTTPError(
                     domain: errorDomain,
                     code: 8,
-                    message: "音频时长必须大于 0 且不超过 \(Int(maximumDuration)) 秒。"
+                    message: UIStrings.localized(
+                        english: "Audio duration must be greater than 0 and no longer than \(Int(maximumDuration)) seconds.",
+                        simplifiedChinese: "音频时长必须大于 0 且不超过 \(Int(maximumDuration)) 秒。"
+                    )
                 )
             }
         }
@@ -371,7 +407,14 @@ final class OpenAIHTTPTranscriber: FileSpeechTranscribing {
         let transport = transportFactory()
         guard let token = activeTransport.install(transport) else {
             transport.cancel()
-            throw makeHTTPError(domain: errorDomain, code: 9, message: "已有文件转写请求正在进行。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 9,
+                message: UIStrings.localized(
+                    english: "A file transcription request is already in progress.",
+                    simplifiedChinese: "已有文件转写请求正在进行。"
+                )
+            )
         }
         defer { activeTransport.finish(token: token) }
 
@@ -432,15 +475,32 @@ final class OpenAIHTTPTranscriber: FileSpeechTranscribing {
                     throw makeHTTPError(
                         domain: errorDomain,
                         code: 11,
-                        message: "转写响应 Content-Type 必须是 application/json。"
+                        message: UIStrings.localized(
+                            english: "The transcription response Content-Type must be application/json.",
+                            simplifiedChinese: "转写响应 Content-Type 必须是 application/json。"
+                        )
                     )
                 }
 
                 guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    throw makeHTTPError(domain: errorDomain, code: 3, message: "转写响应 JSON 解析失败。")
+                    throw makeHTTPError(
+                        domain: errorDomain,
+                        code: 3,
+                        message: UIStrings.localized(
+                            english: "Could not parse the transcription response JSON.",
+                            simplifiedChinese: "转写响应 JSON 解析失败。"
+                        )
+                    )
                 }
                 if let text = json["text"] as? String { return text }
-                throw makeHTTPError(domain: errorDomain, code: 4, message: "转写响应中没有找到 text 字段。")
+                throw makeHTTPError(
+                    domain: errorDomain,
+                    code: 4,
+                    message: UIStrings.localized(
+                        english: "The transcription response does not contain a text field.",
+                        simplifiedChinese: "转写响应中没有找到 text 字段。"
+                    )
+                )
             }, onCancel: {
                 self.activeTransport.cancel(token: token)
             })
@@ -495,7 +555,14 @@ final class GLMASRHTTPTranscriber: FileSpeechTranscribing {
         let session = HTTPTranscriptionSupport.makeSession()
         guard let token = sessions.install(session) else {
             session.invalidateAndCancel()
-            throw makeHTTPError(domain: errorDomain, code: 9, message: "已有文件转写请求正在进行。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 9,
+                message: UIStrings.localized(
+                    english: "A file transcription request is already in progress.",
+                    simplifiedChinese: "已有文件转写请求正在进行。"
+                )
+            )
         }
         defer { sessions.finish(token: token) }
 
@@ -532,7 +599,14 @@ final class GLMASRHTTPTranscriber: FileSpeechTranscribing {
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue("\(body.byteCount)", forHTTPHeaderField: "Content-Length")
         guard let bodyStream = InputStream(url: body.url) else {
-            throw makeHTTPError(domain: errorDomain, code: 10, message: "无法打开转写上传临时文件。")
+            throw makeHTTPError(
+                domain: errorDomain,
+                code: 10,
+                message: UIStrings.localized(
+                    english: "Could not open the temporary transcription upload file.",
+                    simplifiedChinese: "无法打开转写上传临时文件。"
+                )
+            )
         }
         request.httpBodyStream = bodyStream
 
@@ -541,7 +615,14 @@ final class GLMASRHTTPTranscriber: FileSpeechTranscribing {
             return try await withTaskCancellationHandler(operation: {
                 let (bytes, response) = try await session.bytes(for: request)
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    throw makeHTTPError(domain: errorDomain, code: 2, message: "网络响应无效。")
+                    throw makeHTTPError(
+                        domain: errorDomain,
+                        code: 2,
+                        message: UIStrings.localized(
+                            english: "The network response is invalid.",
+                            simplifiedChinese: "网络响应无效。"
+                        )
+                    )
                 }
 
                 guard (200...299).contains(httpResponse.statusCode) else {
@@ -620,7 +701,10 @@ struct GLMSSEAccumulator {
             throw makeHTTPError(
                 domain: "GLMASRHTTPTranscriber",
                 code: 13,
-                message: "GLM-ASR SSE data 事件不是有效 JSON。"
+                message: UIStrings.localized(
+                    english: "The GLM-ASR SSE data event is not valid JSON.",
+                    simplifiedChinese: "GLM-ASR SSE data 事件不是有效 JSON。"
+                )
             )
         }
         if let error = glmSSEError(from: json) {
@@ -631,7 +715,10 @@ struct GLMSSEAccumulator {
                     Data(error.utf8),
                     redacting: redactedSecrets
                 )
-                    ?? "GLM-ASR 返回协议错误。"
+                    ?? UIStrings.localized(
+                        english: "GLM-ASR returned a protocol error.",
+                        simplifiedChinese: "GLM-ASR 返回协议错误。"
+                    )
             )
         }
 
@@ -641,7 +728,10 @@ struct GLMSSEAccumulator {
                 throw makeHTTPError(
                     domain: "GLMASRHTTPTranscriber",
                     code: 14,
-                    message: "GLM-ASR delta 事件缺少 delta 字段。"
+                    message: UIStrings.localized(
+                        english: "The GLM-ASR delta event is missing the delta field.",
+                        simplifiedChinese: "GLM-ASR delta 事件缺少 delta 字段。"
+                    )
                 )
             }
             accumulated += delta
@@ -660,7 +750,10 @@ struct GLMSSEAccumulator {
             throw makeHTTPError(
                 domain: "GLMASRHTTPTranscriber",
                 code: 12,
-                message: "GLM-ASR SSE 响应未收到 [DONE] 终态。"
+                message: UIStrings.localized(
+                    english: "The GLM-ASR SSE response did not receive the final [DONE] event.",
+                    simplifiedChinese: "GLM-ASR SSE 响应未收到 [DONE] 终态。"
+                )
             )
         }
         if !finalTranscript.isEmpty { return finalTranscript }
@@ -674,7 +767,10 @@ func validateGLMSSEContentType(_ response: HTTPURLResponse) throws {
         throw makeHTTPError(
             domain: "GLMASRHTTPTranscriber",
             code: 11,
-            message: "GLM-ASR 响应 Content-Type 必须是 text/event-stream。"
+            message: UIStrings.localized(
+                english: "The GLM-ASR response Content-Type must be text/event-stream.",
+                simplifiedChinese: "GLM-ASR 响应 Content-Type 必须是 text/event-stream。"
+            )
         )
     }
 }
@@ -692,7 +788,14 @@ private func validatedHTTPResponse(
     errorDomain: String
 ) throws -> HTTPURLResponse {
     guard let httpResponse = response as? HTTPURLResponse else {
-        throw makeHTTPError(domain: errorDomain, code: 2, message: "网络响应无效。")
+        throw makeHTTPError(
+            domain: errorDomain,
+            code: 2,
+            message: UIStrings.localized(
+                english: "The network response is invalid.",
+                simplifiedChinese: "网络响应无效。"
+            )
+        )
     }
     return httpResponse
 }

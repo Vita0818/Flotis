@@ -9,12 +9,70 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertEqual(VoiceInputState.reviewing.hotkeyAction, .inject)
     }
 
-    func testVoiceHotkeyCancelsOnlyInFlightPreparationStates() {
+    func testVoiceHotkeyCancelsPreparationButIgnoresTerminalProcessing() {
         XCTAssertEqual(VoiceInputState.requestingPermission.hotkeyAction, .cancel)
         XCTAssertEqual(VoiceInputState.connecting.hotkeyAction, .cancel)
-        XCTAssertEqual(VoiceInputState.stopping.hotkeyAction, .cancel)
-        XCTAssertEqual(VoiceInputState.transcribing.hotkeyAction, .cancel)
+        XCTAssertEqual(VoiceInputState.stopping.hotkeyAction, .none)
+        XCTAssertEqual(VoiceInputState.transcribing.hotkeyAction, .none)
         XCTAssertEqual(VoiceInputState.injecting.hotkeyAction, .none)
+    }
+
+    func testHotkeyPressGateAcceptsOnlyOnePressUntilRelease() {
+        var gate = HotKeyPressGate()
+
+        XCTAssertTrue(gate.acceptPress(id: 200))
+        XCTAssertFalse(gate.acceptPress(id: 200))
+        XCTAssertTrue(gate.acceptPress(id: 100))
+
+        gate.release(id: 200)
+        XCTAssertTrue(gate.acceptPress(id: 200))
+
+        gate.reset()
+        XCTAssertTrue(gate.acceptPress(id: 100))
+    }
+
+    func testGlobalHotkeysUseExclusiveRegistration() {
+        XCTAssertNotEqual(HotkeyManager.registrationOptions, 0)
+    }
+
+    func testPasteWaitsForModifiersAndVoicePrimaryKeyToRelease() {
+        XCTAssertFalse(
+            ClipboardPasteInjector.shouldWaitForShortcutRelease(
+                modifierKeysAreDown: false,
+                primaryKeyIsDown: false
+            )
+        )
+        XCTAssertTrue(
+            ClipboardPasteInjector.shouldWaitForShortcutRelease(
+                modifierKeysAreDown: true,
+                primaryKeyIsDown: false
+            )
+        )
+        XCTAssertTrue(
+            ClipboardPasteInjector.shouldWaitForShortcutRelease(
+                modifierKeysAreDown: false,
+                primaryKeyIsDown: true
+            )
+        )
+    }
+
+    func testFloatingPanelUsesTwoStableHeights() {
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .idle, hasStatusArea: false).panelSize,
+            CGSize(width: 120, height: 56)
+        )
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .recording, hasStatusArea: false).panelSize,
+            CGSize(width: 188, height: 56)
+        )
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .reviewing, hasStatusArea: false).panelSize,
+            CGSize(width: 420, height: 160)
+        )
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .reviewing, hasStatusArea: true).panelSize,
+            CGSize(width: 420, height: 160)
+        )
     }
 
     func testPrintableGlobalShortcutRequiresCommandAndAnotherModifier() {

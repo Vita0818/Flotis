@@ -86,7 +86,10 @@ private actor VolcengineRealtimeState {
     func cancel() {
         stopping = true
         if errorMessage == nil {
-            errorMessage = "火山语音实时转写已取消。"
+            errorMessage = UIStrings.localized(
+                english: "Volcengine Realtime transcription was canceled.",
+                simplifiedChinese: "火山语音实时转写已取消。"
+            )
         }
     }
 
@@ -153,7 +156,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
             try await sendFullClientRequest(using: sender)
             _ = try await waitForRealtimeCondition(
                 timeout: 5,
-                timeoutMessage: "火山语音实时转写启动确认超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for Volcengine Realtime startup confirmation.",
+                    simplifiedChinese: "火山语音实时转写启动确认超时。"
+                )
             ) {
                 let status = await self.state.startStatus()
                 if let errorMessage = status.errorMessage {
@@ -170,7 +176,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
     func appendAudio(_ data: Data) async throws {
         guard !data.isEmpty else { return }
         guard let sender = senderSlot.current() else {
-            throw makeError("火山语音实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The Volcengine Realtime connection has not been established.",
+                simplifiedChinese: "火山语音实时连接尚未建立。"
+            ))
         }
 
         try await state.beginAppend()
@@ -192,14 +201,20 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
 
     func stop() async throws -> String {
         guard let sender = senderSlot.current() else {
-            throw makeError("火山语音实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The Volcengine Realtime connection has not been established.",
+                simplifiedChinese: "火山语音实时连接尚未建立。"
+            ))
         }
 
         await state.beginStopping()
         do {
             _ = try await waitForRealtimeCondition(
                 timeout: 3,
-                timeoutMessage: "等待火山语音音频发送完成超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for Volcengine audio delivery to finish.",
+                    simplifiedChinese: "等待火山语音音频发送完成超时。"
+                )
             ) {
                 let status = await self.state.appendDrainStatus()
                 if let errorMessage = status.errorMessage {
@@ -218,7 +233,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
 
             let text = try await waitForRealtimeCondition(
                 timeout: 10,
-                timeoutMessage: "火山语音实时转写最终结果超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for the final Volcengine Realtime transcription.",
+                    simplifiedChinese: "火山语音实时转写最终结果超时。"
+                )
             ) {
                 let status = await self.state.stopStatus()
                 if let errorMessage = status.errorMessage {
@@ -301,13 +319,19 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
 
     private func handleServerMessage(_ data: Data) async {
         guard data.count >= 8 else {
-            await reportProtocolError("火山语音返回了过短的数据帧。")
+            await reportProtocolError(UIStrings.localized(
+                english: "Volcengine returned a data frame that is too short.",
+                simplifiedChinese: "火山语音返回了过短的数据帧。"
+            ))
             return
         }
 
         let headerSize = Int(data[0] & 0x0F) * 4
         guard headerSize >= 4, data.count >= headerSize + 4 else {
-            await reportProtocolError("火山语音返回了非法协议头。")
+            await reportProtocolError(UIStrings.localized(
+                english: "Volcengine returned an invalid protocol header.",
+                simplifiedChinese: "火山语音返回了非法协议头。"
+            ))
             return
         }
 
@@ -320,17 +344,30 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
 
         if messageType == VolcMessageType.errorResponse.rawValue {
             guard let code = readUInt32(data, at: cursor) else {
-                await reportProtocolError("火山语音错误帧缺少错误码。")
+                await reportProtocolError(UIStrings.localized(
+                    english: "The Volcengine error frame is missing an error code.",
+                    simplifiedChinese: "火山语音错误帧缺少错误码。"
+                ))
                 return
             }
             cursor += 4
             guard let size = readUInt32(data, at: cursor) else {
-                await reportProtocolError("火山语音错误帧缺少内容长度。")
+                await reportProtocolError(UIStrings.localized(
+                    english: "The Volcengine error frame is missing its content length.",
+                    simplifiedChinese: "火山语音错误帧缺少内容长度。"
+                ))
                 return
             }
             cursor += 4
-            let message = readPayloadString(data, at: cursor, size: Int(size)) ?? "火山语音服务返回错误。"
-            await reportProtocolError("火山语音服务错误 \(code)：\(message)")
+            let message = readPayloadString(data, at: cursor, size: Int(size))
+                ?? UIStrings.localized(
+                    english: "The Volcengine service returned an error.",
+                    simplifiedChinese: "火山语音服务返回错误。"
+                )
+            await reportProtocolError(UIStrings.localized(
+                english: "Volcengine service error \(code): \(message)",
+                simplifiedChinese: "火山语音服务错误 \(code)：\(message)"
+            ))
             return
         }
 
@@ -340,35 +377,53 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
 
         if (flags & 0b0001) != 0 {
             guard cursor + 4 <= data.count else {
-                await reportProtocolError("火山语音响应缺少序列号。")
+                await reportProtocolError(UIStrings.localized(
+                    english: "The Volcengine response is missing a sequence number.",
+                    simplifiedChinese: "火山语音响应缺少序列号。"
+                ))
                 return
             }
             cursor += 4
         }
 
         guard let size = readUInt32(data, at: cursor) else {
-            await reportProtocolError("火山语音响应缺少内容长度。")
+            await reportProtocolError(UIStrings.localized(
+                english: "The Volcengine response is missing its content length.",
+                simplifiedChinese: "火山语音响应缺少内容长度。"
+            ))
             return
         }
         cursor += 4
         guard cursor + Int(size) <= data.count else {
-            await reportProtocolError("火山语音响应内容长度非法。")
+            await reportProtocolError(UIStrings.localized(
+                english: "The Volcengine response has an invalid content length.",
+                simplifiedChinese: "火山语音响应内容长度非法。"
+            ))
             return
         }
         guard compression == VolcCompression.none.rawValue else {
-            await reportProtocolError("火山语音返回了当前客户端未协商的压缩响应。")
+            await reportProtocolError(UIStrings.localized(
+                english: "Volcengine returned a compressed response that this client did not negotiate.",
+                simplifiedChinese: "火山语音返回了当前客户端未协商的压缩响应。"
+            ))
             return
         }
         guard serialization == VolcSerialization.json.rawValue
                 || (serialization == VolcSerialization.none.rawValue && size == 0 && isFinalPacket) else {
-            await reportProtocolError("火山语音返回了当前客户端不支持的序列化格式。")
+            await reportProtocolError(UIStrings.localized(
+                english: "Volcengine returned a serialization format that this client does not support.",
+                simplifiedChinese: "火山语音返回了当前客户端不支持的序列化格式。"
+            ))
             return
         }
 
         if size > 0 {
             let payload = data.subdata(in: cursor..<(cursor + Int(size)))
             guard let text = String(data: payload, encoding: .utf8) else {
-                await reportProtocolError("火山语音响应不是有效 UTF-8。")
+                await reportProtocolError(UIStrings.localized(
+                    english: "The Volcengine response is not valid UTF-8.",
+                    simplifiedChinese: "火山语音响应不是有效 UTF-8。"
+                ))
                 return
             }
             await handleServerText(text, isFinalPacket: isFinalPacket)
@@ -381,7 +436,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
     private func handleServerText(_ text: String, isFinalPacket: Bool) async {
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            await reportProtocolError("火山语音响应 JSON 解析失败。")
+            await reportProtocolError(UIStrings.localized(
+                english: "Could not parse the Volcengine response JSON.",
+                simplifiedChinese: "火山语音响应 JSON 解析失败。"
+            ))
             return
         }
 
@@ -439,7 +497,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
     private func makeRealtimeURL() throws -> URL {
         guard let realtimeURL = config.realtimeURL, !realtimeURL.isEmpty,
               let realtimePath = config.realtimePath, !realtimePath.isEmpty else {
-            throw makeError("火山语音实时地址未配置。")
+            throw makeError(UIStrings.localized(
+                english: "The Volcengine Realtime endpoint is not configured.",
+                simplifiedChinese: "火山语音实时地址未配置。"
+            ))
         }
 
         let base = realtimeURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -447,7 +508,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
         guard let url = URL(string: base + path),
               url.scheme?.lowercased() == "wss",
               url.host?.isEmpty == false else {
-            throw makeError("火山语音实时地址必须是有效的 wss:// 地址。")
+            throw makeError(UIStrings.localized(
+                english: "The Volcengine Realtime endpoint must be a valid wss:// address.",
+                simplifiedChinese: "火山语音实时地址必须是有效的 wss:// 地址。"
+            ))
         }
         return url
     }
@@ -455,7 +519,10 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
     private func resourceID() throws -> String {
         let value = config.model.trimmingCharacters(in: .whitespacesAndNewlines)
         guard SpeechProviderConfig.isValidVolcengineResourceID(value) else {
-            throw makeError("火山语音模型字段应填写 X-Api-Resource-Id，例如 volc.seedasr.sauc.duration。")
+            throw makeError(UIStrings.localized(
+                english: "Enter the X-Api-Resource-Id in the Volcengine model field, for example volc.seedasr.sauc.duration.",
+                simplifiedChinese: "火山语音模型字段应填写 X-Api-Resource-Id，例如 volc.seedasr.sauc.duration。"
+            ))
         }
         return value
     }
@@ -463,13 +530,22 @@ final class VolcengineBigASRRealtimeTranscriber: StreamingSpeechTranscribing {
     private func validateConfiguration() throws {
         let format = (config.inputAudioFormat ?? "pcm").lowercased()
         guard format == "pcm" || format == "pcm16" else {
-            throw makeError("火山语音当前实时捕获管线仅支持裸 PCM16。")
+            throw makeError(UIStrings.localized(
+                english: "The current Volcengine Realtime capture pipeline only supports raw PCM16.",
+                simplifiedChinese: "火山语音当前实时捕获管线仅支持裸 PCM16。"
+            ))
         }
         guard (config.sampleRate ?? 16000) == 16000 else {
-            throw makeError("火山语音 bigmodel_async 要求 16000 Hz PCM。")
+            throw makeError(UIStrings.localized(
+                english: "Volcengine bigmodel_async requires 16000 Hz PCM audio.",
+                simplifiedChinese: "火山语音 bigmodel_async 要求 16000 Hz PCM。"
+            ))
         }
         guard (config.channels ?? 1) == 1 else {
-            throw makeError("火山语音 bigmodel_async 要求单声道。")
+            throw makeError(UIStrings.localized(
+                english: "Volcengine bigmodel_async requires mono audio.",
+                simplifiedChinese: "火山语音 bigmodel_async 要求单声道。"
+            ))
         }
         _ = try resourceID()
     }

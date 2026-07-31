@@ -96,7 +96,10 @@ private actor DashScopeRealtimeState {
     func cancel() {
         stopping = true
         if errorMessage == nil {
-            errorMessage = "Qwen/百炼实时转写已取消。"
+            errorMessage = UIStrings.localized(
+                english: "Qwen/DashScope Realtime transcription was canceled.",
+                simplifiedChinese: "Qwen/百炼实时转写已取消。"
+            )
         }
     }
 
@@ -169,7 +172,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
             try await sendJSON(runTaskPayload(), using: sender)
             _ = try await waitForRealtimeCondition(
                 timeout: 5,
-                timeoutMessage: "Qwen/百炼实时转写启动超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out starting Qwen/DashScope Realtime transcription.",
+                    simplifiedChinese: "Qwen/百炼实时转写启动超时。"
+                )
             ) {
                 let status = await self.state.startStatus()
                 if let errorMessage = status.errorMessage {
@@ -186,7 +192,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
     func appendAudio(_ data: Data) async throws {
         guard !data.isEmpty else { return }
         guard let sender = senderSlot.current() else {
-            throw makeError("Qwen/百炼实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The Qwen/DashScope Realtime connection has not been established.",
+                simplifiedChinese: "Qwen/百炼实时连接尚未建立。"
+            ))
         }
 
         try await state.beginAppend()
@@ -202,14 +211,20 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
 
     func stop() async throws -> String {
         guard let sender = senderSlot.current() else {
-            throw makeError("Qwen/百炼实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The Qwen/DashScope Realtime connection has not been established.",
+                simplifiedChinese: "Qwen/百炼实时连接尚未建立。"
+            ))
         }
 
         await state.beginStopping()
         do {
             _ = try await waitForRealtimeCondition(
                 timeout: 3,
-                timeoutMessage: "等待 Qwen/百炼音频发送完成超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for Qwen/DashScope audio delivery to finish.",
+                    simplifiedChinese: "等待 Qwen/百炼音频发送完成超时。"
+                )
             ) {
                 let status = await self.state.appendDrainStatus()
                 if let errorMessage = status.errorMessage {
@@ -222,7 +237,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
 
             let text = try await waitForRealtimeCondition(
                 timeout: 8,
-                timeoutMessage: "Qwen/百炼实时转写最终结果超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for the final Qwen/DashScope Realtime transcription.",
+                    simplifiedChinese: "Qwen/百炼实时转写最终结果超时。"
+                )
             ) {
                 let status = await self.state.stopStatus()
                 if let errorMessage = status.errorMessage {
@@ -320,7 +338,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
     private func makeRealtimeURL() throws -> URL {
         guard let realtimeURL = config.realtimeURL, !realtimeURL.isEmpty,
               let realtimePath = config.realtimePath, !realtimePath.isEmpty else {
-            throw makeError("Qwen/百炼实时地址未配置。")
+            throw makeError(UIStrings.localized(
+                english: "The Qwen/DashScope Realtime endpoint is not configured.",
+                simplifiedChinese: "Qwen/百炼实时地址未配置。"
+            ))
         }
 
         let base = realtimeURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -328,7 +349,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
         guard let url = URL(string: base + path),
               url.scheme?.lowercased() == "wss",
               url.host?.isEmpty == false else {
-            throw makeError("Qwen/百炼实时地址必须是有效的 wss:// 地址。")
+            throw makeError(UIStrings.localized(
+                english: "The Qwen/DashScope Realtime endpoint must be a valid wss:// address.",
+                simplifiedChinese: "Qwen/百炼实时地址必须是有效的 wss:// 地址。"
+            ))
         }
         return url
     }
@@ -381,7 +405,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
     ) async throws {
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let text = String(data: data, encoding: .utf8) else {
-            throw makeError("Qwen/百炼请求编码失败。")
+            throw makeError(UIStrings.localized(
+                english: "Could not encode the Qwen/DashScope request.",
+                simplifiedChinese: "Qwen/百炼请求编码失败。"
+            ))
         }
         try await sender.send(.string(text))
     }
@@ -409,7 +436,10 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
             return message
         }
         if let message = json["message"] as? String { return message }
-        return "Qwen/百炼实时转写返回错误。"
+        return UIStrings.localized(
+            english: "Qwen/DashScope Realtime transcription returned an error.",
+            simplifiedChinese: "Qwen/百炼实时转写返回错误。"
+        )
     }
 
     private func normalizedLanguageHint(_ language: String?) -> String? {
@@ -426,14 +456,23 @@ final class DashScopeParaformerRealtimeTranscriber: StreamingSpeechTranscribing 
     private func validateAudioConfiguration() throws {
         let format = (config.inputAudioFormat ?? "pcm").lowercased()
         guard format == "pcm" || format == "pcm16" else {
-            throw makeError("Qwen/百炼当前实时捕获管线仅支持裸 PCM16。")
+            throw makeError(UIStrings.localized(
+                english: "The current Qwen/DashScope Realtime capture pipeline only supports raw PCM16.",
+                simplifiedChinese: "Qwen/百炼当前实时捕获管线仅支持裸 PCM16。"
+            ))
         }
         let sampleRate = config.sampleRate ?? 16000
         guard sampleRate == 8000 || sampleRate == 16000 else {
-            throw makeError("Qwen/百炼 PCM 采样率仅支持 8000 或 16000 Hz。")
+            throw makeError(UIStrings.localized(
+                english: "Qwen/DashScope PCM supports only 8000 or 16000 Hz sample rates.",
+                simplifiedChinese: "Qwen/百炼 PCM 采样率仅支持 8000 或 16000 Hz。"
+            ))
         }
         guard (config.channels ?? 1) == 1 else {
-            throw makeError("Qwen/百炼实时转写要求单声道。")
+            throw makeError(UIStrings.localized(
+                english: "Qwen/DashScope Realtime transcription requires mono audio.",
+                simplifiedChinese: "Qwen/百炼实时转写要求单声道。"
+            ))
         }
     }
 

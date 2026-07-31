@@ -92,13 +92,25 @@ final class AudioRecorder: NSObject {
             return true
         }
         guard accepted else {
-            throw makeError(code: 5, message: "录音已经在进行中。")
+            throw makeError(
+                code: 5,
+                message: UIStrings.localized(
+                    english: "Recording is already in progress.",
+                    simplifiedChinese: "录音已经在进行中。"
+                )
+            )
         }
 
         let microphoneGranted = await requestMicrophoneAccess()
         guard microphoneGranted else {
             clearGeneration(generation)
-            throw makeError(code: 1, message: "需要开启麦克风权限。")
+            throw makeError(
+                code: 1,
+                message: UIStrings.localized(
+                    english: "Microphone access is required.",
+                    simplifiedChinese: "需要开启麦克风权限。"
+                )
+            )
         }
         do {
             try Task.checkCancellation()
@@ -138,7 +150,13 @@ final class AudioRecorder: NSObject {
             recorder.stop()
             clearGeneration(generation)
             try? FileManager.default.removeItem(at: url)
-            throw makeError(code: 2, message: "麦克风录音启动失败。")
+            throw makeError(
+                code: 2,
+                message: UIStrings.localized(
+                    english: "Could not start microphone recording.",
+                    simplifiedChinese: "麦克风录音启动失败。"
+                )
+            )
         }
 
         let stillActive = withStateLock { () -> Bool in
@@ -194,10 +212,22 @@ final class AudioRecorder: NSObject {
 
     private func validateConfiguration(sampleRate: Int, channels: Int) throws {
         guard (8000...48000).contains(sampleRate) else {
-            throw makeError(code: 3, message: "录音采样率必须在 8000 到 48000 Hz 之间。")
+            throw makeError(
+                code: 3,
+                message: UIStrings.localized(
+                    english: "The recording sample rate must be between 8000 and 48000 Hz.",
+                    simplifiedChinese: "录音采样率必须在 8000 到 48000 Hz 之间。"
+                )
+            )
         }
         guard channels == 1 || channels == 2 else {
-            throw makeError(code: 4, message: "录音仅支持单声道或双声道。")
+            throw makeError(
+                code: 4,
+                message: UIStrings.localized(
+                    english: "Recording supports only mono or stereo audio.",
+                    simplifiedChinese: "录音仅支持单声道或双声道。"
+                )
+            )
         }
     }
 

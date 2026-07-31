@@ -12,30 +12,33 @@
 		11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */; };
 		1349C582187301D655A8523B /* CommandStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC40FD954EBB9D2B3FA9E5F9 /* CommandStore.swift */; };
 		1718A5A97B805BED69E18303 /* TranscriptionConnectionTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5B716D80E0378261099D87 /* TranscriptionConnectionTester.swift */; };
+		1D9276E6D2B5559B63A0D687 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */; };
 		34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */; };
 		357C097A630C05D50077BE8B /* TranscriptionProviderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3FE1F916017519575049B3 /* TranscriptionProviderStore.swift */; };
 		3C26D369AFEB44306C389A12 /* StreamingAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */; };
 		41BFF3458041CF89BF51EC2E /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037EC58D9A17FE68E6493AED /* AudioRecorder.swift */; };
 		57102622D3CE1B0C5E90FDA9 /* ClipboardPasteInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */; };
+		58958616F2F70A7B493E9A94 /* LocalSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */; };
 		62C3B5080784C6FC4357C6FA /* HotkeyAndInjectionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */; };
 		6527988C7E53A8309F3A0C71 /* VolcengineBigASRRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCAE70953AE9EB6C6B13C6F /* VolcengineBigASRRealtimeTranscriber.swift */; };
 		6E95D7208A244D0BC2D7B188 /* AppleSpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEEDE8D1FF2D76DC0095B97 /* AppleSpeechTranscriber.swift */; };
 		71CF548B550202212782B0D7 /* FloatingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */; };
 		7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */; };
 		7F53C851DB98DE68333BF928 /* FlotisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F201255CBA9778664C71C9E5 /* FlotisApp.swift */; };
+		8DEB31F1A067D7E1047E15BD /* FlotisDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */; };
 		9956F2073C00DD6D05816073 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE19A11654280B40753B3CAF /* HotkeyManager.swift */; };
 		9B26D8F9B91863D11D5359CE /* TranscriptionProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D35C8553893E49C234B5792 /* TranscriptionProviderConfig.swift */; };
 		A0F7DA3F0359948F9DFBFF9C /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCA4B00B2CF3C1D2B4381D3 /* VoiceSettingsView.swift */; };
 		A1F2D6BF7605AAB7F2795951 /* SpeechTranscribing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */; };
 		A399A6F32AFD9A81B7A4A9D5 /* AccessibilityPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 499CF9F16A907FAE75F19E1C /* AccessibilityPermission.swift */; };
 		AAF87F5BDC2460FAEE7544B3 /* UIStrings.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECBECDF0BB1DC73D4DECCEE8 /* UIStrings.swift */; };
+		AD05ECEF680D1F2D2F185FFC /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */; };
 		BB4E3BAE59A0540D50ABDFFC /* TranscriptionAdapterRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */; };
 		BD56965A1FE89DA01033D99A /* VoiceInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */; };
 		C53EF9FF56A7D0ACF1C5B77F /* OpenAICompatibleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */; };
 		C6695403E095E7021BD562BC /* VoiceInputMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */; };
 		CAE8A34BD7852F009E363ADB /* PromptCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A472152491645DCEBDA1AB09 /* PromptCommand.swift */; };
 		D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */; };
-		E9B0AE6AD1D9A252786FE201 /* KeychainSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255F095ECE7A04CDBD7FD48A /* KeychainSecretStore.swift */; };
 		EA7B3223509177B2DE9641D2 /* FloatingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */; };
 /* End PBXBuildFile section */
 
@@ -54,7 +57,6 @@
 		0D35C8553893E49C234B5792 /* TranscriptionProviderConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderConfig.swift; sourceTree = "<group>"; };
 		146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
-		255F095ECE7A04CDBD7FD48A /* KeychainSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSecretStore.swift; sourceTree = "<group>"; };
 		2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechProviderConfigurationTests.swift; sourceTree = "<group>"; };
 		2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
 		4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRuntimeTests.swift; sourceTree = "<group>"; };
@@ -62,7 +64,9 @@
 		47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		499CF9F16A907FAE75F19E1C /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
 		4B00ACC85DA2A64512248CF5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		4DCDEC0F0155FE9DADC0E3E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashScopeParaformerRealtimeTranscriber.swift; sourceTree = "<group>"; };
+		5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisDesign.swift; sourceTree = "<group>"; };
 		5DC2C707A76B11BD3BB34777 /* Flotis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flotis.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		67AD53AD7D7DC5B0CDEA2003 /* FlotisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlotisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7B3FE1F916017519575049B3 /* TranscriptionProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderStore.swift; sourceTree = "<group>"; };
@@ -70,10 +74,12 @@
 		A472152491645DCEBDA1AB09 /* PromptCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCommand.swift; sourceTree = "<group>"; };
 		AC40FD954EBB9D2B3FA9E5F9 /* CommandStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandStore.swift; sourceTree = "<group>"; };
 		B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptAssemblyTests.swift; sourceTree = "<group>"; };
+		B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = InfoPlist.xcstrings; sourceTree = "<group>"; };
 		B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyAndInjectionPolicyTests.swift; sourceTree = "<group>"; };
 		BBCAE70953AE9EB6C6B13C6F /* VolcengineBigASRRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolcengineBigASRRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		BE5B716D80E0378261099D87 /* TranscriptionConnectionTester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionConnectionTester.swift; sourceTree = "<group>"; };
 		BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleTranscriber.swift; sourceTree = "<group>"; };
+		C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteInjector.swift; sourceTree = "<group>"; };
 		CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputMode.swift; sourceTree = "<group>"; };
 		D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelController.swift; sourceTree = "<group>"; };
@@ -82,6 +88,7 @@
 		EE19A11654280B40753B3CAF /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		EEEEDE8D1FF2D76DC0095B97 /* AppleSpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechTranscriber.swift; sourceTree = "<group>"; };
 		F201255CBA9778664C71C9E5 /* FlotisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisApp.swift; sourceTree = "<group>"; };
+		FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSecretStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -89,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */,
+				C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */,
 				2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */,
 				B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */,
 				4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */,
@@ -109,8 +117,11 @@
 				D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */,
 				47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */,
 				F201255CBA9778664C71C9E5 /* FlotisApp.swift */,
+				5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */,
 				EE19A11654280B40753B3CAF /* HotkeyManager.swift */,
-				255F095ECE7A04CDBD7FD48A /* KeychainSecretStore.swift */,
+				4DCDEC0F0155FE9DADC0E3E3 /* Info.plist */,
+				B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */,
+				FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */,
 				BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */,
 				146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */,
 				A472152491645DCEBDA1AB09 /* PromptCommand.swift */,
@@ -173,6 +184,7 @@
 			buildConfigurationList = 5B9057AE0C10ADD7CC79FC2F /* Build configuration list for PBXNativeTarget "Flotis" */;
 			buildPhases = (
 				54FE4089B11F2F1F1052B52C /* Sources */,
+				CA9CF86E115F4E022EDEC9E4 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -202,6 +214,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 59B2F92ED2F7CD75CAEBF255;
 			minimizedProjectReferenceProxies = 1;
@@ -216,12 +229,24 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		CA9CF86E115F4E022EDEC9E4 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1D9276E6D2B5559B63A0D687 /* InfoPlist.xcstrings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		21F156264042B7192E30B322 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				62C3B5080784C6FC4357C6FA /* HotkeyAndInjectionPolicyTests.swift in Sources */,
+				AD05ECEF680D1F2D2F185FFC /* LocalizationTests.swift in Sources */,
 				7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */,
 				D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */,
 				11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */,
@@ -242,8 +267,9 @@
 				71CF548B550202212782B0D7 /* FloatingPanelController.swift in Sources */,
 				EA7B3223509177B2DE9641D2 /* FloatingPanelView.swift in Sources */,
 				7F53C851DB98DE68333BF928 /* FlotisApp.swift in Sources */,
+				8DEB31F1A067D7E1047E15BD /* FlotisDesign.swift in Sources */,
 				9956F2073C00DD6D05816073 /* HotkeyManager.swift in Sources */,
-				E9B0AE6AD1D9A252786FE201 /* KeychainSecretStore.swift in Sources */,
+				58958616F2F70A7B493E9A94 /* LocalSecretStore.swift in Sources */,
 				C53EF9FF56A7D0ACF1C5B77F /* OpenAICompatibleTranscriber.swift in Sources */,
 				34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */,
 				CAE8A34BD7852F009E363ADB /* PromptCommand.swift in Sources */,
@@ -316,10 +342,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Flotis 需要使用麦克风进行语音输入。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Flotis 需要使用语音识别将你的讲话转换成文本。";
+				INFOPLIST_FILE = Flotis/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -400,10 +423,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Flotis 需要使用麦克风进行语音输入。";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Flotis 需要使用语音识别将你的讲话转换成文本。";
+				INFOPLIST_FILE = Flotis/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

@@ -30,7 +30,6 @@ final class ClipboardPasteInjector {
 
     private enum Timing {
         static let activationTimeout: TimeInterval = 1
-        static let modifierReleaseTimeout: TimeInterval = 0.8
         static let pollInterval: TimeInterval = 0.03
         static let pasteboardConsumptionDelay: TimeInterval = 0.75
     }
@@ -83,6 +82,13 @@ final class ClipboardPasteInjector {
 
     static func isOperationExpired(enqueuedAt: TimeInterval, now: TimeInterval) -> Bool {
         now - enqueuedAt > Limits.maximumOperationAge
+    }
+
+    static func shouldWaitForShortcutRelease(
+        modifierKeysAreDown: Bool,
+        primaryKeyIsDown: Bool
+    ) -> Bool {
+        modifierKeysAreDown || primaryKeyIsDown
     }
 
     deinit {
@@ -187,8 +193,11 @@ final class ClipboardPasteInjector {
                 return
             }
 
-            self.waitForModifierKeysToRelease(
-                until: ProcessInfo.processInfo.systemUptime + Timing.modifierReleaseTimeout
+            // A Carbon hotkey is delivered before its modifiers and primary key are
+            // necessarily released. Give the full chord the remainder of this
+            // already-bounded operation lifetime to release.
+            self.waitForVoiceShortcutToRelease(
+                until: operation.enqueuedAt + Limits.maximumOperationAge
             ) { modifiersWereReleased in
                 guard modifiersWereReleased,
                       self.canPostPasteEvent(for: operation) else {
@@ -326,12 +335,15 @@ final class ClipboardPasteInjector {
             return
         }
 
-        if frontmostProcessIdentifier() == operation.targetProcessIdentifier {
+        if targetIsReadyForPaste(
+            processIdentifier: operation.targetProcessIdentifier
+        ) {
             completion(true)
             return
         }
 
-        guard mayActivateTargetFromCurrentFrontmostApplication(),
+        resignOwnKeyWindowIfNeeded()
+        guard mayActivateTargetFromCurrentFrontmostApplication(for: operation),
               operation.targetApplication.activate(options: [.activateIgnoringOtherApps]) else {
             completion(false)
             return
@@ -354,13 +366,17 @@ final class ClipboardPasteInjector {
             return
         }
 
-        if frontmostProcessIdentifier() == operation.targetProcessIdentifier {
+        if targetIsReadyForPaste(
+            processIdentifier: operation.targetProcessIdentifier
+        ) {
             completion(true)
             return
         }
 
         guard ProcessInfo.processInfo.systemUptime < deadline,
-              frontmostApplicationIsAllowedDuringActivation() else {
+              frontmostApplicationIsAllowedDuringActivation(
+                expectedTargetProcessIdentifier: operation.targetProcessIdentifier
+              ) else {
             completion(false)
             return
         }
@@ -370,15 +386,25 @@ final class ClipboardPasteInjector {
         }
     }
 
-    private func mayActivateTargetFromCurrentFrontmostApplication() -> Bool {
+    private func mayActivateTargetFromCurrentFrontmostApplication(
+        for operation: PasteOperation
+    ) -> Bool {
         guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return false }
         if isCurrentProcess(frontmostApplication) { return true }
+        if frontmostApplication.processIdentifier == operation.targetProcessIdentifier {
+            return true
+        }
         return frontmostApplication.processIdentifier == lastPostedTargetProcessIdentifier
     }
 
-    private func frontmostApplicationIsAllowedDuringActivation() -> Bool {
+    private func frontmostApplicationIsAllowedDuringActivation(
+        expectedTargetProcessIdentifier: pid_t
+    ) -> Bool {
         guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return true }
         if isCurrentProcess(frontmostApplication) { return true }
+        if frontmostApplication.processIdentifier == expectedTargetProcessIdentifier {
+            return true
+        }
         return frontmostApplication.processIdentifier == lastPostedTargetProcessIdentifier
     }
 
@@ -386,7 +412,9 @@ final class ClipboardPasteInjector {
         guard AccessibilityPermission.check(),
               isOperationFresh(operation),
               isValidTarget(operation),
-              frontmostProcessIdentifier() == operation.targetProcessIdentifier,
+              targetIsReadyForPaste(
+                processIdentifier: operation.targetProcessIdentifier
+              ),
               let managedPasteboardChangeCount else {
             return false
         }
@@ -423,14 +451,34 @@ final class ClipboardPasteInjector {
         NSWorkspace.shared.frontmostApplication?.processIdentifier
     }
 
-    private func waitForModifierKeysToRelease(
+    private func targetIsReadyForPaste(processIdentifier: pid_t) -> Bool {
+        frontmostProcessIdentifier() == processIdentifier
+            && NSApp.keyWindow?.isKeyWindow != true
+    }
+
+    private func resignOwnKeyWindowIfNeeded() {
+        guard let keyWindow = NSApp.keyWindow, keyWindow.isKeyWindow else {
+            return
+        }
+        keyWindow.resignKey()
+    }
+
+    private func waitForVoiceShortcutToRelease(
         until deadline: TimeInterval,
         completion: @escaping (Bool) -> Void
     ) {
         let flags = CGEventSource.flagsState(.hidSystemState)
         let modifierFlags: CGEventFlags = [.maskCommand, .maskAlternate, .maskShift, .maskControl]
+        let modifierKeysAreDown = !flags.intersection(modifierFlags).isEmpty
+        let primaryKeyIsDown = CGEventSource.keyState(
+            .hidSystemState,
+            key: CGKeyCode(KeyboardShortcutDescriptor.toggleVoice.keyCode)
+        )
 
-        if flags.intersection(modifierFlags).isEmpty {
+        if !Self.shouldWaitForShortcutRelease(
+            modifierKeysAreDown: modifierKeysAreDown,
+            primaryKeyIsDown: primaryKeyIsDown
+        ) {
             completion(true)
             return
         }
@@ -441,7 +489,7 @@ final class ClipboardPasteInjector {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + Timing.pollInterval) {
-            self.waitForModifierKeysToRelease(until: deadline, completion: completion)
+            self.waitForVoiceShortcutToRelease(until: deadline, completion: completion)
         }
     }
 

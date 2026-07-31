@@ -170,7 +170,10 @@ private final class AppleRecognitionState: @unchecked Sendable {
     func cancel(generation: UUID) {
         lock.lock()
         if self.generation == generation, errorMessage == nil {
-            errorMessage = "Apple 语音识别已取消。"
+            errorMessage = UIStrings.localized(
+                english: "Apple Speech recognition was canceled.",
+                simplifiedChinese: "Apple 语音识别已取消。"
+            )
         }
         lock.unlock()
     }
@@ -217,20 +220,44 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
     func start() async throws {
         let speechStatus = await requestSpeechAuthorization()
         guard speechStatus == .authorized else {
-            throw makeError(code: 1, message: "需要开启语音识别权限。")
+            throw makeError(
+                code: 1,
+                message: UIStrings.localized(
+                    english: "Speech Recognition access is required.",
+                    simplifiedChinese: "需要开启语音识别权限。"
+                )
+            )
         }
 
         let microphoneGranted = await requestMicrophoneAccess()
         guard microphoneGranted else {
-            throw makeError(code: 2, message: "需要开启麦克风权限。")
+            throw makeError(
+                code: 2,
+                message: UIStrings.localized(
+                    english: "Microphone access is required.",
+                    simplifiedChinese: "需要开启麦克风权限。"
+                )
+            )
         }
         try Task.checkCancellation()
 
         guard let speechRecognizer, speechRecognizer.isAvailable else {
-            throw makeError(code: 3, message: "当前语言的 Apple 语音识别不可用。")
+            throw makeError(
+                code: 3,
+                message: UIStrings.localized(
+                    english: "Apple Speech recognition is unavailable for the selected language.",
+                    simplifiedChinese: "当前语言的 Apple 语音识别不可用。"
+                )
+            )
         }
         guard speechRecognizer.supportsOnDeviceRecognition else {
-            throw makeError(code: 4, message: "当前语言不支持 Apple 设备端语音识别。")
+            throw makeError(
+                code: 4,
+                message: UIStrings.localized(
+                    english: "The selected language does not support on-device Apple Speech recognition.",
+                    simplifiedChinese: "当前语言不支持 Apple 设备端语音识别。"
+                )
+            )
         }
 
         cleanupCurrent(cancelTask: true)
@@ -240,7 +267,13 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
         let inputNode = audioEngine.inputNode
         let recordingFormat = inputNode.outputFormat(forBus: 0)
         guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
-            throw makeError(code: 5, message: "当前没有可用的麦克风输入格式。")
+            throw makeError(
+                code: 5,
+                message: UIStrings.localized(
+                    english: "No microphone input format is currently available.",
+                    simplifiedChinese: "当前没有可用的麦克风输入格式。"
+                )
+            )
         }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -303,7 +336,10 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
         guard taskIsCurrent else {
             task.cancel()
             let message = recognitionState.status(generation: generation)?.errorMessage
-                ?? "Apple 语音识别启动已取消。"
+                ?? UIStrings.localized(
+                    english: "Starting Apple Speech recognition was canceled.",
+                    simplifiedChinese: "Apple 语音识别启动已取消。"
+                )
             throw makeError(code: 6, message: message)
         }
 
@@ -346,14 +382,23 @@ final class AppleSpeechTranscriber: NSObject, StreamingSpeechTranscribing {
 
     func stop() async throws -> String {
         guard let generation = currentGeneration() else {
-            throw makeError(code: 7, message: "Apple 语音识别尚未启动。")
+            throw makeError(
+                code: 7,
+                message: UIStrings.localized(
+                    english: "Apple Speech recognition has not started.",
+                    simplifiedChinese: "Apple 语音识别尚未启动。"
+                )
+            )
         }
         endAudioCapture(generation: generation)
 
         do {
             let text = try await waitForRealtimeCondition(
                 timeout: 3,
-                timeoutMessage: "Apple 语音识别最终结果超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for the final Apple Speech result.",
+                    simplifiedChinese: "Apple 语音识别最终结果超时。"
+                )
             ) {
                 guard let status = self.recognitionState.status(generation: generation) else {
                     throw CancellationError()

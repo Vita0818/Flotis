@@ -1,8 +1,25 @@
 import AppKit
 import Carbon
 
+struct HotKeyPressGate {
+    private var pressedIDs: Set<UInt32> = []
+
+    mutating func acceptPress(id: UInt32) -> Bool {
+        pressedIDs.insert(id).inserted
+    }
+
+    mutating func release(id: UInt32) {
+        pressedIDs.remove(id)
+    }
+
+    mutating func reset() {
+        pressedIDs.removeAll()
+    }
+}
+
 final class HotkeyManager {
     static let shared = HotkeyManager()
+    static let registrationOptions = UInt32(kEventHotKeyExclusive)
 
     var onCommandHotkeyPressed: ((UUID) -> Void)?
     var onTogglePanel: (() -> Void)?
@@ -36,6 +53,7 @@ final class HotkeyManager {
     private var nextCommandHotKeyID = FixedHotKeyID.firstCommand
     private var lastPublishedError: String?
     private var isStarted = false
+    private var pressGate = HotKeyPressGate()
 
     private init() {}
 
@@ -75,6 +93,7 @@ final class HotkeyManager {
             self.desiredHotKeysByID.removeAll()
             self.hotKeyIDsByCommandID.removeAll()
             self.nextCommandHotKeyID = FixedHotKeyID.firstCommand
+            self.pressGate.reset()
 
             if let eventHandlerRef = self.eventHandlerRef {
                 RemoveEventHandler(eventHandlerRef)
@@ -98,12 +117,12 @@ final class HotkeyManager {
             FixedHotKeyID.togglePanel: DesiredHotKey(
                 descriptor: .togglePanel,
                 commandID: nil,
-                displayName: "显示/隐藏浮窗"
+                displayName: UIStrings.showHideFloatingPanel
             ),
             FixedHotKeyID.toggleVoice: DesiredHotKey(
                 descriptor: .toggleVoice,
                 commandID: nil,
-                displayName: "语音输入"
+                displayName: UIStrings.voiceInput
             )
         ]
         var configurationFailures: [String] = []
@@ -116,7 +135,12 @@ final class HotkeyManager {
         for command in commands.sorted(by: commandSortOrder) {
             guard command.isEnabled, let shortcut = command.shortcut else { continue }
             if let message = CommandStore.shortcutSafetyError(shortcut) {
-                configurationFailures.append("快捷键 \(shortcut.displayString) 未注册：\(message)")
+                configurationFailures.append(
+                    UIStrings.localized(
+                        english: "Shortcut \(shortcut.displayString) was not registered: \(message)",
+                        simplifiedChinese: "快捷键 \(shortcut.displayString) 未注册：\(message)"
+                    )
+                )
                 continue
             }
 
@@ -187,10 +211,16 @@ final class HotkeyManager {
             return true
         }
 
-        var eventType = EventTypeSpec(
-            eventClass: OSType(kEventClassKeyboard),
-            eventKind: UInt32(kEventHotKeyPressed)
-        )
+        let eventTypes = [
+            EventTypeSpec(
+                eventClass: OSType(kEventClassKeyboard),
+                eventKind: UInt32(kEventHotKeyPressed)
+            ),
+            EventTypeSpec(
+                eventClass: OSType(kEventClassKeyboard),
+                eventKind: UInt32(kEventHotKeyReleased)
+            )
+        ]
 
         let handler: EventHandlerUPP = { _, eventRef, userData in
             guard let eventRef, let userData else { return noErr }
@@ -209,21 +239,28 @@ final class HotkeyManager {
 
             let manager = Unmanaged<HotkeyManager>.fromOpaque(userData).takeUnretainedValue()
             guard hotKeyID.signature == manager.hotKeySignature else { return noErr }
+            let eventKind = GetEventKind(eventRef)
             DispatchQueue.main.async {
-                manager.handleHotKey(id: hotKeyID.id)
+                if eventKind == UInt32(kEventHotKeyPressed) {
+                    manager.handleHotKeyPress(id: hotKeyID.id)
+                } else if eventKind == UInt32(kEventHotKeyReleased) {
+                    manager.handleHotKeyRelease(id: hotKeyID.id)
+                }
             }
             return noErr
         }
 
         var installedHandlerRef: EventHandlerRef?
-        let status = InstallEventHandler(
-            GetApplicationEventTarget(),
-            handler,
-            1,
-            &eventType,
-            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-            &installedHandlerRef
-        )
+        let status = eventTypes.withUnsafeBufferPointer { eventTypeBuffer in
+            InstallEventHandler(
+                GetApplicationEventTarget(),
+                handler,
+                eventTypeBuffer.count,
+                eventTypeBuffer.baseAddress,
+                UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+                &installedHandlerRef
+            )
+        }
 
         guard status == noErr, let installedHandlerRef else {
             eventHandlerRef = nil
@@ -244,7 +281,7 @@ final class HotkeyManager {
             desiredHotKey.descriptor.modifiers.carbonFlags,
             eventHotKeyID,
             GetApplicationEventTarget(),
-            0,
+            Self.registrationOptions,
             &hotKeyRef
         )
 
@@ -274,6 +311,7 @@ final class HotkeyManager {
         activeDescriptorsByID.removeValue(forKey: id)
         commandIDsByHotKeyID.removeValue(forKey: id)
         registrationFailureStatusByID.removeValue(forKey: id)
+        pressGate.release(id: id)
     }
 
     private func scheduleRetryIfNeeded() {
@@ -293,7 +331,12 @@ final class HotkeyManager {
     private func publishRegistrationState() {
         var messages = configurationFailureMessages.sorted()
         if let eventHandlerFailureStatus {
-            messages.append("快捷键事件监听注册失败：\(eventHandlerFailureStatus)")
+            messages.append(
+                UIStrings.localized(
+                    english: "Shortcut event listener registration failed: \(eventHandlerFailureStatus)",
+                    simplifiedChinese: "快捷键事件监听注册失败：\(eventHandlerFailureStatus)"
+                )
+            )
         }
         for hotKeyID in registrationFailureStatusByID.keys.sorted() {
             guard let status = registrationFailureStatusByID[hotKeyID],
@@ -301,7 +344,10 @@ final class HotkeyManager {
                 continue
             }
             messages.append(
-                "快捷键 \(desiredHotKey.descriptor.displayString)（\(desiredHotKey.displayName)）注册失败：\(status)"
+                UIStrings.localized(
+                    english: "Shortcut \(desiredHotKey.descriptor.displayString) (\(desiredHotKey.displayName)) registration failed: \(status)",
+                    simplifiedChinese: "快捷键 \(desiredHotKey.descriptor.displayString)（\(desiredHotKey.displayName)）注册失败：\(status)"
+                )
             )
         }
 
@@ -311,7 +357,7 @@ final class HotkeyManager {
         } else if messages.count == 1 {
             message = messages[0]
         } else {
-            message = "\(messages[0])；另有 \(messages.count - 1) 项快捷键异常。"
+            message = messages[0] + UIStrings.additionalShortcutIssues(messages.count - 1)
         }
 
         guard message != lastPublishedError else { return }
@@ -319,8 +365,9 @@ final class HotkeyManager {
         onRegistrationError?(message)
     }
 
-    private func handleHotKey(id: UInt32) {
+    private func handleHotKeyPress(id: UInt32) {
         guard isStarted, hotKeyRefsByID[id] != nil else { return }
+        guard pressGate.acceptPress(id: id) else { return }
 
         if id == FixedHotKeyID.togglePanel {
             onTogglePanel?()
@@ -335,6 +382,10 @@ final class HotkeyManager {
         if let commandID = commandIDsByHotKeyID[id] {
             onCommandHotkeyPressed?(commandID)
         }
+    }
+
+    private func handleHotKeyRelease(id: UInt32) {
+        pressGate.release(id: id)
     }
 }
 

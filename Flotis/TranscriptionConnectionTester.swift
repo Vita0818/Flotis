@@ -15,7 +15,7 @@ final class TranscriptionConnectionTester {
     init(
         runtimeFactory: TranscriptionRuntimeFactory = .shared,
         secretLoader: @escaping SecretLoader = { reference in
-            KeychainSecretStore.shared.load(for: reference)
+            LocalSecretStore.shared.load(for: reference)
         },
         localCapabilityProbe: @escaping LocalCapabilityProbe = probeAppleConnectionCapability
     ) {
@@ -79,7 +79,10 @@ final class TranscriptionConnectionTester {
             return TranscriptionConnectionTestRecord(
                 adapterVersion: normalized.protocolSchema.adapterVersion,
                 outcome: .succeeded,
-                safeSummary: "连接、音频传输与响应结构测试成功。",
+                safeSummary: UIStrings.localized(
+                    english: "Connection, audio transport, and response structure test succeeded.",
+                    simplifiedChinese: "连接、音频传输与响应结构测试成功。"
+                ),
                 configurationFingerprint: normalized.connectionTestFingerprint
             )
         } catch is CancellationError {
@@ -129,10 +132,20 @@ private func probeAppleConnectionCapability(
         identifier: localeIdentifier?.isEmpty == false ? localeIdentifier! : "zh-CN"
     )
     guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
-        throw makeError("当前语言的 Apple 语音识别不可用。")
+        throw makeError(
+            UIStrings.localized(
+                english: "Apple Speech recognition is unavailable for the selected language.",
+                simplifiedChinese: "当前语言的 Apple 语音识别不可用。"
+            )
+        )
     }
     guard recognizer.supportsOnDeviceRecognition else {
-        throw makeError("当前语言不支持 Apple 设备端语音识别。")
+        throw makeError(
+            UIStrings.localized(
+                english: "The selected language does not support on-device Apple Speech recognition.",
+                simplifiedChinese: "当前语言不支持 Apple 设备端语音识别。"
+            )
+        )
     }
 }
 
@@ -149,7 +162,12 @@ private struct GeneratedConnectionTestAudio {
         recordedFormat: RecordedAudioFormat
     ) throws -> GeneratedConnectionTestAudio {
         guard sampleRate == 16_000 || sampleRate == 24_000 else {
-            throw makeError("连接测试音频仅支持 16000 或 24000 Hz。")
+            throw makeError(
+                UIStrings.localized(
+                    english: "Connection test audio supports only 16000 or 24000 Hz.",
+                    simplifiedChinese: "连接测试音频仅支持 16000 或 24000 Hz。"
+                )
+            )
         }
 
         let durationSeconds = 0.8
@@ -234,7 +252,12 @@ private struct GeneratedConnectionTestAudio {
             pcmFormat: file.processingFormat,
             frameCapacity: frameCount
         ), let channel = buffer.floatChannelData?[0] else {
-            throw makeError("无法创建 M4A 连接测试音频。")
+            throw makeError(
+                UIStrings.localized(
+                    english: "Could not create the M4A connection test audio.",
+                    simplifiedChinese: "无法创建 M4A 连接测试音频。"
+                )
+            )
         }
         buffer.frameLength = frameCount
         pcm.withUnsafeBytes { rawBuffer in
@@ -256,7 +279,11 @@ private extension Data {
 
 private func sanitizedErrorSummary(_ message: String, redacting secrets: [String]) -> String {
     let data = Data(message.utf8)
-    return safeLimitedResponseText(data, redacting: secrets) ?? "连接测试失败。"
+    return safeLimitedResponseText(data, redacting: secrets)
+        ?? UIStrings.localized(
+            english: "Connection test failed.",
+            simplifiedChinese: "连接测试失败。"
+        )
 }
 
 private func makeError(_ message: String) -> NSError {

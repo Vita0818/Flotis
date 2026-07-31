@@ -1,6 +1,7 @@
 name: Flotis
 options:
   bundleIdPrefix: com.Vita0818
+  developmentLanguage: en
 targets:
   Flotis:
     type: application
@@ -8,13 +9,18 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: Flotis
+    info:
+      path: Flotis/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSUIElement: true
+        LSMultipleInstancesProhibited: true
+        NSMicrophoneUsageDescription: "Flotis uses the microphone for voice input."
+        NSSpeechRecognitionUsageDescription: "Flotis uses Speech Recognition to turn your speech into text."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisMac
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_LSUIElement: YES
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Flotis 需要使用语音识别将你的讲话转换成文本。"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Flotis 需要使用麦克风进行语音输入。"
         MARKETING_VERSION: 0.8.0
         CURRENT_PROJECT_VERSION: 1
         SWIFT_VERSION: "5.0"

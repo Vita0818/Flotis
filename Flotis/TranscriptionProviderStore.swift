@@ -149,11 +149,11 @@ final class SpeechProviderStore: ObservableObject {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private let defaults: UserDefaults
-    private let secretStore: KeychainSecretStoring
+    private let secretStore: SecretStoring
 
     init(
         defaults: UserDefaults = .standard,
-        secretStore: KeychainSecretStoring = KeychainSecretStore.shared
+        secretStore: SecretStoring = LocalSecretStore.shared
     ) {
         self.defaults = defaults
         self.secretStore = secretStore

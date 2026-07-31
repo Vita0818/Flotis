@@ -3,11 +3,12 @@ import SwiftUI
 
 struct FloatingPanelView: View {
     @ObservedObject var appState: AppState
-    @ObservedObject var providerStore: SpeechProviderStore
+    @Environment(\.colorScheme) private var colorScheme
+
     let voiceController: VoiceInputController
+    let onOpenSettings: () -> Void
     let onPreferredSizeChange: (CGSize) -> Void
 
-    @State private var showingSettings = false
     @State private var lastReportedPreferredSize: CGSize = .zero
 
     private var layout: FloatingPanelLayout {
@@ -20,30 +21,16 @@ struct FloatingPanelView: View {
     var body: some View {
         let layout = layout
 
-        VStack(spacing: 0) {
-            capsuleHeader
-                .padding(.horizontal, 12)
-                .frame(height: FloatingPanelLayout.headerHeight)
-
+        Group {
             if appState.voiceState == .reviewing {
                 reviewEditor
-            }
-
-            if let statusMessage {
-                statusArea(message: statusMessage)
+            } else if appState.voiceState == .idle, statusMessage == nil {
+                idleControls
+            } else {
+                compactStatus
             }
         }
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
-        .sheet(isPresented: $showingSettings) {
-            SettingsView(
-                appState: appState,
-                providerStore: providerStore,
-                closeMode: .back,
-                onClose: {
-                    showingSettings = false
-                }
-            )
-        }
         .onAppear {
             appState.checkAccessibility()
             reportPreferredSize(layout.panelSize)
@@ -59,84 +46,153 @@ struct FloatingPanelView: View {
         }
     }
 
-    private var capsuleHeader: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(statusColor.opacity(0.16))
-                    .frame(width: 32, height: 32)
-
-                Image(systemName: statusIcon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(statusColor)
+    private var idleControls: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 10) {
+                actionButton
+                settingsButton
             }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(statusTitle)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-
-                Text(statusDetail)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button {
-                showingSettings = true
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 24, height: 24)
-            }
-            .buttonStyle(.plain)
-            .help(UIStrings.settings)
-
-            Button {
-                voiceController.toggleRecording()
-            } label: {
-                Image(systemName: actionIcon)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
-                    .background(actionColor)
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .disabled(appState.voiceState == .injecting)
-            .help(actionHelp)
+            Text(KeyboardShortcutDescriptor.toggleVoice.displayString)
+                .font(FlotisType.mono(11, .medium))
+                .foregroundStyle(FlotisTheme.secondary(colorScheme))
+                .lineLimit(1)
+                .accessibilityLabel(
+                    UIStrings.pressToStartRecording(
+                        shortcut: KeyboardShortcutDescriptor.toggleVoice.displayString
+                    )
+                )
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var compactStatus: some View {
+        HStack(spacing: 8) {
+            Image(systemName: statusIcon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(statusColor)
+                .accessibilityHidden(true)
+
+            Text(compactStatusText)
+                .font(FlotisType.body(12, .medium))
+                .foregroundStyle(FlotisTheme.primary(colorScheme))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            actionButton
+
+            if shouldShowSettingsInCompactStatus {
+                settingsButton
+            }
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private var actionButton: some View {
+        Button {
+            voiceController.toggleRecording()
+        } label: {
+            Image(systemName: actionIcon)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(actionColor)
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .frame(width: 30, height: 30)
+        .disabled(isActionDisabled)
+        .accessibilityLabel(actionHelp)
+        .help(actionHelp)
+    }
+
+    private var settingsButton: some View {
+        Button {
+            onOpenSettings()
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(FlotisTheme.secondary(colorScheme))
+                .frame(width: 16, height: 16)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .frame(width: 30, height: 30)
+        .accessibilityLabel(UIStrings.settings)
+        .help(UIStrings.settings)
     }
 
     private var reviewEditor: some View {
         VStack(spacing: 8) {
-            Divider()
-
-            TextEditor(text: $appState.transcriptPreview)
-                .font(.system(size: 12))
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(Color.primary.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .frame(height: 72)
+            ReviewTextEditor(text: $appState.transcriptPreview)
+                .frame(height: 90)
+                .padding(4)
+                .flotisContentSurface(cornerRadius: 12)
+                .accessibilityLabel(UIStrings.transcriptPreviewPlaceholder)
 
             HStack(spacing: 8) {
-                Button(UIStrings.cancel) {
-                    voiceController.cancel()
+                Button {
+                    copyReviewedTranscript()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .frame(width: 16, height: 16)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+                .disabled(appState.transcriptPreview.isEmpty)
+                .accessibilityLabel(UIStrings.copyText)
+                .help(UIStrings.copyText)
 
-                Spacer()
+                if let statusMessage {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
 
-                Text("\(KeyboardShortcutDescriptor.toggleVoice.displayString) 再按输入")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    Text(statusMessage)
+                        .font(FlotisType.caption(11, .regular))
+                        .foregroundStyle(FlotisTheme.secondary(colorScheme))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
 
-                Button(UIStrings.insertText) {
+                Spacer(minLength: 0)
+
+                if requiresAccessibilityAttention {
+                    Button {
+                        AccessibilityPermission.openSettings()
+                    } label: {
+                        Image(systemName: "accessibility")
+                            .frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 28, height: 28)
+                    .accessibilityLabel(UIStrings.openSettings)
+                    .help(UIStrings.openSettings)
+                }
+
+                Button {
+                    voiceController.cancel()
+                } label: {
+                    Image(systemName: "xmark")
+                        .frame(width: 16, height: 16)
+                }
+                .buttonStyle(.plain)
+                .frame(width: 28, height: 28)
+                .accessibilityLabel(UIStrings.cancel)
+                .help(UIStrings.cancel)
+
+                Button {
                     voiceController.toggleRecording()
+                } label: {
+                    Image(systemName: "arrow.up.forward")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 16, height: 16)
                 }
                 .buttonStyle(.borderedProminent)
+                .flotisCircularButtonBorder()
+                .controlSize(.small)
+                .accessibilityLabel(UIStrings.insertText)
+                .help(UIStrings.insertText)
                 .disabled(
                     appState.transcriptPreview
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -144,48 +200,29 @@ struct FloatingPanelView: View {
                 )
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 10)
-    }
-
-    private func statusArea(message: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-
-            Text(message)
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-
-            Spacer(minLength: 4)
-
-            if !appState.hasAccessibilityPermission {
-                Button(UIStrings.openSettings) {
-                    AccessibilityPermission.openSettings()
-                }
-                .font(.system(size: 10, weight: .semibold))
-                .buttonStyle(.borderless)
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(height: FloatingPanelLayout.statusAreaHeight)
-        .overlay(alignment: .top) {
-            Divider()
-        }
+        .padding(12)
     }
 
     private var statusMessage: String? {
-        if !appState.hasAccessibilityPermission {
+        if requiresAccessibilityAttention {
             return UIStrings.accessibilityPastePermission
         }
-        return appState.pasteError ?? appState.hotkeyError ?? providerStore.lastError
+        return appState.pasteError ?? appState.hotkeyError
     }
 
-    private var statusTitle: String {
+    private var requiresAccessibilityAttention: Bool {
+        !appState.hasAccessibilityPermission
+            && appState.pasteError == UIStrings.reviewInjectionFailed
+    }
+
+    private var compactStatusText: String {
+        if let statusMessage {
+            return statusMessage
+        }
+
         switch appState.voiceState {
         case .idle:
-            return "Flotis"
+            return UIStrings.start
         case .requestingPermission:
             return UIStrings.requestingPermission
         case .connecting:
@@ -200,34 +237,19 @@ struct FloatingPanelView: View {
             return UIStrings.reviewTranscript
         case .injecting:
             return UIStrings.injecting
-        case .failed:
-            return UIStrings.failed
+        case .failed(let message):
+            return message
         }
     }
 
-    private var statusDetail: String {
-        if case .failed(let message) = appState.voiceState {
-            return message
+    private var shouldShowSettingsInCompactStatus: Bool {
+        if statusMessage != nil {
+            return true
         }
-
-        switch appState.voiceState {
-        case .idle:
-            return "按 \(KeyboardShortcutDescriptor.toggleVoice.displayString) 开始录音"
-        case .recording, .streaming:
-            if !appState.transcriptPreview.isEmpty,
-               appState.transcriptPreview != UIStrings.dictating {
-                return appState.transcriptPreview
-            }
-            return "再按 \(KeyboardShortcutDescriptor.toggleVoice.displayString) 停止"
-        case .reviewing:
-            return UIStrings.reviewThenInsert
-        case .requestingPermission, .connecting, .stopping, .transcribing:
-            return UIStrings.hotkeyCancelsCurrentOperation
-        case .injecting:
-            return UIStrings.verifyingTarget
-        case .failed:
-            return UIStrings.retry
+        if case .failed = appState.voiceState {
+            return true
         }
+        return false
     }
 
     private var statusIcon: String {
@@ -254,13 +276,19 @@ struct FloatingPanelView: View {
         case .failed:
             return .orange
         case .reviewing:
-            return .green
+            return FlotisTheme.action(colorScheme)
+        case .requestingPermission, .connecting, .stopping, .transcribing, .injecting:
+            return FlotisTheme.secondary(colorScheme)
         default:
-            return .accentColor
+            return FlotisTheme.action(colorScheme)
         }
     }
 
     private var actionIcon: String {
+        if case .failed = appState.voiceState {
+            return "arrow.clockwise"
+        }
+
         switch appState.voiceState.hotkeyAction {
         case .start:
             return "mic.fill"
@@ -279,16 +307,30 @@ struct FloatingPanelView: View {
         switch appState.voiceState.hotkeyAction {
         case .stop:
             return .red
-        case .inject:
-            return .green
-        case .cancel:
-            return .orange
-        case .start, .none:
-            return .accentColor
+        case .start, .cancel, .inject, .none:
+            return FlotisTheme.action(colorScheme)
         }
     }
 
+    private var isActionDisabled: Bool {
+        if appState.voiceState.hotkeyAction == .none {
+            return true
+        }
+
+        if appState.voiceState == .reviewing {
+            return appState.transcriptPreview
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty
+        }
+
+        return false
+    }
+
     private var actionHelp: String {
+        if case .failed = appState.voiceState {
+            return UIStrings.retry
+        }
+
         switch appState.voiceState.hotkeyAction {
         case .start:
             return UIStrings.start
@@ -306,30 +348,125 @@ struct FloatingPanelView: View {
     private func reportPreferredSize(_ size: CGSize) {
         guard size != lastReportedPreferredSize else { return }
         lastReportedPreferredSize = size
-        DispatchQueue.main.async {
-            onPreferredSizeChange(size)
+        onPreferredSizeChange(size)
+    }
+
+    private func copyReviewedTranscript() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        _ = pasteboard.setString(appState.transcriptPreview, forType: .string)
+    }
+
+}
+
+private final class ReviewNativeTextView: NSTextView {
+    override var needsPanelToBecomeKey: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
+private struct ReviewTextEditor: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.scrollerStyle = .overlay
+
+        let textView = ReviewNativeTextView()
+        textView.delegate = context.coordinator
+        textView.string = text
+        textView.font = .systemFont(ofSize: 14)
+        textView.textColor = .labelColor
+        textView.drawsBackground = false
+        textView.isEditable = true
+        textView.isSelectable = true
+        textView.isRichText = false
+        textView.importsGraphics = false
+        textView.allowsUndo = true
+        textView.isHorizontallyResizable = false
+        textView.isVerticallyResizable = true
+        textView.autoresizingMask = [.width]
+        textView.textContainerInset = NSSize(width: 6, height: 6)
+        textView.textContainer?.widthTracksTextView = true
+        textView.textContainer?.lineFragmentPadding = 0
+        scrollView.documentView = textView
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView,
+              textView.string != text else {
+            return
+        }
+
+        let selectedRange = textView.selectedRange()
+        textView.string = text
+        let safeLocation = min(selectedRange.location, (text as NSString).length)
+        let safeLength = min(
+            selectedRange.length,
+            (text as NSString).length - safeLocation
+        )
+        textView.setSelectedRange(NSRange(location: safeLocation, length: safeLength))
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        private var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView,
+                  text.wrappedValue != textView.string else {
+                return
+            }
+            text.wrappedValue = textView.string
         }
     }
 }
 
 struct FloatingPanelLayout: Equatable {
-    static let minPanelWidth: CGFloat = 280
-    static let minPanelHeight: CGFloat = 58
-    static let maxPanelWidth: CGFloat = 520
-    static let maxPanelHeight: CGFloat = 240
+    static let minPanelWidth: CGFloat = 120
+    static let minPanelHeight: CGFloat = 56
+    static let activePanelWidth: CGFloat = 188
+    static let maxPanelWidth: CGFloat = 460
+    static let maxPanelHeight: CGFloat = 180
     static let screenCoverage: CGFloat = 0.9
-    static let headerHeight: CGFloat = 58
-    static let reviewWidth: CGFloat = 440
-    static let reviewHeight: CGFloat = 168
-    static let statusAreaHeight: CGFloat = 42
+    static let cornerRadius: CGFloat = 20
+    static let headerHeight: CGFloat = 56
+    static let statusPanelWidth: CGFloat = 280
+    static let reviewWidth: CGFloat = 420
+    static let reviewHeight: CGFloat = 160
 
     let panelSize: CGSize
 
     init(state: VoiceInputState, hasStatusArea: Bool) {
         let isReviewing = state == .reviewing
-        let width = isReviewing ? Self.reviewWidth : Self.minPanelWidth
-        let baseHeight = isReviewing ? Self.reviewHeight : Self.headerHeight
-        let height = baseHeight + (hasStatusArea ? Self.statusAreaHeight : 0)
+        let isFailed: Bool
+        if case .failed = state {
+            isFailed = true
+        } else {
+            isFailed = false
+        }
+        let width: CGFloat
+        if isReviewing {
+            width = Self.reviewWidth
+        } else if hasStatusArea || isFailed {
+            width = Self.statusPanelWidth
+        } else if state == .idle {
+            width = Self.minPanelWidth
+        } else {
+            width = Self.activePanelWidth
+        }
+        let height = isReviewing ? Self.reviewHeight : Self.headerHeight
         panelSize = CGSize(width: width, height: height)
     }
 }

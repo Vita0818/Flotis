@@ -383,7 +383,10 @@ private actor OpenAIRealtimeState {
     func cancel() {
         isStopping = true
         if errorMessage == nil {
-            errorMessage = "实时转写已取消。"
+            errorMessage = UIStrings.localized(
+                english: "OpenAI Realtime transcription was canceled.",
+                simplifiedChinese: "实时转写已取消。"
+            )
         }
     }
 
@@ -505,7 +508,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             try await sendJSON(sessionUpdatePayload(), using: sender)
             _ = try await waitForRealtimeCondition(
                 timeout: 5,
-                timeoutMessage: "OpenAI 实时转写会话配置确认超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for OpenAI Realtime session configuration confirmation.",
+                    simplifiedChinese: "OpenAI 实时转写会话配置确认超时。"
+                )
             ) {
                 let status = await self.state.startStatus()
                 if let errorMessage = status.errorMessage {
@@ -522,7 +528,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
     func appendAudio(_ data: Data) async throws {
         guard !data.isEmpty else { return }
         guard let sender = senderSlot.current() else {
-            throw makeError("OpenAI 实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The OpenAI Realtime connection has not been established.",
+                simplifiedChinese: "OpenAI 实时连接尚未建立。"
+            ))
         }
 
         try await state.beginAppend()
@@ -542,14 +551,20 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
 
     func stop() async throws -> String {
         guard let sender = senderSlot.current() else {
-            throw makeError("OpenAI 实时连接尚未建立。")
+            throw makeError(UIStrings.localized(
+                english: "The OpenAI Realtime connection has not been established.",
+                simplifiedChinese: "OpenAI 实时连接尚未建立。"
+            ))
         }
 
         await state.beginStopping()
         do {
             _ = try await waitForRealtimeCondition(
                 timeout: 3,
-                timeoutMessage: "等待实时音频发送完成超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for Realtime audio delivery to finish.",
+                    simplifiedChinese: "等待实时音频发送完成超时。"
+                )
             ) {
                 let status = await self.state.appendDrainStatus()
                 if let errorMessage = status.errorMessage {
@@ -566,7 +581,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
 
             let text = try await waitForRealtimeCondition(
                 timeout: 8,
-                timeoutMessage: "OpenAI 实时转写最终结果超时。"
+                timeoutMessage: UIStrings.localized(
+                    english: "Timed out waiting for the final OpenAI Realtime transcription.",
+                    simplifiedChinese: "OpenAI 实时转写最终结果超时。"
+                )
             ) {
                 let status = await self.state.stopStatus(expectCommittedItem: shouldCommit)
                 if let errorMessage = status.errorMessage {
@@ -692,13 +710,19 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
             if let code = error["code"] as? String { return code }
         }
         if let message = json["message"] as? String { return message }
-        return "OpenAI 实时转写返回错误。"
+        return UIStrings.localized(
+            english: "OpenAI Realtime transcription returned an error.",
+            simplifiedChinese: "OpenAI 实时转写返回错误。"
+        )
     }
 
     private func makeRealtimeURL() throws -> URL {
         guard let realtimeURL = config.realtimeURL, !realtimeURL.isEmpty,
               let realtimePath = config.realtimePath, !realtimePath.isEmpty else {
-            throw makeError("实时地址未配置。")
+            throw makeError(UIStrings.localized(
+                english: "The Realtime endpoint is not configured.",
+                simplifiedChinese: "实时地址未配置。"
+            ))
         }
 
         let base = realtimeURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -706,7 +730,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
         guard var components = URLComponents(string: base + path),
               components.scheme?.lowercased() == "wss",
               components.host?.isEmpty == false else {
-            throw makeError("OpenAI 实时地址必须是有效的 wss:// 地址。")
+            throw makeError(UIStrings.localized(
+                english: "The OpenAI Realtime endpoint must be a valid wss:// address.",
+                simplifiedChinese: "OpenAI 实时地址必须是有效的 wss:// 地址。"
+            ))
         }
 
         var queryItems = components.queryItems ?? []
@@ -715,7 +742,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
         }
         components.queryItems = queryItems
         guard let url = components.url else {
-            throw makeError("实时地址生成失败。")
+            throw makeError(UIStrings.localized(
+                english: "Could not create the Realtime endpoint URL.",
+                simplifiedChinese: "实时地址生成失败。"
+            ))
         }
         return url
     }
@@ -747,16 +777,28 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
     private func validateAudioConfiguration() throws {
         let format = (config.inputAudioFormat ?? "pcm16").lowercased()
         guard ["pcm", "pcm16", "audio/pcm"].contains(format) else {
-            throw makeError("OpenAI GA 实时转写仅支持当前捕获管线提供的 PCM16。")
+            throw makeError(UIStrings.localized(
+                english: "OpenAI GA Realtime transcription only supports PCM16 from the current capture pipeline.",
+                simplifiedChinese: "OpenAI GA 实时转写仅支持当前捕获管线提供的 PCM16。"
+            ))
         }
         guard (config.sampleRate ?? 24000) == 24000 else {
-            throw makeError("OpenAI PCM 实时转写要求 24000 Hz。")
+            throw makeError(UIStrings.localized(
+                english: "OpenAI PCM Realtime transcription requires 24000 Hz audio.",
+                simplifiedChinese: "OpenAI PCM 实时转写要求 24000 Hz。"
+            ))
         }
         guard (config.channels ?? 1) == 1 else {
-            throw makeError("OpenAI PCM 实时转写要求单声道。")
+            throw makeError(UIStrings.localized(
+                english: "OpenAI PCM Realtime transcription requires mono audio.",
+                simplifiedChinese: "OpenAI PCM 实时转写要求单声道。"
+            ))
         }
         guard !config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw makeError("OpenAI 实时转写模型不能为空。")
+            throw makeError(UIStrings.localized(
+                english: "The OpenAI Realtime transcription model cannot be empty.",
+                simplifiedChinese: "OpenAI 实时转写模型不能为空。"
+            ))
         }
     }
 
@@ -766,7 +808,10 @@ final class OpenAIRealtimeTranscriber: StreamingSpeechTranscribing {
     ) async throws {
         let data = try JSONSerialization.data(withJSONObject: payload)
         guard let text = String(data: data, encoding: .utf8) else {
-            throw makeError("OpenAI 实时请求编码失败。")
+            throw makeError(UIStrings.localized(
+                english: "Could not encode the OpenAI Realtime request.",
+                simplifiedChinese: "OpenAI 实时请求编码失败。"
+            ))
         }
         try await sender.send(.string(text))
     }

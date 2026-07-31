@@ -76,11 +76,20 @@ enum TranscriptionAdapterRegistryError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .duplicateAdapter(let id):
-            return "重复的转写协议适配器：\(id.rawValue)。"
+            return UIStrings.localized(
+                english: "Duplicate transcription protocol adapter: \(id.rawValue).",
+                simplifiedChinese: "重复的转写协议适配器：\(id.rawValue)。"
+            )
         case .missingAdapter(let id):
-            return "当前版本不支持转写协议：\(id.rawValue)。"
+            return UIStrings.localized(
+                english: "This version does not support the transcription protocol: \(id.rawValue).",
+                simplifiedChinese: "当前版本不支持转写协议：\(id.rawValue)。"
+            )
         case .missingAPIKey:
-            return "请先配置并保存该转写连接的 API Key。"
+            return UIStrings.localized(
+                english: "Configure and save an API Key for this transcription connection first.",
+                simplifiedChinese: "请先配置并保存该转写连接的 API Key。"
+            )
         case .invalidRuntimeConfiguration(let message):
             return message
         }
@@ -92,7 +101,12 @@ final class TranscriptionAdapterRegistry {
         do {
             return try TranscriptionAdapterRegistry.live()
         } catch {
-            preconditionFailure("无法创建转写协议 registry：\(error.localizedDescription)")
+            preconditionFailure(
+                UIStrings.localized(
+                    english: "Could not create the transcription protocol registry: \(error.localizedDescription)",
+                    simplifiedChinese: "无法创建转写协议 registry：\(error.localizedDescription)"
+                )
+            )
         }
     }()
 
@@ -285,7 +299,10 @@ private func recordedAudioFormat(_ value: String?) throws -> RecordedAudioFormat
         return .m4a
     default:
         throw TranscriptionAdapterRegistryError.invalidRuntimeConfiguration(
-            "当前录音器不支持所选文件格式。"
+            UIStrings.localized(
+                english: "The current recorder does not support the selected file format.",
+                simplifiedChinese: "当前录音器不支持所选文件格式。"
+            )
         )
     }
 }

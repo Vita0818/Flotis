@@ -59,7 +59,13 @@ final class StreamingAudioCapture {
         let microphoneGranted = await requestMicrophoneAccess()
         guard microphoneGranted else {
             clearPendingGeneration(generation)
-            throw makeError(code: 1, message: "需要开启麦克风权限。")
+            throw makeError(
+                code: 1,
+                message: UIStrings.localized(
+                    english: "Microphone access is required.",
+                    simplifiedChinese: "需要开启麦克风权限。"
+                )
+            )
         }
         do {
             try Task.checkCancellation()
@@ -79,7 +85,13 @@ final class StreamingAudioCapture {
                 let inputNode = audioEngine.inputNode
                 let inputFormat = inputNode.outputFormat(forBus: 0)
                 guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
-                    throw makeError(code: 2, message: "当前没有可用的麦克风输入格式。")
+                    throw makeError(
+                        code: 2,
+                        message: UIStrings.localized(
+                            english: "No microphone input format is currently available.",
+                            simplifiedChinese: "当前没有可用的麦克风输入格式。"
+                        )
+                    )
                 }
                 guard let outputFormat = AVAudioFormat(
                     commonFormat: .pcmFormatInt16,
@@ -87,10 +99,22 @@ final class StreamingAudioCapture {
                     channels: AVAudioChannelCount(channels),
                     interleaved: true
                 ) else {
-                    throw makeError(code: 3, message: "无法创建 PCM16 音频格式。")
+                    throw makeError(
+                        code: 3,
+                        message: UIStrings.localized(
+                            english: "Could not create the PCM16 audio format.",
+                            simplifiedChinese: "无法创建 PCM16 音频格式。"
+                        )
+                    )
                 }
                 guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-                    throw makeError(code: 4, message: "无法创建音频转换器。")
+                    throw makeError(
+                        code: 4,
+                        message: UIStrings.localized(
+                            english: "Could not create the audio converter.",
+                            simplifiedChinese: "无法创建音频转换器。"
+                        )
+                    )
                 }
 
                 withStateLock {
@@ -117,7 +141,12 @@ final class StreamingAudioCapture {
                     guard accepted else { return }
                     guard let bufferCopy = Self.copyPCMBuffer(buffer) else {
                         self.processingGroup.leave()
-                        self.reportError("无法复制麦克风音频缓冲区。")
+                        self.reportError(
+                            UIStrings.localized(
+                                english: "Could not copy the microphone audio buffer.",
+                                simplifiedChinese: "无法复制麦克风音频缓冲区。"
+                            )
+                        )
                         return
                     }
                     self.processingQueue.async {
@@ -239,7 +268,12 @@ final class StreamingAudioCapture {
             pcmFormat: outputFormat,
             frameCapacity: outputCapacity
         ) else {
-            reportError("无法创建音频输出缓冲区。")
+            reportError(
+                UIStrings.localized(
+                    english: "Could not create the audio output buffer.",
+                    simplifiedChinese: "无法创建音频输出缓冲区。"
+                )
+            )
             return
         }
 
@@ -256,7 +290,13 @@ final class StreamingAudioCapture {
         }
 
         guard status != .error else {
-            reportError(conversionError?.localizedDescription ?? "音频转换失败。")
+            reportError(
+                conversionError?.localizedDescription
+                    ?? UIStrings.localized(
+                        english: "Audio conversion failed.",
+                        simplifiedChinese: "音频转换失败。"
+                    )
+            )
             return
         }
 
@@ -279,7 +319,12 @@ final class StreamingAudioCapture {
                 pcmFormat: outputFormat,
                 frameCapacity: 4096
             ) else {
-                reportError("无法创建音频尾帧缓冲区。")
+                reportError(
+                    UIStrings.localized(
+                        english: "Could not create the audio tail buffer.",
+                        simplifiedChinese: "无法创建音频尾帧缓冲区。"
+                    )
+                )
                 return
             }
 
@@ -289,7 +334,13 @@ final class StreamingAudioCapture {
                 return nil
             }
             if status == .error {
-                reportError(conversionError?.localizedDescription ?? "音频尾帧转换失败。")
+                reportError(
+                    conversionError?.localizedDescription
+                        ?? UIStrings.localized(
+                            english: "Audio tail conversion failed.",
+                            simplifiedChinese: "音频尾帧转换失败。"
+                        )
+                )
                 return
             }
 
@@ -299,7 +350,12 @@ final class StreamingAudioCapture {
             }
         }
 
-        reportError("音频转换器未能在限制内完成尾帧刷新。")
+        reportError(
+            UIStrings.localized(
+                english: "The audio converter could not finish flushing tail frames within the limit.",
+                simplifiedChinese: "音频转换器未能在限制内完成尾帧刷新。"
+            )
+        )
     }
 
     @discardableResult
@@ -325,11 +381,20 @@ final class StreamingAudioCapture {
         guard sampleRate == 16000 || sampleRate == 24000 else {
             throw makeError(
                 code: 5,
-                message: "实时 PCM16 捕获仅支持 16000 或 24000 Hz。"
+                message: UIStrings.localized(
+                    english: "Realtime PCM16 capture supports only 16000 or 24000 Hz.",
+                    simplifiedChinese: "实时 PCM16 捕获仅支持 16000 或 24000 Hz。"
+                )
             )
         }
         guard channels == 1 else {
-            throw makeError(code: 6, message: "实时 PCM16 捕获仅支持单声道。")
+            throw makeError(
+                code: 6,
+                message: UIStrings.localized(
+                    english: "Realtime PCM16 capture supports mono audio only.",
+                    simplifiedChinese: "实时 PCM16 捕获仅支持单声道。"
+                )
+            )
         }
     }
 

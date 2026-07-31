@@ -32,7 +32,7 @@ git status --short
 
 ## 修改边界
 
-本仓库是 macOS 悬浮语音输入胶囊（XcodeGen app + unit-test 两个 target，`LSUIElement=YES`，无 Dock 图标），26 个 app Swift 源文件、4 个 XCTest 源文件，无第三方依赖。
+本仓库是 macOS 悬浮语音输入胶囊（XcodeGen app + unit-test 两个 target，`LSUIElement=YES`，无 Dock 图标），27 个 app Swift 源文件、5 个 XCTest 源文件，无第三方依赖。
 
 未来常规任务可以按用户要求修改业务源码；但在只要求项目自查或文档更新的任务中，只允许修改：
 
@@ -41,7 +41,7 @@ git status --short
 
 除非用户明确要求，不要修改：
 
-- `Flotis/`（全部 26 个 app 源文件）
+- `Flotis/`（全部 27 个 app 源文件）
 - `project.yml`
 - `run.sh`
 - `Flotis.xcodeproj/`
@@ -53,10 +53,11 @@ git status --short
 - 若用户要求提交，只提交当前 Git root 中与本任务相关的文件；不得递归进入、暂存、提交或推送子仓库、submodule、nested Git repo 或依赖 checkout。
 - 不引入新依赖，不改构建脚本，不改测试源码，除非任务明确要求。
 - 不把密钥、token、证书私钥、shared secret、账号密码、完整指纹、完整 API 响应、完整转写文本或个人隐私路径写入文档。
-- 不绕过辅助功能（Accessibility）权限检查、Keychain 凭据隔离或 Carbon 全局热键注册边界。
+- 不绕过辅助功能（Accessibility）权限检查、应用自管凭据隔离或 Carbon 全局热键注册边界。
 - 不把 OpenAI Realtime WebSocket 协议（`session.update` / `input_audio_buffer.append` / `commit` / `transcription.*` 事件）、OpenAI HTTP 转写 multipart 协议、命令 JSON 格式、provider UserDefaults schema 当作一次性内部细节随意改名。
 - 不在缺辅助功能权限时调用 `CGEvent` 模拟 ⌘V（`ClipboardPasteInjector` 在 `AccessibilityPermission.check()` 失败时必须 `completion(false)` 返回，不得绕过）。
-- 不把 API key 写入 UserDefaults/配置文件——只存 Keychain 引用字符串 `apiKeyReference`。
+- 不把 API key 明文写入 UserDefaults、connection snapshot、日志或文档。明文只允许写入 `~/Library/Application Support/Flotis/secrets.json`；该目录保持 `0700`、文件保持 `0600`，connection 仅保存引用字符串 `apiKeyReference`。
+- Flotis 运行时不得导入 `Security`、调用 `SecItem*`、读取、迁移或删除旧系统钥匙串条目；旧版本遗留条目只能由用户自行处理。
 
 ## 项目理解要求
 
@@ -66,9 +67,10 @@ git status --short
 - 语音输入主链路：`HotkeyManager`（Carbon 全局热键触发）→ `VoiceInputController`（`@MainActor`、session generation 状态机）→ `TranscriptionAdapterRegistry` 按 adapter 生成 `ownedCapture` / `pcmStream` / `recordedFile` 通用 runtime → Apple Speech、OpenAI Realtime、DashScope Paraformer Realtime、Volcengine BigASR Realtime、OpenAI HTTP 或 GLM ASR HTTP Stream → 可编辑 `reviewing` → `ClipboardPasteInjector`（完整快照剪贴板→置文本→确认目标 PID/前台状态→等修饰键释放→模拟 ⌘V→按 `changeCount` 安全恢复）。
 - 状态机：`VoiceInputState`（idle/requestingPermission/connecting/recording/streaming/stopping/transcribing/reviewing/injecting/failed）；`toggleRecording()` 通过 `VoiceHotkeyAction` 分派 start/stop/cancel/inject/none。
 - 命令兼容：`CommandStore`、8 个默认 UUID 与 `~/Library/Application Support/Flotis/commands.json` 格式仍保留，但 V0.8 主入口不实例化 store、不展示命令 UI、不注册命令热键，也不改写或删除旧命令文件。
-- Provider 配置：`SpeechProviderStore`（singleton）→ UserDefaults 主键 `flotis.transcriptionConnections.v3`（显式 schema/catalog version、last-known-good、坏数据备份；保留 v2/v1 键只作只读迁移输入）；API key → Keychain（service = `com.flotis.Flotis.speech-provider-api-key`，account = `apiKeyReference`，`AfterFirstUnlockThisDeviceOnly`，旧无 service item 按精确 persistent ref 迁移）。
-- 热键：`HotkeyManager` 用 Carbon `RegisterEventHotKey`；V0.8 只注册固定 ID `togglePanel=100`/`toggleVoice=200`，默认 togglePanel=⌘⌥⇧0、toggleVoice=⌘⌥⇧R。commands 起始 `1000` 的底层兼容实现仍在，但主入口传空列表。
-- UI：`FloatingPanelController`（borderless `.nonactivatingPanel`/`.floating`/`hidesOnDeactivate=false`/`.canJoinAllSpaces`）→ `FloatingPanelView`（小胶囊状态 + 可编辑转写审阅 + 取消/输入 + 设置入口）+ `FloatingPanelLayout`（静态无动画尺寸）。
+- Provider 配置：`SpeechProviderStore`（singleton）→ UserDefaults 主键 `flotis.transcriptionConnections.v3`（显式 schema/catalog version、last-known-good、坏数据备份；保留 v2/v1 键只作只读迁移输入）；API key → `LocalSecretStore` 的版本化 `secrets.json`，以 `apiKeyReference` 为记录 ID、同目录原子替换、进程内共享锁 + `.secrets.lock` 跨进程写锁、目录 `0700` / 文件 `0600`，通过目录 fd 与 `openat(..., O_NOFOLLOW)` 拒绝符号链接、非普通文件、损坏或异常大的数据。当前 Settings 展示层只开放 OpenAI Compatible HTTP，其他 adapter/connection 仅隐藏，禁止据此裁剪 snapshot、registry、migration 或 runtime。
+- 热键：`HotkeyManager` 用 Carbon `RegisterEventHotKey` 独占注册，并同时监听 press/release 以抑制按键重复；V0.8 只注册固定 ID `togglePanel=100`/`toggleVoice=200`，默认 togglePanel=⌘⌥⇧0、toggleVoice=⌘⌥⇧R。commands 起始 `1000` 的底层兼容实现仍在，但主入口传空列表。
+- UI：`FloatingPanelController`（borderless `.nonactivatingPanel`/`.floating`/`hidesOnDeactivate=false`/`.canJoinAllSpaces`）→ `FloatingPanelView`（固定屏幕底边锚点、小胶囊状态 + 原生可选择/复制的转写审阅 + 取消/输入 + `FlotisSettingsWindowController` 独立设置窗口入口）+ `FloatingPanelLayout`（静态无动画尺寸）；`VoiceSettingsView` 的可见主表单只保留 OpenAI Compatible 的 model/endpoint/API key、自定义 host 安全确认与 Test Connection，保存后设为当前 connection；底层 connection name/多实例仍保留但当前隐藏，language/prompt/temperature 位于高级区。
+- 界面语言：`AppLanguage` 只按 `Locale.preferredLanguages.first` 自动选择；明确的简体中文标识使用简中，繁体中文、英文和其他语言统一使用英文。此规则只影响 App 文案，不改变 connection 的转写 `language`。
 - 权限：`AccessibilityPermission.check()`（非提示式 `AXIsProcessTrustedWithOptions`）；麦克风与语音识别在 `AppleSpeechTranscriber.start()` 等 runtime 懒请求。
 
 不确定的模块必须标注 `UNKNOWN` 或 `需要后续确认`，不要编造。

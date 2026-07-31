@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -16,6 +17,7 @@ struct FlotisApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var panelController: FloatingPanelController?
+    var settingsWindowController: FlotisSettingsWindowController?
     let appState = AppState()
     let providerStore = SpeechProviderStore.shared
     var voiceController: VoiceInputController?
@@ -24,11 +26,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         appState.checkAccessibility()
         _ = ClipboardPasteInjector.shared
         voiceController = VoiceInputController(appState: appState, providerStore: providerStore)
+        settingsWindowController = FlotisSettingsWindowController(
+            appState: appState,
+            providerStore: providerStore
+        )
 
         panelController = FloatingPanelController(
             appState: appState,
-            providerStore: providerStore,
-            voiceController: voiceController!
+            voiceController: voiceController!,
+            onOpenSettings: { [weak self] in
+                self?.settingsWindowController?.showWindow(nil)
+            }
         )
         panelController?.showWindow(nil)
 
@@ -61,4 +69,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         voiceController?.cancel()
     }
 
+    func applicationShouldTerminate(
+        _ sender: NSApplication
+    ) -> NSApplication.TerminateReply {
+        appState.voiceState == .injecting ? .terminateCancel : .terminateNow
+    }
+
+}
+
+@MainActor
+final class FlotisSettingsWindowController: NSWindowController {
+    init(
+        appState: AppState,
+        providerStore: SpeechProviderStore
+    ) {
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = UIStrings.openAICompatible
+        window.isReleasedWhenClosed = false
+        window.tabbingMode = .disallowed
+        window.collectionBehavior = [.moveToActiveSpace]
+        window.contentViewController = NSHostingController(
+            rootView: SettingsView(
+                appState: appState,
+                providerStore: providerStore,
+                onClose: { [weak window] in
+                    window?.performClose(nil)
+                }
+            )
+        )
+        window.center()
+
+        super.init(window: window)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func showWindow(_ sender: Any?) {
+        super.showWindow(sender)
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
 }

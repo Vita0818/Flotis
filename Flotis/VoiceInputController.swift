@@ -6,6 +6,7 @@ final class VoiceInputController {
 
     private let providerStore: SpeechProviderStore
     private let runtimeFactory: TranscriptionRuntimeFactory
+    private let secretStore: SecretStoring
     private var activeRuntime: TranscriptionRuntimePlan?
     private var realtimeAudioCapture: StreamingAudioCapture?
     private var audioRecorder: AudioRecorder?
@@ -21,11 +22,13 @@ final class VoiceInputController {
     init(
         appState: AppState,
         providerStore: SpeechProviderStore = .shared,
-        runtimeFactory: TranscriptionRuntimeFactory = .shared
+        runtimeFactory: TranscriptionRuntimeFactory = .shared,
+        secretStore: SecretStoring = LocalSecretStore.shared
     ) {
         self.appState = appState
         self.providerStore = providerStore
         self.runtimeFactory = runtimeFactory
+        self.secretStore = secretStore
     }
 
     func toggleRecording() {
@@ -41,7 +44,7 @@ final class VoiceInputController {
         case .inject:
             injectReviewedTranscript()
         case .none:
-            showShortStatus(UIStrings.speechBusy)
+            return
         }
     }
 
@@ -148,7 +151,13 @@ final class VoiceInputController {
             streamContinuation = $0
         }
         guard let continuation = streamContinuation else {
-            fail("实时音频队列创建失败。", for: sessionID)
+            fail(
+                UIStrings.localized(
+                    english: "Could not create the realtime audio queue.",
+                    simplifiedChinese: "实时音频队列创建失败。"
+                ),
+                for: sessionID
+            )
             return
         }
 
@@ -159,7 +168,13 @@ final class VoiceInputController {
             case .dropped:
                 continuation.finish()
                 Task { @MainActor [weak self] in
-                    self?.fail("网络发送速度跟不上录音，已停止以避免丢失音频。", for: sessionID)
+                    self?.fail(
+                        UIStrings.localized(
+                            english: "The network could not keep up with the recording. Recording was stopped to prevent audio loss.",
+                            simplifiedChinese: "网络发送速度跟不上录音，已停止以避免丢失音频。"
+                        ),
+                        for: sessionID
+                    )
                 }
             case .terminated:
                 break
@@ -333,13 +348,25 @@ final class VoiceInputController {
         guard isCurrent(sessionID),
               let recorder = audioRecorder,
               let runtime = activeRuntime else {
-            fail("HTTP 转写未正确启动。", for: sessionID)
+            fail(
+                UIStrings.localized(
+                    english: "HTTP transcription did not start correctly.",
+                    simplifiedChinese: "HTTP 转写未正确启动。"
+                ),
+                for: sessionID
+            )
             return
         }
         let transcriber: FileSpeechTranscribing
         let audio: RecordedFileRuntimeConfiguration
         guard case .recordedFile(let plannedTranscriber, let plannedAudio) = runtime else {
-            fail("文件转写 runtime 类型不匹配。", for: sessionID)
+            fail(
+                UIStrings.localized(
+                    english: "The file transcription runtime type does not match.",
+                    simplifiedChinese: "文件转写 runtime 类型不匹配。"
+                ),
+                for: sessionID
+            )
             return
         }
         transcriber = plannedTranscriber
@@ -352,7 +379,13 @@ final class VoiceInputController {
         appState.transcriptPreview = UIStrings.uploading
 
         guard let fileURL = recorder.stopRecording() else {
-            fail("录音文件创建失败。", for: sessionID)
+            fail(
+                UIStrings.localized(
+                    english: "Could not create the recording file.",
+                    simplifiedChinese: "录音文件创建失败。"
+                ),
+                for: sessionID
+            )
             return
         }
         audioRecorder = nil
@@ -361,7 +394,12 @@ final class VoiceInputController {
            let fileSize = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
            fileSize > maximumUploadBytes {
             try? FileManager.default.removeItem(at: fileURL)
-            fail("录音超过 \(maximumUploadBytes / 1_024 / 1_024) MB，未发送。", for: sessionID)
+            fail(
+                UIStrings.recordingExceedsUploadLimit(
+                    megabytes: maximumUploadBytes / 1_024 / 1_024
+                ),
+                for: sessionID
+            )
             return
         }
 
@@ -391,7 +429,7 @@ final class VoiceInputController {
             guard let self else { return }
             for remaining in stride(from: maximumSeconds, through: 1, by: -1) {
                 guard self.isCurrent(sessionID), self.appState.voiceState == .recording else { return }
-                self.appState.transcriptPreview = "正在录音，剩余 \(remaining) 秒"
+                self.appState.transcriptPreview = UIStrings.recordingSecondsRemaining(remaining)
                 do {
                     try await Task.sleep(nanoseconds: 1_000_000_000)
                 } catch {
@@ -480,7 +518,7 @@ final class VoiceInputController {
 
     private func apiKey(for provider: SpeechProviderConfig) -> String? {
         guard let reference = provider.apiKeyReference else { return nil }
-        let key = (KeychainSecretStore.shared.load(for: reference) ?? "")
+        let key = (secretStore.load(for: reference) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return key.isEmpty ? nil : key
     }

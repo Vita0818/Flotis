@@ -1,6 +1,15 @@
 import AppKit
 import SwiftUI
 
+private enum SpeechSettingsPresentation {
+    static let visibleAdapterID: TranscriptionAdapterID =
+        .openAIAudioTranscriptionsHTTPV1
+
+    static func includes(_ provider: SpeechProviderConfig) -> Bool {
+        provider.adapterID == visibleAdapterID
+    }
+}
+
 enum SettingsCloseMode {
     case back
     case done
@@ -11,6 +20,15 @@ enum SettingsCloseMode {
             return UIStrings.back
         case .done:
             return UIStrings.done
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .back:
+            return "chevron.left"
+        case .done:
+            return "checkmark"
         }
     }
 }
@@ -36,39 +54,81 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Text(UIStrings.settings)
-                    .font(.headline)
+        ZStack {
+            FlotisSystemCanvas()
+                .ignoresSafeArea()
 
-                HStack {
-                    Button(closeMode.buttonTitle) {
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    Text(UIStrings.openAICompatible)
+                        .font(FlotisType.title(for: UIStrings.openAICompatible, 22))
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        if !appState.hasAccessibilityPermission {
+                            AccessibilityPermission.openSettings()
+                        }
+                    } label: {
+                        Image(systemName: "accessibility")
+                        .foregroundStyle(
+                            appState.hasAccessibilityPermission
+                                ? Color.secondary
+                                : Color.orange
+                        )
+                        .frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: 28, height: 28)
+                    .help(
+                        appState.hasAccessibilityPermission
+                            ? UIStrings.enabledStatus
+                            : UIStrings.openSettings
+                    )
+                    .accessibilityLabel(UIStrings.accessibility)
+
+                    Button(role: .destructive) {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        Text(UIStrings.quitFlotis)
+                            .font(FlotisType.body(12, .semibold))
+                    }
+                    .keyboardShortcut("q", modifiers: .command)
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .disabled(appState.voiceState == .injecting)
+                    .help(UIStrings.quitFlotis)
+
+                    Button {
                         closeSettings()
+                    } label: {
+                        Image(systemName: closeMode.systemImage)
+                            .frame(width: 16, height: 16)
                     }
                     .keyboardShortcut("w", modifiers: .command)
-
-                    Spacer()
+                    .buttonStyle(.plain)
+                    .frame(width: 28, height: 28)
+                    .accessibilityLabel(closeMode.buttonTitle)
+                    .help(closeMode.buttonTitle)
                 }
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 12)
+
+                SpeechProviderSettingsView(
+                    providerStore: providerStore,
+                    isActive: true
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-
-            Divider()
-
-            TabView {
-                SpeechSettingsOverviewView(appState: appState, providerStore: providerStore)
-                    .tabItem {
-                        Text(UIStrings.speech)
-                    }
-
-                SpeechProviderSettingsView(appState: appState, providerStore: providerStore)
-                    .tabItem {
-                        Text(UIStrings.transcriptionProviders)
-                    }
-            }
-            .padding()
         }
-        .frame(width: 720, height: 540)
+        .frame(width: 760, height: 560)
+        .onAppear {
+            appState.checkAccessibility()
+        }
+        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
+            appState.checkAccessibility()
+        }
         .onExitCommand {
             closeSettings()
         }
@@ -80,8 +140,9 @@ struct SettingsView: View {
             return
         }
 
+        let settingsWindow = NSApp.keyWindow
         dismiss()
-        NSApp.keyWindow?.performClose(nil)
+        settingsWindow?.performClose(nil)
     }
 }
 
@@ -89,33 +150,130 @@ struct SpeechSettingsOverviewView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var providerStore: SpeechProviderStore
 
+    private var visibleProviders: [SpeechProviderConfig] {
+        providerStore.providers.filter(SpeechSettingsPresentation.includes)
+    }
+
+    private var activeVisibleProvider: SpeechProviderConfig? {
+        visibleProviders.first { $0.id == providerStore.activeProviderID }
+    }
+
+    private var activeVisibleProviderSelection: Binding<UUID?> {
+        Binding(
+            get: { activeVisibleProvider?.id },
+            set: { providerID in
+                guard let providerID else { return }
+                _ = providerStore.setActiveProvider(id: providerID)
+            }
+        )
+    }
+
+    private var activeVisibleLanguageText: String {
+        guard let activeVisibleProvider else {
+            return UIStrings.openAICompatibleNotCurrent
+        }
+        return activeVisibleProvider.language ?? UIStrings.none
+    }
+
     var body: some View {
-        Form {
-            Section(header: Text(UIStrings.speech)) {
-                Picker(UIStrings.currentProvider, selection: Binding(
-                    get: { providerStore.activeProviderID },
-                    set: { providerStore.setActiveProvider(id: $0) }
-                )) {
-                    ForEach(providerStore.providers) { provider in
-                        Text(provider.name)
-                            .tag(provider.id)
-                            .disabled(!providerStore.isProviderReady(provider))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                FlotisSettingsSection(UIStrings.speech, systemImage: "waveform") {
+                    VStack(spacing: 14) {
+                        Picker(
+                            UIStrings.currentProvider,
+                            selection: activeVisibleProviderSelection
+                        ) {
+                            Text(UIStrings.openAICompatibleNotCurrent)
+                                .tag(Optional<UUID>.none)
+                                .disabled(true)
+
+                            ForEach(visibleProviders) { provider in
+                                Text(provider.displayNameForUI)
+                                    .tag(Optional(provider.id))
+                                    .disabled(!providerStore.isProviderReady(provider))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .disabled(visibleProviders.isEmpty)
+
+                        Divider()
+                            .opacity(0.45)
+
+                        LabeledContent(
+                            UIStrings.status,
+                            value: appState.voiceState.displayText
+                        )
+
+                        Divider()
+                            .opacity(0.45)
+
+                        LabeledContent(
+                            UIStrings.language,
+                            value: activeVisibleLanguageText
+                        )
                     }
                 }
 
-                LabeledContent(UIStrings.status, value: appState.voiceState.displayText)
-                LabeledContent(UIStrings.language, value: providerStore.activeProvider.language ?? appState.selectedSpeechLocale)
-            }
+                FlotisSettingsSection(UIStrings.permissions, systemImage: "lock.shield") {
+                    VStack(spacing: 14) {
+                        permissionRow(
+                            title: UIStrings.accessibility,
+                            systemImage: "accessibility",
+                            value: appState.hasAccessibilityPermission
+                                ? UIStrings.enabledStatus
+                                : UIStrings.disabledStatus,
+                            valueColor: appState.hasAccessibilityPermission ? .green : .orange
+                        )
 
-            Section(header: Text(UIStrings.permissions)) {
-                LabeledContent(UIStrings.accessibility, value: appState.hasAccessibilityPermission ? UIStrings.enabledStatus : UIStrings.disabledStatus)
-                LabeledContent(UIStrings.microphone, value: UIStrings.managedByMacOS)
-                LabeledContent(UIStrings.speechRecognition, value: UIStrings.managedByMacOS)
+                        Divider()
+                            .opacity(0.45)
 
-                Button(UIStrings.openSettings) {
-                    AccessibilityPermission.openSettings()
+                        permissionRow(
+                            title: UIStrings.microphone,
+                            systemImage: "mic",
+                            value: UIStrings.managedByMacOS
+                        )
+
+                        Divider()
+                            .opacity(0.45)
+
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button {
+                                AccessibilityPermission.openSettings()
+                            } label: {
+                                Label(
+                                    UIStrings.openSettings,
+                                    systemImage: "arrow.up.forward.app"
+                                )
+                            }
+                            .flotisGlassButton()
+                        }
+                    }
                 }
             }
+            .frame(maxWidth: 720, alignment: .leading)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 28)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private func permissionRow(
+        title: String,
+        systemImage: String,
+        value: String,
+        valueColor: Color = .secondary
+    ) -> some View {
+        HStack(spacing: 12) {
+            Label(title, systemImage: systemImage)
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: 16)
+
+            Text(value)
+                .foregroundStyle(valueColor)
         }
     }
 }
@@ -397,137 +555,78 @@ private enum ConnectionTestViewState {
 }
 
 struct SpeechProviderSettingsView: View {
-    @ObservedObject var appState: AppState
     @ObservedObject var providerStore: SpeechProviderStore
+    let isActive: Bool
+
     @State private var selectedProviderID: UUID?
     @State private var providerDraft: SpeechProviderConfig?
     @State private var editorMode: ProviderEditorMode?
-    @State private var selectedPresetID: TranscriptionProviderPreset.ID?
     @State private var apiKeyInput = ""
     @State private var notice: ProviderNotice?
     @State private var connectionTestState: ConnectionTestViewState = .idle
     @State private var connectionTestGeneration = UUID()
     @State private var connectionTestTask: Task<Void, Never>?
 
-    var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
-                List(selection: $selectedProviderID) {
-                    ForEach(providerStore.providers) { provider in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(provider.name)
-                                    .lineLimit(1)
-                                Text(provider.adapterID.displayName)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            if provider.id == providerStore.activeProviderID {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.accentColor)
-                            } else if !providerStore.isProviderReady(provider) {
-                                Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                        .tag(provider.id)
-                    }
-                }
-                .frame(minWidth: 250)
+    private var visibleProviders: [SpeechProviderConfig] {
+        providerStore.providers.filter(SpeechSettingsPresentation.includes)
+    }
 
-                HStack {
-                    Button(UIStrings.addTranscriptionConnection) {
-                        beginAddingConnection()
-                    }
-                    .disabled(editorMode == .add)
-
-                    Button(UIStrings.delete) {
-                        guard let providerID = selectedProviderID else { return }
-                        if providerStore.deleteProvider(id: providerID) {
-                            self.selectedProviderID = providerStore.activeProviderID
-                            apiKeyInput = ""
-                            notice = nil
-                            loadProviderDraft()
-                        } else {
-                            notice = ProviderNotice(
-                                kind: .error,
-                                text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
-                            )
-                        }
-                    }
-                    .disabled(
-                        providerStore.providers.count <= 1
-                            || selectedProviderID == nil
-                            || editorMode == .add
-                    )
-
-                    Spacer()
-
-                    Button(UIStrings.setAsCurrent) {
-                        guard let selectedProviderID else { return }
-                        if providerStore.setActiveProvider(id: selectedProviderID) {
-                            syncAppStateFromActiveProvider()
-                            notice = nil
-                        } else {
-                            notice = ProviderNotice(
-                                kind: .error,
-                                text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
-                            )
-                        }
-                    }
-                    .disabled(!canActivateSelectedProvider)
-                }
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 10) {
-                if let binding = providerDraftBinding {
-                    Text(
-                        editorMode == .add
-                            ? UIStrings.addTranscriptionConnection
-                            : UIStrings.editTranscriptionConnection
-                    )
-                    .font(.headline)
-
-                    SpeechProviderEditorView(
-                        provider: binding,
-                        selectedPresetID: $selectedPresetID,
-                        apiKeyInput: $apiKeyInput,
-                        notice: $notice,
-                        hasSavedAPIKey: hasSavedAPIKeyForDraft,
-                        canClearSavedAPIKey: canClearSavedAPIKey,
-                        connectionTestState: connectionTestState,
-                        isConnectionTestCurrent: isDraftConnectionTestCurrent,
-                        canTestConnection: canTestDraftConnection,
-                        onSave: saveProviderDraft,
-                        onCancel: cancelProviderDraft,
-                        onClearAPIKey: clearSelectedAPIKey,
-                        onTestConnection: testProviderDraft,
-                        onConfigurationChanged: invalidateConnectionTest
-                    )
-                } else {
-                    Text(UIStrings.selectProviderToEdit)
-                        .foregroundColor(.secondary)
-                }
-
-                if let notice {
-                    Text(notice.text)
-                        .font(.caption)
-                        .foregroundColor(noticeColor(for: notice.kind))
-                } else if let lastError = providerStore.lastError {
-                    Text(lastError)
-                        .font(.caption)
-                        .foregroundColor(.red)
-                }
-
-                Spacer()
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+    private var preferredVisibleProviderID: UUID? {
+        if visibleProviders.contains(where: { $0.id == providerStore.activeProviderID }) {
+            return providerStore.activeProviderID
         }
+        return visibleProviders.first?.id
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let binding = providerDraftBinding {
+                if let notice {
+                    providerNotice(
+                        text: notice.text,
+                        kind: notice.kind
+                    )
+                } else if let lastError = providerStore.lastError {
+                    providerNotice(
+                        text: lastError,
+                        kind: .error
+                    )
+                }
+
+                SpeechProviderEditorView(
+                    provider: binding,
+                    apiKeyInput: $apiKeyInput,
+                    notice: $notice,
+                    hasSavedAPIKey: hasSavedAPIKeyForDraft,
+                    canClearSavedAPIKey: canClearSavedAPIKey,
+                    connectionTestState: connectionTestState,
+                    isConnectionTestCurrent: isDraftConnectionTestCurrent,
+                    canTestConnection: canTestDraftConnection,
+                    onSave: saveProviderDraft,
+                    onCancel: cancelProviderDraft,
+                    onClearAPIKey: clearSelectedAPIKey,
+                    onTestConnection: testProviderDraft,
+                    onConfigurationChanged: invalidateConnectionTest
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                Button {
+                    beginAddingConnection()
+                } label: {
+                    Image(systemName: "plus")
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel(UIStrings.addTranscriptionConnection)
+                .help(UIStrings.addTranscriptionConnection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.bottom, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
-            selectedProviderID = providerStore.activeProviderID
+            selectedProviderID = preferredVisibleProviderID
             loadProviderDraft()
         }
         .onChange(of: selectedProviderID) { newProviderID in
@@ -540,6 +639,11 @@ struct SpeechProviderSettingsView: View {
             apiKeyInput = ""
             notice = nil
             loadProviderDraft()
+        }
+        .onChange(of: isActive) { newValue in
+            if !newValue {
+                cancelConnectionTest(resetState: true)
+            }
         }
         .onDisappear {
             cancelConnectionTest(resetState: true)
@@ -556,7 +660,7 @@ struct SpeechProviderSettingsView: View {
 
     private var persistedSelectedProvider: SpeechProviderConfig? {
         guard let selectedProviderID else { return nil }
-        return providerStore.providers.first { $0.id == selectedProviderID }
+        return visibleProviders.first { $0.id == selectedProviderID }
     }
 
     private var draftMatchesPersistedSecretBoundary: Bool {
@@ -573,15 +677,6 @@ struct SpeechProviderSettingsView: View {
 
     private var canClearSavedAPIKey: Bool {
         hasSavedAPIKeyForDraft && draftMatchesPersistedSecretBoundary
-    }
-
-    private var canActivateSelectedProvider: Bool {
-        guard editorMode != .add, let persistedSelectedProvider else { return false }
-        if let providerDraft,
-           providerDraft.normalizedForProtocol() != persistedSelectedProvider.normalizedForProtocol() {
-            return false
-        }
-        return providerStore.isProviderReady(persistedSelectedProvider)
     }
 
     private var isDraftConnectionTestCurrent: Bool {
@@ -611,20 +706,18 @@ struct SpeechProviderSettingsView: View {
         guard let persistedSelectedProvider else {
             providerDraft = nil
             editorMode = nil
-            selectedPresetID = nil
             apiKeyInput = ""
             return
         }
         providerDraft = persistedSelectedProvider
         editorMode = .edit(persistedSelectedProvider.id)
-        selectedPresetID = nil
         apiKeyInput = ""
     }
 
     private func beginAddingConnection() {
         cancelConnectionTest(resetState: true)
         var draft = providerStore.makeNewConnection(
-            adapterID: .openAIAudioTranscriptionsHTTPV1
+            adapterID: SpeechSettingsPresentation.visibleAdapterID
         )
         draft.name = UIStrings.newTranscriptionConnectionName
         draft.lastConnectionTest = nil
@@ -632,15 +725,14 @@ struct SpeechProviderSettingsView: View {
         selectedProviderID = nil
         providerDraft = draft
         editorMode = .add
-        selectedPresetID = nil
         apiKeyInput = ""
-        notice = ProviderNotice(kind: .information, text: UIStrings.newConnectionDraftHint)
+        notice = nil
     }
 
     private func cancelProviderDraft() {
         notice = nil
         if editorMode == .add {
-            selectedProviderID = providerStore.activeProviderID
+            selectedProviderID = preferredVisibleProviderID
         }
         loadProviderDraft()
     }
@@ -676,14 +768,18 @@ struct SpeechProviderSettingsView: View {
         selectedProviderID = persisted.id
         self.providerDraft = persisted
         editorMode = .edit(persisted.id)
-        selectedPresetID = nil
         apiKeyInput = ""
         cancelConnectionTest(resetState: true)
         if persisted.protocolSchema.requiresAPIKey,
            !providerStore.hasAPIKey(for: persisted) {
             notice = ProviderNotice(kind: .warning, text: UIStrings.providerSavedNeedsAPIKey)
+        } else if !providerStore.setActiveProvider(id: persisted.id) {
+            notice = ProviderNotice(
+                kind: .error,
+                text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
+            )
         } else {
-            notice = ProviderNotice(kind: .success, text: UIStrings.providerSaved)
+            notice = nil
         }
     }
 
@@ -697,7 +793,7 @@ struct SpeechProviderSettingsView: View {
             return
         }
         apiKeyInput = ""
-        notice = ProviderNotice(kind: .success, text: UIStrings.apiKeyCleared)
+        notice = nil
         loadProviderDraft()
     }
 
@@ -788,17 +884,41 @@ struct SpeechProviderSettingsView: View {
         }
     }
 
-    private func syncAppStateFromActiveProvider() {
-        let provider = providerStore.activeProvider
-        if provider.kind == .appleSpeechLive {
-            appState.selectedSpeechLocale = provider.language ?? "zh-CN"
+    private func noticeSystemImage(for kind: ProviderNoticeKind) -> String {
+        switch kind {
+        case .information:
+            return "info.circle"
+        case .success:
+            return "checkmark.circle.fill"
+        case .warning:
+            return "exclamationmark.triangle.fill"
+        case .error:
+            return "xmark.octagon.fill"
         }
     }
+
+    private func providerNotice(
+        text: String,
+        kind: ProviderNoticeKind
+    ) -> some View {
+        Label {
+            Text(text)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: noticeSystemImage(for: kind))
+        }
+        .font(FlotisType.caption(12, .medium))
+        .foregroundStyle(noticeColor(for: kind))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .flotisContentSurface(cornerRadius: 12)
+    }
+
 }
 
 private struct SpeechProviderEditorView: View {
     @Binding var provider: SpeechProviderConfig
-    @Binding var selectedPresetID: TranscriptionProviderPreset.ID?
     @Binding var apiKeyInput: String
     @Binding var notice: ProviderNotice?
     let hasSavedAPIKey: Bool
@@ -815,269 +935,202 @@ private struct SpeechProviderEditorView: View {
     @State private var isAdvancedSettingsExpanded = false
 
     var body: some View {
-        Form {
-            Section {
-                TextField(UIStrings.connectionName, text: $provider.name)
-
-                Picker(UIStrings.protocolCompatibilityType, selection: adapterBinding) {
-                    Section(header: Text(UIStrings.recommendedAdapters)) {
-                        ForEach(recommendedAdapters) { adapterID in
-                            Text(adapterID.displayName).tag(adapterID)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    if provider.protocolSchema.supportsEditableModel {
+                        editorField(UIStrings.model) {
+                            TextField(
+                                UIStrings.model,
+                                text: modelBinding
+                            )
+                            .font(FlotisType.mono())
+                        }
+                    } else if let fixedModel = provider.protocolSchema.fixedModel,
+                              !fixedModel.isEmpty {
+                        LabeledContent(UIStrings.model) {
+                            Text(fixedModel)
+                                .font(FlotisType.mono())
                         }
                     }
-                    Section(header: Text(UIStrings.advancedNativeAdapters)) {
-                        ForEach(advancedAdapters) { adapterID in
-                            Text(adapterID.displayName).tag(adapterID)
+
+                    if provider.protocolSchema.endpointStyle == .secureHTTP {
+                        editorField(UIStrings.endpoint) {
+                            HStack(spacing: 8) {
+                            TextField(
+                                UIStrings.baseURL,
+                                text: baseURLBinding
+                            )
+                            .font(FlotisType.mono())
+
+                            TextField(
+                                UIStrings.endpointPath,
+                                text: endpointPathBinding
+                            )
+                            .font(FlotisType.mono())
+                            }
                         }
                     }
-                }
 
-                Picker(UIStrings.quickPreset, selection: presetBinding) {
-                    Text(UIStrings.customPreset)
-                        .tag(Optional<TranscriptionProviderPreset.ID>.none)
-                    ForEach(availablePresets) { preset in
-                        Text(preset.displayName)
-                            .tag(Optional(preset.id))
-                    }
-                }
+                    if let host = provider.credentialDestinationIdentifier,
+                       !provider.usesTrustedEndpoint {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(host)
+                                .font(FlotisType.mono(12, .medium))
+                                .foregroundStyle(.orange)
+                                .textSelection(.enabled)
 
-                if provider.protocolSchema.supportsEditableModel {
-                    TextField(UIStrings.model, text: modelBinding)
-                } else if let fixedModel = provider.protocolSchema.fixedModel,
-                          !fixedModel.isEmpty {
-                    LabeledContent(UIStrings.model, value: fixedModel)
-                }
-
-                if provider.protocolSchema.supportsLanguage {
-                    TextField(UIStrings.language, text: optionalStringBinding(\.language))
-                }
-            }
-
-            if provider.protocolSchema.endpointStyle == .secureHTTP {
-                Section(header: Text(UIStrings.connectionEndpoint)) {
-                    TextField(UIStrings.baseURL, text: baseURLBinding)
-                    TextField(UIStrings.endpointPath, text: endpointPathBinding)
-                }
-            }
-
-            if provider.protocolSchema.endpointStyle == .secureWebSocket {
-                Section(header: Text(UIStrings.connectionEndpoint)) {
-                    TextField(UIStrings.realtimeURL, text: realtimeURLBinding)
-                    TextField(UIStrings.realtimePath, text: optionalStringBinding(\.realtimePath))
-                }
-            }
-
-            if let host = provider.credentialDestinationIdentifier {
-                Section(header: Text(UIStrings.credentialDestination)) {
-                    Text(String(format: UIStrings.credentialDestinationFormat, host))
-                        .font(.caption)
-                        .foregroundColor(provider.usesTrustedEndpoint ? .secondary : .orange)
-                    if !provider.usesTrustedEndpoint {
-                        Toggle(
-                            UIStrings.confirmCustomEndpoint,
-                            isOn: customEndpointApprovalBinding
+                            Toggle(
+                                UIStrings.confirmCustomEndpoint,
+                                isOn: customEndpointApprovalBinding
+                            )
+                        }
+                        .padding(10)
+                        .background(
+                            Color.orange.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
                         )
                     }
-                }
-            }
 
-            if provider.protocolSchema.requiresAPIKey {
-                Section(header: Text(UIStrings.apiKey)) {
-                    HStack {
-                        SecureField(
-                            hasSavedAPIKey ? UIStrings.apiKeySavedPlaceholder : UIStrings.apiKey,
-                            text: apiKeyBinding
-                        )
-                        Button(UIStrings.clearAPIKey) {
-                            onClearAPIKey()
+                    if provider.protocolSchema.requiresAPIKey {
+                        editorField(UIStrings.apiKey) {
+                            HStack(spacing: 8) {
+                                SecureField(
+                                    hasSavedAPIKey
+                                        ? UIStrings.apiKeySavedPlaceholder
+                                        : UIStrings.apiKey,
+                                    text: apiKeyBinding
+                                )
+
+                                Button(role: .destructive) {
+                                    onClearAPIKey()
+                                } label: {
+                                    Image(systemName: "key.slash")
+                                        .frame(width: 16, height: 16)
+                                }
+                                .buttonStyle(.plain)
+                                .frame(width: 28, height: 28)
+                                .disabled(!canClearSavedAPIKey)
+                                .accessibilityLabel(UIStrings.clearAPIKey)
+                                .help(UIStrings.clearAPIKey)
+                            }
                         }
-                        .disabled(!canClearSavedAPIKey)
                     }
 
-                    Text(UIStrings.apiKeyStoredInKeychain)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            if hasAdvancedSettings {
-                Section {
-                    DisclosureGroup(
-                        UIStrings.advancedSettings,
-                        isExpanded: $isAdvancedSettingsExpanded
-                    ) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if provider.protocolSchema.supportsPrompt {
-                                TextField(UIStrings.prompt, text: optionalStringBinding(\.prompt))
-                            }
-                            if provider.protocolSchema.supportsTemperature {
-                                TextField(UIStrings.temperature, text: doubleBinding(\.temperature))
-                            }
-                            if provider.adapterID == .volcengineBigASRWSV3 {
-                                TextField(
-                                    UIStrings.volcengineResourceID,
-                                    text: volcengineResourceIDBinding
-                                )
-                                LabeledContent(
-                                    UIStrings.volcengineModelName,
-                                    value: provider.volcengineModelName
-                                )
-                            }
-                            if provider.protocolSchema.supportsVolcengineTwoPass {
-                                Toggle(
-                                    UIStrings.volcengineTwoPassRecognition,
-                                    isOn: volcengineTwoPassBinding
-                                )
-                            }
-                            if provider.protocolSchema.fixedInputAudioFormat != nil {
-                                LabeledContent(
-                                    UIStrings.inputAudioFormat,
-                                    value: fixedAudioDescription
-                                )
-                            } else if !provider.protocolSchema.allowedInputAudioFormats.isEmpty {
-                                Picker(UIStrings.inputAudioFormat, selection: inputAudioFormatBinding) {
-                                    ForEach(
-                                        provider.protocolSchema.allowedInputAudioFormats.sorted(),
-                                        id: \.self
-                                    ) { format in
-                                        Text(format.uppercased()).tag(format)
+                    if hasAdvancedSettings {
+                        DisclosureGroup(
+                            isExpanded: $isAdvancedSettingsExpanded
+                        ) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if provider.protocolSchema.supportsLanguage {
+                                    editorField(UIStrings.language) {
+                                        TextField(
+                                            UIStrings.language,
+                                            text: optionalStringBinding(\.language)
+                                        )
                                     }
                                 }
-                                LabeledContent(
-                                    UIStrings.audioParameters,
-                                    value: fixedAudioDescription
-                                )
-                            }
-                            if let responseMode = provider.protocolSchema.responseMode {
-                                LabeledContent(
-                                    UIStrings.responseMode,
-                                    value: responseMode == .json
-                                        ? UIStrings.responseModeJSON
-                                        : UIStrings.responseModeSSE
-                                )
-                            }
-                            if provider.adapterID == .openAIRealtimeTranscriptionGA {
-                                Text(UIStrings.openAIRealtimeManualCommit)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            if provider.adapterID == .glmASRHTTPSSEV4 {
-                                Text(UIStrings.glmUploadLimits)
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                        .padding(.top, 6)
-                    }
-                }
-            }
 
-            Section(header: Text(UIStrings.connectionTest)) {
-                HStack(spacing: 10) {
-                    Button(connectionTestButtonTitle) {
+                                if provider.protocolSchema.supportsPrompt {
+                                    editorField(UIStrings.prompt) {
+                                        TextField(
+                                            UIStrings.prompt,
+                                            text: optionalStringBinding(\.prompt)
+                                        )
+                                    }
+                                }
+
+                                if provider.protocolSchema.supportsTemperature {
+                                    editorField(UIStrings.temperature) {
+                                        TextField(
+                                            UIStrings.temperature,
+                                            text: doubleBinding(\.temperature)
+                                        )
+                                        .font(FlotisType.mono())
+                                    }
+                                }
+                            }
+                            .padding(.top, 10)
+                        } label: {
+                            Text(UIStrings.advancedSettings)
+                                .font(FlotisType.body(12, .medium))
+                        }
+                    }
+
+                    Divider()
+                        .opacity(0.45)
+
+                    HStack(spacing: 10) {
+                        Button {
+                            if isTestingConnection {
+                                onConfigurationChanged()
+                            } else {
+                                onTestConnection()
+                            }
+                        } label: {
+                            Text(connectionTestButtonTitle)
+                        }
+                        .disabled(!isTestingConnection && !canTestConnection)
+                        .buttonStyle(.bordered)
+
                         if isTestingConnection {
-                            onConfigurationChanged()
-                        } else {
-                            onTestConnection()
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+
+                        if shouldShowConnectionTestStatus {
+                            Label(
+                                connectionTestStatusText,
+                                systemImage: connectionTestStatusIcon
+                            )
+                            .font(FlotisType.caption(12, .medium))
+                            .foregroundStyle(connectionTestStatusColor)
+                            .lineLimit(1)
                         }
                     }
-                    .disabled(!isTestingConnection && !canTestConnection)
-
-                    if isTestingConnection {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-
-                    Text(connectionTestStatusText)
-                        .font(.caption)
-                        .foregroundColor(connectionTestStatusColor)
-                        .lineLimit(2)
                 }
-
-                if let record = provider.lastConnectionTest {
-                    Text(
-                        "\(UIStrings.lastConnectionTest): "
-                            + record.testedAt.formatted(date: .abbreviated, time: .shortened)
-                            + " · \(UIStrings.adapterVersion) \(record.adapterVersion)"
-                    )
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                }
-
-                Text(UIStrings.connectionTestPrivacyNote)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                .padding(.trailing, 8)
+                .padding(.bottom, 12)
             }
 
-            HStack {
-                Spacer()
-                Button(UIStrings.cancel) {
+            Divider()
+                .opacity(0.45)
+
+            HStack(spacing: 10) {
+                Button {
                     notice = nil
                     onCancel()
+                } label: {
+                    Text(UIStrings.cancel)
                 }
-                Button(UIStrings.save) {
+                .buttonStyle(.bordered)
+
+                Spacer(minLength: 0)
+
+                Button {
                     onSave()
+                } label: {
+                    Text(UIStrings.save)
                 }
-                .buttonStyle(.borderedProminent)
                 .disabled(isTestingConnection)
+                .buttonStyle(.borderedProminent)
             }
+            .padding(.top, 14)
         }
     }
 
-    private var recommendedAdapters: [TranscriptionAdapterID] {
-        TranscriptionAdapterID.allCases.filter { !advancedAdapters.contains($0) }
-    }
+    private func editorField<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(FlotisType.caption(12, .semibold))
+                .foregroundStyle(.secondary)
 
-    private var advancedAdapters: [TranscriptionAdapterID] {
-        [
-            .dashScopeParaformerWSV1,
-            .volcengineBigASRWSV3,
-            .glmASRHTTPSSEV4
-        ]
-    }
-
-    private var availablePresets: [TranscriptionProviderPreset] {
-        TranscriptionProviderPreset.catalog.filter { $0.adapterID == provider.adapterID }
-    }
-
-    private var adapterBinding: Binding<TranscriptionAdapterID> {
-        Binding(
-            get: { provider.adapterID },
-            set: { newAdapterID in
-                guard newAdapterID != provider.adapterID else { return }
-                provider = provider.applyingAdapter(newAdapterID)
-                selectedPresetID = nil
-                apiKeyInput = ""
-                notice = ProviderNotice(
-                    kind: hasSavedAPIKey ? .warning : .information,
-                    text: hasSavedAPIKey
-                        ? UIStrings.adapterChangeClearsAPIKey
-                        : UIStrings.adapterChangedHint
-                )
-                onConfigurationChanged()
-            }
-        )
-    }
-
-    private var presetBinding: Binding<TranscriptionProviderPreset.ID?> {
-        Binding(
-            get: { selectedPresetID },
-            set: { newPresetID in
-                selectedPresetID = newPresetID
-                guard let newPresetID,
-                      let preset = availablePresets.first(where: { $0.id == newPresetID }) else {
-                    onConfigurationChanged()
-                    return
-                }
-                let oldDestination = provider.credentialDestinationIdentifier
-                provider = preset.applying(to: provider)
-                if provider.credentialDestinationIdentifier != oldDestination {
-                    provider.isCustomEndpointApproved = false
-                }
-                notice = ProviderNotice(kind: .information, text: UIStrings.presetAppliedHint)
-                onConfigurationChanged()
-            }
-        )
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func optionalStringBinding(_ keyPath: WritableKeyPath<SpeechProviderConfig, String?>) -> Binding<String> {
@@ -1132,70 +1185,11 @@ private struct SpeechProviderEditorView: View {
         )
     }
 
-    private var realtimeURLBinding: Binding<String> {
-        Binding(
-            get: { provider.realtimeURL ?? "" },
-            set: { newValue in
-                let oldHost = provider.credentialDestinationIdentifier
-                provider.realtimeURL = newValue.isEmpty ? nil : newValue
-                resetCustomEndpointApprovalIfHostChanged(from: oldHost)
-                manualConfigurationChanged()
-            }
-        )
-    }
-
-    private var volcengineResourceIDBinding: Binding<String> {
-        Binding(
-            get: { provider.volcengineResourceID },
-            set: {
-                provider.volcengineResourceID = $0
-                manualConfigurationChanged()
-            }
-        )
-    }
-
-    private var volcengineTwoPassBinding: Binding<Bool> {
-        Binding(
-            get: { provider.enableVolcengineTwoPassRecognition },
-            set: {
-                provider.enableVolcengineTwoPassRecognition = $0
-                manualConfigurationChanged()
-            }
-        )
-    }
-
     private var customEndpointApprovalBinding: Binding<Bool> {
         Binding(
             get: { provider.isCustomEndpointApproved },
             set: {
                 provider.isCustomEndpointApproved = $0
-                manualConfigurationChanged()
-            }
-        )
-    }
-
-    private var fixedAudioDescription: String {
-        let schema = provider.protocolSchema
-        let format = (
-            schema.fixedInputAudioFormat
-                ?? provider.inputAudioFormat
-                ?? schema.defaultInputAudioFormat
-        )?.uppercased() ?? UIStrings.none
-        let rate = schema.fixedSampleRate.map(String.init) ?? UIStrings.none
-        let channels = schema.fixedChannels.map(String.init) ?? UIStrings.none
-        return "\(format) · \(rate) Hz · \(channels) ch"
-    }
-
-    private var inputAudioFormatBinding: Binding<String> {
-        Binding(
-            get: {
-                provider.inputAudioFormat
-                    ?? provider.protocolSchema.defaultInputAudioFormat
-                    ?? provider.protocolSchema.allowedInputAudioFormats.sorted().first
-                    ?? ""
-            },
-            set: {
-                provider.inputAudioFormat = $0
                 manualConfigurationChanged()
             }
         )
@@ -1217,18 +1211,13 @@ private struct SpeechProviderEditorView: View {
     }
 
     private func manualConfigurationChanged() {
-        selectedPresetID = nil
         onConfigurationChanged()
     }
 
     private var hasAdvancedSettings: Bool {
-        provider.protocolSchema.supportsPrompt
+        provider.protocolSchema.supportsLanguage
+            || provider.protocolSchema.supportsPrompt
             || provider.protocolSchema.supportsTemperature
-            || provider.protocolSchema.supportsVolcengineTwoPass
-            || provider.protocolSchema.fixedInputAudioFormat != nil
-            || !provider.protocolSchema.allowedInputAudioFormats.isEmpty
-            || provider.protocolSchema.responseMode != nil
-            || provider.adapterID == .volcengineBigASRWSV3
     }
 
     private var isTestingConnection: Bool {
@@ -1236,6 +1225,13 @@ private struct SpeechProviderEditorView: View {
             return true
         }
         return false
+    }
+
+    private var shouldShowConnectionTestStatus: Bool {
+        if case .idle = connectionTestState {
+            return provider.lastConnectionTest != nil
+        }
+        return true
     }
 
     private var connectionTestButtonTitle: String {
@@ -1280,6 +1276,30 @@ private struct SpeechProviderEditorView: View {
                 return .red
             }
             return isConnectionTestCurrent ? .green : .secondary
+        }
+    }
+
+    private var connectionTestStatusIcon: String {
+        switch connectionTestState {
+        case .testing:
+            return "hourglass"
+        case .succeeded:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "xmark.circle.fill"
+        case .idle:
+            guard let record = provider.lastConnectionTest else {
+                return "questionmark.circle"
+            }
+            guard isTestRecordConfigurationCurrent else {
+                return "arrow.triangle.2.circlepath"
+            }
+            switch record.outcome {
+            case .succeeded:
+                return "checkmark.circle.fill"
+            case .failed:
+                return "xmark.circle.fill"
+            }
         }
     }
 

@@ -126,7 +126,7 @@ enum KeyCodeDisplay {
         45: "N",
         46: "M",
         47: ".",
-        49: "空格",
+        49: UIStrings.space,
         51: "⌫",
         53: "Esc",
         96: "F5",
@@ -148,6 +148,10 @@ enum KeyCodeDisplay {
     ]
 
     static func label(for keyCode: UInt32) -> String {
-        labelsByKeyCode[keyCode] ?? "按键 \(keyCode)"
+        labelsByKeyCode[keyCode]
+            ?? UIStrings.localized(
+                english: "Key \(keyCode)",
+                simplifiedChinese: "按键 \(keyCode)"
+            )
     }
 }
