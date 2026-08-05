@@ -33,10 +33,36 @@ enum SettingsCloseMode {
     }
 }
 
+private enum SettingsDestination: Hashable {
+    case general
+    case transcription
+
+    var title: String {
+        switch self {
+        case .general:
+            return UIStrings.generalSettings
+        case .transcription:
+            return UIStrings.transcriptionSettings
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .general:
+            return "slider.horizontal.3"
+        case .transcription:
+            return "waveform.badge.mic"
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var providerStore: SpeechProviderStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var destination: SettingsDestination = .general
 
     let closeMode: SettingsCloseMode
     let onClose: (() -> Void)?
@@ -54,83 +80,135 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        ZStack {
-            FlotisSystemCanvas()
-                .ignoresSafeArea()
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                settingsSidebar
 
-            VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    Text(UIStrings.openAICompatible)
-                        .font(FlotisType.title(for: UIStrings.openAICompatible, 22))
+                Divider()
 
-                    Spacer(minLength: 0)
+                ZStack {
+                    FlotisSystemCanvas()
+                        .ignoresSafeArea()
 
-                    Button {
-                        if !appState.hasAccessibilityPermission {
-                            AccessibilityPermission.openSettings()
-                        }
-                    } label: {
-                        Image(systemName: "accessibility")
-                        .foregroundStyle(
-                            appState.hasAccessibilityPermission
-                                ? Color.secondary
-                                : Color.orange
-                        )
-                        .frame(width: 18, height: 18)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: 28, height: 28)
-                    .help(
-                        appState.hasAccessibilityPermission
-                            ? UIStrings.enabledStatus
-                            : UIStrings.openSettings
-                    )
-                    .accessibilityLabel(UIStrings.accessibility)
-
-                    Button(role: .destructive) {
-                        NSApplication.shared.terminate(nil)
-                    } label: {
-                        Text(UIStrings.quitFlotis)
-                            .font(FlotisType.body(12, .semibold))
-                    }
-                    .keyboardShortcut("q", modifiers: .command)
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(appState.voiceState == .injecting)
-                    .help(UIStrings.quitFlotis)
-
-                    Button {
-                        closeSettings()
-                    } label: {
-                        Image(systemName: closeMode.systemImage)
-                            .frame(width: 16, height: 16)
-                    }
-                    .keyboardShortcut("w", modifiers: .command)
-                    .buttonStyle(.plain)
-                    .frame(width: 28, height: 28)
-                    .accessibilityLabel(closeMode.buttonTitle)
-                    .help(closeMode.buttonTitle)
+                    settingsContent
                 }
-                .padding(.horizontal, 22)
-                .padding(.top, 18)
-                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .frame(
+                width: geometry.size.width,
+                height: geometry.size.height,
+                alignment: .topLeading
+            )
+        }
+        .frame(minWidth: 760, minHeight: 540)
+        .onExitCommand {
+            closeSettings()
+        }
+    }
+
+    private var settingsSidebar: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 11) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(FlotisTheme.primary(colorScheme))
+
+                    Image(systemName: "waveform")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color(nsColor: .windowBackgroundColor))
+                }
+                .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Flotis")
+                        .font(FlotisType.brand(18, .semibold))
+                    Text(appVersionText)
+                        .font(FlotisType.mono(10, .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            VStack(spacing: 6) {
+                sidebarButton(.general)
+                sidebarButton(.transcription)
+            }
+
+            Spacer(minLength: 24)
+
+            Divider()
+
+            Button(role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Label(UIStrings.quitFlotis, systemImage: "power")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.red)
+            .disabled(appState.voiceState == .injecting)
+            .keyboardShortcut("q", modifiers: .command)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 22)
+        .padding(.bottom, 18)
+        .frame(width: 210)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(.ultraThinMaterial)
+    }
+
+    private func sidebarButton(_ item: SettingsDestination) -> some View {
+        Button {
+            destination = item
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: item.systemImage)
+                    .frame(width: 18)
+                Text(item.title)
+                Spacer(minLength: 0)
+            }
+            .font(FlotisType.body(13, .medium))
+            .padding(.horizontal, 11)
+            .frame(height: 34)
+            .contentShape(Rectangle())
+            .background {
+                if destination == item {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.accentColor.opacity(colorScheme == .dark ? 0.24 : 0.13))
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(destination == item ? Color.primary : Color.secondary)
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String
+        return version.map { "v\($0)" } ?? "Flotis"
+    }
+
+    @ViewBuilder
+    private var settingsContent: some View {
+        switch destination {
+        case .general:
+            GeneralSettingsPage()
+        case .transcription:
+            VStack(alignment: .leading, spacing: 0) {
+                FlotisPageHeader(
+                    title: UIStrings.transcriptionSettings,
+                    subtitle: UIStrings.transcriptionSettingsSubtitle
+                )
+                .padding(.horizontal, 28)
+                .padding(.top, 26)
+                .padding(.bottom, 20)
 
                 SpeechProviderSettingsView(
                     providerStore: providerStore,
-                    isActive: true
+                    isActive: destination == .transcription
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-        }
-        .frame(width: 760, height: 560)
-        .onAppear {
-            appState.checkAccessibility()
-        }
-        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            appState.checkAccessibility()
-        }
-        .onExitCommand {
-            closeSettings()
         }
     }
 
@@ -143,6 +221,84 @@ struct SettingsView: View {
         let settingsWindow = NSApp.keyWindow
         dismiss()
         settingsWindow?.performClose(nil)
+    }
+}
+
+private struct GeneralSettingsPage: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                FlotisPageHeader(
+                    title: UIStrings.generalSettings,
+                    subtitle: UIStrings.generalSettingsSubtitle
+                )
+
+                FlotisSettingsSection(
+                    UIStrings.voiceInput,
+                    systemImage: "waveform"
+                ) {
+                    VStack(spacing: 0) {
+                        settingsFeatureRow(
+                            title: UIStrings.voiceShortcutTitle,
+                            detail: UIStrings.voiceShortcutDescription,
+                            trailing: KeyboardShortcutDescriptor.toggleVoice.displayString,
+                            systemImage: "command"
+                        )
+
+                        Divider()
+                            .padding(.vertical, 14)
+
+                        settingsFeatureRow(
+                            title: UIStrings.floatingPanelTitle,
+                            detail: UIStrings.floatingPanelDragDescription,
+                            trailing: nil,
+                            systemImage: "rectangle.and.hand.point.up.left"
+                        )
+                    }
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 26)
+            .padding(.bottom, 32)
+            .frame(maxWidth: 760, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+
+    private func settingsFeatureRow(
+        title: String,
+        detail: String,
+        trailing: String?,
+        systemImage: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 13) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(FlotisType.body(13, .semibold))
+                Text(detail)
+                    .font(FlotisType.caption(12, .regular))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            if let trailing {
+                Text(trailing)
+                    .font(FlotisType.mono(11, .semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(
+                        Color.secondary.opacity(0.1),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    )
+            }
+        }
     }
 }
 
@@ -610,20 +766,32 @@ struct SpeechProviderSettingsView: View {
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Button {
-                    beginAddingConnection()
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 20, height: 20)
+                VStack(spacing: 14) {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    VStack(spacing: 5) {
+                        Text(UIStrings.noOpenAICompatibleConnections)
+                            .font(FlotisType.headline(15, .semibold))
+                        Text(UIStrings.addConnectionDescription)
+                            .font(FlotisType.body(12))
+                            .foregroundStyle(.secondary)
+                    }
+                    .multilineTextAlignment(.center)
+
+                    Button {
+                        beginAddingConnection()
+                    } label: {
+                        Label(UIStrings.addTranscriptionConnection, systemImage: "plus")
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(UIStrings.addTranscriptionConnection)
-                .help(UIStrings.addTranscriptionConnection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.bottom, 18)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             selectedProviderID = preferredVisibleProviderID
@@ -779,7 +947,7 @@ struct SpeechProviderSettingsView: View {
                 text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
             )
         } else {
-            notice = nil
+            notice = ProviderNotice(kind: .success, text: UIStrings.providerSaved)
         }
     }
 
@@ -793,8 +961,8 @@ struct SpeechProviderSettingsView: View {
             return
         }
         apiKeyInput = ""
-        notice = nil
         loadProviderDraft()
+        notice = ProviderNotice(kind: .success, text: UIStrings.apiKeyCleared)
     }
 
     private func testProviderDraft() {
@@ -937,64 +1105,81 @@ private struct SpeechProviderEditorView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    if provider.protocolSchema.supportsEditableModel {
-                        editorField(UIStrings.model) {
-                            TextField(
-                                UIStrings.model,
-                                text: modelBinding
-                            )
-                            .font(FlotisType.mono())
-                        }
-                    } else if let fixedModel = provider.protocolSchema.fixedModel,
-                              !fixedModel.isEmpty {
-                        LabeledContent(UIStrings.model) {
-                            Text(fixedModel)
+                VStack(alignment: .leading, spacing: 16) {
+                    editorSection(
+                        UIStrings.connectionDetails,
+                        subtitle: UIStrings.connectionDetailsDescription,
+                        systemImage: "point.3.connected.trianglepath.dotted"
+                    ) {
+                        if provider.protocolSchema.supportsEditableModel {
+                            editorField(UIStrings.model) {
+                                TextField(
+                                    UIStrings.model,
+                                    text: modelBinding
+                                )
                                 .font(FlotisType.mono())
-                        }
-                    }
-
-                    if provider.protocolSchema.endpointStyle == .secureHTTP {
-                        editorField(UIStrings.endpoint) {
-                            HStack(spacing: 8) {
-                            TextField(
-                                UIStrings.baseURL,
-                                text: baseURLBinding
-                            )
-                            .font(FlotisType.mono())
-
-                            TextField(
-                                UIStrings.endpointPath,
-                                text: endpointPathBinding
-                            )
-                            .font(FlotisType.mono())
+                            }
+                        } else if let fixedModel = provider.protocolSchema.fixedModel,
+                                  !fixedModel.isEmpty {
+                            LabeledContent(UIStrings.model) {
+                                Text(fixedModel)
+                                    .font(FlotisType.mono())
                             }
                         }
-                    }
 
-                    if let host = provider.credentialDestinationIdentifier,
-                       !provider.usesTrustedEndpoint {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(host)
-                                .font(FlotisType.mono(12, .medium))
+                        if provider.protocolSchema.endpointStyle == .secureHTTP {
+                            editorField(UIStrings.endpoint) {
+                                HStack(spacing: 10) {
+                                    TextField(
+                                        UIStrings.baseURL,
+                                        text: baseURLBinding
+                                    )
+                                    .font(FlotisType.mono())
+                                    .frame(minWidth: 260)
+
+                                    TextField(
+                                        UIStrings.endpointPath,
+                                        text: endpointPathBinding
+                                    )
+                                    .font(FlotisType.mono())
+                                    .frame(minWidth: 150)
+                                }
+                            }
+                        }
+
+                        if let host = provider.credentialDestinationIdentifier,
+                           !provider.usesTrustedEndpoint {
+                            VStack(alignment: .leading, spacing: 9) {
+                                Label {
+                                    Text(host)
+                                        .font(FlotisType.mono(12, .medium))
+                                        .textSelection(.enabled)
+                                } icon: {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                }
                                 .foregroundStyle(.orange)
-                                .textSelection(.enabled)
 
-                            Toggle(
-                                UIStrings.confirmCustomEndpoint,
-                                isOn: customEndpointApprovalBinding
+                                Toggle(
+                                    UIStrings.confirmCustomEndpoint,
+                                    isOn: customEndpointApprovalBinding
+                                )
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                Color.orange.opacity(0.09),
+                                in: RoundedRectangle(cornerRadius: 11, style: .continuous)
                             )
                         }
-                        .padding(10)
-                        .background(
-                            Color.orange.opacity(0.08),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        )
                     }
 
                     if provider.protocolSchema.requiresAPIKey {
-                        editorField(UIStrings.apiKey) {
-                            HStack(spacing: 8) {
+                        editorSection(
+                            UIStrings.credentials,
+                            subtitle: UIStrings.credentialsDescription,
+                            systemImage: "key"
+                        ) {
+                            HStack(spacing: 10) {
                                 SecureField(
                                     hasSavedAPIKey
                                         ? UIStrings.apiKeySavedPlaceholder
@@ -1005,96 +1190,106 @@ private struct SpeechProviderEditorView: View {
                                 Button(role: .destructive) {
                                     onClearAPIKey()
                                 } label: {
-                                    Image(systemName: "key.slash")
-                                        .frame(width: 16, height: 16)
+                                    Label(UIStrings.clear, systemImage: "key.slash")
                                 }
-                                .buttonStyle(.plain)
-                                .frame(width: 28, height: 28)
+                                .buttonStyle(.bordered)
                                 .disabled(!canClearSavedAPIKey)
-                                .accessibilityLabel(UIStrings.clearAPIKey)
                                 .help(UIStrings.clearAPIKey)
+                            }
+
+                            if hasSavedAPIKey {
+                                Label(UIStrings.apiKeyStoredLocally, systemImage: "checkmark.circle.fill")
+                                    .font(FlotisType.caption(11, .medium))
+                                    .foregroundStyle(.green)
                             }
                         }
                     }
 
                     if hasAdvancedSettings {
-                        DisclosureGroup(
-                            isExpanded: $isAdvancedSettingsExpanded
+                        editorSection(
+                            UIStrings.optionalParameters,
+                            subtitle: nil,
+                            systemImage: "slider.horizontal.3"
                         ) {
-                            VStack(alignment: .leading, spacing: 12) {
-                                if provider.protocolSchema.supportsLanguage {
-                                    editorField(UIStrings.language) {
-                                        TextField(
-                                            UIStrings.language,
-                                            text: optionalStringBinding(\.language)
-                                        )
+                            DisclosureGroup(
+                                isExpanded: $isAdvancedSettingsExpanded
+                            ) {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    if provider.protocolSchema.supportsLanguage {
+                                        editorField(UIStrings.language) {
+                                            TextField(
+                                                UIStrings.language,
+                                                text: optionalStringBinding(\.language)
+                                            )
+                                        }
                                     }
-                                }
 
-                                if provider.protocolSchema.supportsPrompt {
-                                    editorField(UIStrings.prompt) {
-                                        TextField(
-                                            UIStrings.prompt,
-                                            text: optionalStringBinding(\.prompt)
-                                        )
+                                    if provider.protocolSchema.supportsPrompt {
+                                        editorField(UIStrings.prompt) {
+                                            TextField(
+                                                UIStrings.prompt,
+                                                text: optionalStringBinding(\.prompt)
+                                            )
+                                        }
                                     }
-                                }
 
-                                if provider.protocolSchema.supportsTemperature {
-                                    editorField(UIStrings.temperature) {
-                                        TextField(
-                                            UIStrings.temperature,
-                                            text: doubleBinding(\.temperature)
-                                        )
-                                        .font(FlotisType.mono())
+                                    if provider.protocolSchema.supportsTemperature {
+                                        editorField(UIStrings.temperature) {
+                                            TextField(
+                                                UIStrings.temperature,
+                                                text: doubleBinding(\.temperature)
+                                            )
+                                            .font(FlotisType.mono())
+                                        }
                                     }
                                 }
+                                .padding(.top, 12)
+                            } label: {
+                                Text(UIStrings.advancedSettings)
+                                    .font(FlotisType.body(12, .medium))
                             }
-                            .padding(.top, 10)
-                        } label: {
-                            Text(UIStrings.advancedSettings)
-                                .font(FlotisType.body(12, .medium))
                         }
                     }
 
-                    Divider()
-                        .opacity(0.45)
-
-                    HStack(spacing: 10) {
-                        Button {
-                            if isTestingConnection {
-                                onConfigurationChanged()
-                            } else {
-                                onTestConnection()
+                    editorSection(
+                        UIStrings.connectionTest,
+                        subtitle: UIStrings.connectionTestPrivacyNote,
+                        systemImage: "checkmark.circle"
+                    ) {
+                        HStack(alignment: .center, spacing: 10) {
+                            Button {
+                                if isTestingConnection {
+                                    onConfigurationChanged()
+                                } else {
+                                    onTestConnection()
+                                }
+                            } label: {
+                                Text(connectionTestButtonTitle)
                             }
-                        } label: {
-                            Text(connectionTestButtonTitle)
-                        }
-                        .disabled(!isTestingConnection && !canTestConnection)
-                        .buttonStyle(.bordered)
+                            .disabled(!isTestingConnection && !canTestConnection)
+                            .buttonStyle(.bordered)
 
-                        if isTestingConnection {
-                            ProgressView()
-                                .controlSize(.small)
-                        }
+                            if isTestingConnection {
+                                ProgressView()
+                                    .controlSize(.small)
+                            }
 
-                        if shouldShowConnectionTestStatus {
-                            Label(
-                                connectionTestStatusText,
-                                systemImage: connectionTestStatusIcon
-                            )
-                            .font(FlotisType.caption(12, .medium))
-                            .foregroundStyle(connectionTestStatusColor)
-                            .lineLimit(1)
+                            if shouldShowConnectionTestStatus {
+                                Label(
+                                    connectionTestStatusText,
+                                    systemImage: connectionTestStatusIcon
+                                )
+                                .font(FlotisType.caption(11, .medium))
+                                .foregroundStyle(connectionTestStatusColor)
+                                .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer(minLength: 0)
                         }
                     }
                 }
-                .padding(.trailing, 8)
-                .padding(.bottom, 12)
+                .padding(.bottom, 20)
             }
-
-            Divider()
-                .opacity(0.45)
 
             HStack(spacing: 10) {
                 Button {
@@ -1115,8 +1310,44 @@ private struct SpeechProviderEditorView: View {
                 .disabled(isTestingConnection)
                 .buttonStyle(.borderedProminent)
             }
-            .padding(.top, 14)
+            .padding(.horizontal, 2)
+            .padding(.vertical, 14)
+            .overlay(alignment: .top) {
+                Divider()
+            }
         }
+    }
+
+    private func editorSection<Content: View>(
+        _ title: String,
+        subtitle: String?,
+        systemImage: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 11) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, height: 20)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(FlotisType.headline(14, .semibold))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(FlotisType.caption(11, .regular))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+
+            content()
+        }
+        .padding(17)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .flotisContentSurface(cornerRadius: 16)
     }
 
     private func editorField<Content: View>(

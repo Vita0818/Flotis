@@ -1,10 +1,23 @@
 import AppKit
 import SwiftUI
 
+struct FloatingPanelPositionAnchor: Equatable {
+    let centerX: CGFloat
+    let bottomY: CGFloat
+
+    init(frame: NSRect) {
+        centerX = frame.midX
+        bottomY = frame.minY
+    }
+}
+
 private final class FlotisFloatingPanel: NSPanel {
     var pendingResizeWorkItem: DispatchWorkItem?
     var anchoredScreenNumber: NSNumber?
     var latestPreferredContentSize: CGSize?
+    // A clamped review frame is temporary; only a real window move replaces this anchor.
+    var positionAnchor: FloatingPanelPositionAnchor?
+    var isApplyingProgrammaticFrame = false
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
@@ -40,22 +53,9 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.isMovableByWindowBackground = false
+        panel.isMovable = true
+        panel.isMovableByWindowBackground = true
         panel.becomesKeyOnlyIfNeeded = true
-        
-        let visualEffect = NSVisualEffectView()
-        visualEffect.material = .popover
-        visualEffect.state = .active
-        visualEffect.blendingMode = .behindWindow
-        visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = FloatingPanelLayout.cornerRadius
-        visualEffect.layer?.cornerCurve = .continuous
-        visualEffect.layer?.masksToBounds = true
-        // NSVisualEffectView's material mask also shapes the window-server shadow;
-        // a CALayer corner alone only clips the hosted subviews.
-        visualEffect.maskImage = Self.makeRoundedMaterialMask(
-            cornerRadius: FloatingPanelLayout.cornerRadius
-        )
         
         let hostingView = NSHostingView(
             rootView: FloatingPanelView(
@@ -68,17 +68,17 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
                 }
             )
         )
-        
-        visualEffect.addSubview(hostingView)
+        let panelSurface = Self.makePanelSurface(hostingView: hostingView)
+
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
-            hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
-            hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor)
+            hostingView.leadingAnchor.constraint(equalTo: panelSurface.leadingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: panelSurface.trailingAnchor),
+            hostingView.topAnchor.constraint(equalTo: panelSurface.topAnchor),
+            hostingView.bottomAnchor.constraint(equalTo: panelSurface.bottomAnchor)
         ])
-        
-        panel.contentView = visualEffect
+
+        panel.contentView = panelSurface
         panel.invalidateShadow()
         panel.contentMinSize = CGSize(
             width: FloatingPanelLayout.minPanelWidth,
@@ -100,6 +100,7 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
                 )
             )
         }
+        panel.positionAnchor = FloatingPanelPositionAnchor(frame: panel.frame)
         
         super.init(window: panel)
         panel.delegate = self
@@ -139,6 +140,17 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         appState.isPanelVisible = false
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard let panel = notification.object as? FlotisFloatingPanel,
+              !panel.isApplyingProgrammaticFrame else {
+            return
+        }
+        panel.positionAnchor = FloatingPanelPositionAnchor(frame: panel.frame)
+        if let screen = panel.screen {
+            panel.anchoredScreenNumber = screen.deviceDescription[Self.screenNumberKey] as? NSNumber
+        }
     }
 
     private static func schedulePreferredContentSize(
@@ -189,13 +201,13 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
         let targetFrameSize = panel.frameRect(
             forContentRect: NSRect(origin: .zero, size: targetContentSize)
         ).size
-        var targetOrigin = NSPoint(
-            x: visibleFrame.midX - targetFrameSize.width / 2,
-            y: visibleFrame.minY + 32
-        )
-        targetOrigin = clampedOrigin(
-            targetOrigin,
-            frameSize: targetFrameSize,
+        let currentFrame = panel.frame
+        let positionAnchor = panel.positionAnchor
+            ?? FloatingPanelPositionAnchor(frame: currentFrame)
+        panel.positionAnchor = positionAnchor
+        let targetOrigin = resizedOrigin(
+            positionAnchor: positionAnchor,
+            targetFrameSize: targetFrameSize,
             visibleFrame: visibleFrame
         )
 
@@ -208,12 +220,41 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
             return
         }
 
+        panel.isApplyingProgrammaticFrame = true
         panel.setFrame(
             NSRect(origin: targetOrigin, size: targetFrameSize),
             display: true,
             animate: false
         )
+        panel.isApplyingProgrammaticFrame = false
         panel.invalidateShadow()
+    }
+
+    static func resizedOrigin(
+        currentFrame: NSRect,
+        targetFrameSize: CGSize,
+        visibleFrame: NSRect
+    ) -> NSPoint {
+        resizedOrigin(
+            positionAnchor: FloatingPanelPositionAnchor(frame: currentFrame),
+            targetFrameSize: targetFrameSize,
+            visibleFrame: visibleFrame
+        )
+    }
+
+    static func resizedOrigin(
+        positionAnchor: FloatingPanelPositionAnchor,
+        targetFrameSize: CGSize,
+        visibleFrame: NSRect
+    ) -> NSPoint {
+        clampedOrigin(
+            NSPoint(
+                x: positionAnchor.centerX - targetFrameSize.width / 2,
+                y: positionAnchor.bottomY
+            ),
+            frameSize: targetFrameSize,
+            visibleFrame: visibleFrame
+        )
     }
 
     private static func anchoredVisibleFrame(for panel: FlotisFloatingPanel) -> NSRect {
@@ -251,6 +292,37 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
         )
         image.resizingMode = .stretch
         return image
+    }
+
+    private static func makePanelSurface(hostingView: NSView) -> NSView {
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            let glass = NSGlassEffectView()
+            glass.cornerRadius = FloatingPanelLayout.cornerRadius
+            glass.style = .regular
+            if #available(macOS 27.0, *) {
+                glass.effectIsInteractive = true
+            }
+            glass.contentView = hostingView
+            return glass
+        }
+        #endif
+
+        let visualEffect = NSVisualEffectView()
+        visualEffect.material = .popover
+        visualEffect.state = .active
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.wantsLayer = true
+        visualEffect.layer?.cornerRadius = FloatingPanelLayout.cornerRadius
+        visualEffect.layer?.cornerCurve = .continuous
+        visualEffect.layer?.masksToBounds = true
+        // NSVisualEffectView's material mask also shapes the window-server shadow;
+        // a CALayer corner alone only clips the hosted subviews.
+        visualEffect.maskImage = makeRoundedMaterialMask(
+            cornerRadius: FloatingPanelLayout.cornerRadius
+        )
+        visualEffect.addSubview(hostingView)
+        return visualEffect
     }
 
     private static func clampedOrigin(

@@ -1,6 +1,6 @@
 # DO_NOT_BREAK
 
-最近自查日期：2026-07-30
+最近自查日期：2026-08-04
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -8,9 +8,12 @@
 
 - app target `Flotis`：macOS 13+、`LSUIElement=YES`、`LSMultipleInstancesProhibited=YES`、Swift 5.0。
 - unit-test target `FlotisTests` 依赖 app target；新增核心策略/迁移逻辑时应补纯单测。
+- input-method target `FlotisInputMethod`：macOS 13+、独立 `LSBackgroundOnly=YES` application bundle、InputMethodKit framework、Swift 5.0；顶层与模式级 TIFF 输入源图标必须随 bundle 复制，不得为了接线让它依赖或启动完整 `Flotis` app target。
+- `FlotisInputMethodTests` 直接编译 protocol/service 纯源码，不以输入法 app 作为 test host，避免测试时启动永久 event loop。
 - 不无故引入第三方依赖、sandbox、entitlements、signing 或 bundle ID 变更。
-- `Flotis.xcodeproj` 与 `Flotis/Info.plist` 由 `project.yml` 生成。修改 target/source/build setting 或 `info.properties` 后必须运行 `xcodegen generate` 并验证生成工程与最终 app 产物；版本值必须继续展开 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`。
-- 不把 `run.sh` 当普通测试命令：它会删除 DerivedData 并重置 Accessibility TCC。
+- `Flotis.xcodeproj`、`Flotis/Info.plist` 与 `FlotisInputMethod/Info.plist` 由 `project.yml` 生成。修改 target/source/build setting 或 `info.properties` 后必须运行 `xcodegen generate` 并验证生成工程与对应最终产物；版本值必须继续展开 `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`。
+- 主 App 应用图标的 source of truth 是根目录 `Flotis.icon`；必须继续作为 `Flotis` target 的 `wrapper.icon` resource，并保持 `ASSETCATALOG_COMPILER_APPICON_NAME=Flotis`。构建应生成 `Flotis.icns`、`Assets.car` 与匹配的 `CFBundleIconFile/CFBundleIconName`；不得只把图层 PNG 当成 `CFBundleIconFile`，也不得误加到 `FlotisInputMethod` target 覆盖其输入源 TIFF 图标。
+- 不把 `run.sh` 当普通测试命令：它会终止旧实例、生成工程、构建并打开 app。脚本必须复用稳定的临时 DerivedData，不得自动删除缓存或执行 `tccutil reset Accessibility`；ad-hoc 签名只能提示风险，不能伪装成可稳定保留 TCC 的发布身份。
 
 ## 界面语言边界
 
@@ -118,34 +121,51 @@
 
 ## 语音生命周期与并发
 
-- `VoiceInputController` 的 session generation/identity guard 不得绕过。任何异步 callback 在修改 UI、清理资源或注入文本前都必须验证当前 session。
-- V0.8 最终转写必须先进入 `reviewing`，不得恢复“provider 完成即自动注入”。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
+- `VoiceInputController` 的 session generation/identity guard 不得绕过。任何异步 callback 在修改 UI、清理资源或提交最终文本前都必须验证当前 session。
+- V0.8 最终转写必须先进入 `reviewing`，不得恢复 provider 完成即自动提交。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
 - reviewing 文本必须保持原生可选择/可复制能力，至少支持鼠标选区、`⌘C` 和显式复制全部；不能用窗口背景拖动或不可命中的装饰 overlay 吞掉文本交互。
-- reviewing 的热键动作必须是显式 inject；注入失败必须保留当前编辑文本并回到 reviewing，成功后才允许清空文本。injecting 期间不得接受重复注入。
+- reviewing 的当前热键动作必须是 `copyAndReturn`：用 trim 结果判断空白，但必须原样复制用户编辑文本；写入失败必须保留 reviewing/文本并保持 panel 可见，成功后才允许推进 generation、清空文本、回 idle，并让审阅框按逻辑位置锚点缩回小胶囊。成功路径不得隐藏或关闭 panel。当前产品路径不得调用 `ClipboardPasteInjector`、请求 AX 或发送 `CGEvent`/`⌘V`。
 - requesting/connecting 可由热键取消；stopping/transcribing 已进入终态处理时，额外热键必须忽略而不是清空本次会话。
 - operation task、audio writer、limit task、streaming/file transcriber、capture/recorder 都必须可取消；App 退出也必须调用 cancel。
 - connection 和 key 在会话开始时快照到 adapter runtime。stop 阶段不得重新依赖一个可能已被 UI 删除/切换的 connection 或本地 secret 记录。
+- 当前复制并返回路径不得捕获、激活或猜测目标 app；复制结果只留在系统剪贴板，由用户自行决定粘贴位置。若未来重新启用旧注入器，目标捕获和核验仍必须遵守下节兼容边界。
 - realtime chunk 必须进入有界串行 writer；overflow 应失败并提示，stop 必须先 drain 再 terminal commit/finish。
 - `StreamingAudioCapture.stop()` 必须保持当前 generation/converter 有效，直到 tap callback group、conversion queue 与 converter end-of-stream 尾帧全部 drain；只有 `cancel()` 可以先失效 generation 丢弃待处理 chunk。
 - transcriber 的 socket sender 与共享状态必须保持 actor/锁隔离，旧连接回调不能污染新连接。
 - `AudioRecorder.prepareToRecord()`、`record()` 与最终文件检查返回值不可忽略。
 
-## 热键与注入安全边界
+## 热键、当前复制与旧注入安全边界
 
-- 缺 AX 权限时 `ClipboardPasteInjector` 必须立即 `completion(false)`；禁止以任何方式绕过检查发 `CGEvent`。
-- 发 `⌘V` 前必须再次确认：operation 未过期、目标进程存活且 PID 未变、目标仍为 frontmost、Flotis 自身不再持有 key window、语音快捷键的修饰键与主键 R 均已释放、AX 仍可信、pasteboard `changeCount` 仍是 app 管理值。
+- `VoiceInputState.reviewing.hotkeyAction` 必须保持 `copyAndReturn`；idle/failed→start、recording/streaming→stop、requesting/connecting→cancel、stopping/transcribing/injecting→none 的其余映射不得回归。
+- 固定 voice hotkey 当前必须保持 `⌃⌥A`（Carbon virtual key `0`，Control+Option），panel hotkey 保持 `⌘⌥⇧0`。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
+- 当前复制写入成功后必须直接清空会话并回 idle，不得恢复 `.closePanel` outcome 或窗口关闭回调。失败或纯空白必须保持 panel 与 review 可恢复；复制后的文字必须留在剪贴板，不能用旧注入器的 snapshot restore 覆盖。
+- `ClipboardPasteInjector` 当前只作为不可达兼容实现保留；没有用户新的明确产品决策，不得重新接入 AppDelegate、`VoiceInputController` 或审阅按钮。
+
+- 如果旧 `ClipboardPasteInjector` 被独立调用，缺 AX 权限时必须立即返回明确的 accessibility failure；禁止以任何方式绕过检查发 `CGEvent`。当前产品 UI 不展示或请求 AX；未来重新接入时，平时状态刷新仍须非提示式，只有用户明确发起授权或真实注入缺权时才可提示。
+- 发 `⌘V` 前必须再次确认：operation 未过期、目标进程存活且 PID 未变、目标仍为 frontmost、Flotis 自身不再持有 key window、当前语音快捷键主键 A 及 Control/Option 均已释放、AX 仍可信、pasteboard `changeCount` 仍是 app 管理值。
 - 用户在激活等待中切到第三方 app 时必须 abort，不能把文本发给当前任意 frontmost app。
 - 队列必须保持有界（当前 max in-flight 4、burst 8、operation 5 秒过期）或采用同等安全的 backpressure；不得恢复无上限 backlog。
 - 剪贴板无法完整复制全部 item/type 时拒绝注入。恢复只在 `changeCount` 未被外部更新时进行，且要检查 `writeObjects` 成功。
-- 完整语音快捷键等待超时必须失败，不能只等修饰键、不等主键 R，也不能超时后照常粘贴。
-- completion=true 只代表安全核验、event post 与 clipboard outcome 成功；不得在 UI 文案中声称已证明目标控件消费文本。
-- 点击胶囊编辑导致 Flotis 获得键盘焦点时，只能使用 `ClipboardPasteInjector` 已记录且重新核验的最近非 Flotis target；不得直接向任意 frontmost app 或未核验 PID 发事件。
-- 可打印全局快捷键必须包含 Command + 至少一个额外修饰键；固定 toggle、重复项与 `⌘V` 等危险组合必须拒绝。
+- 完整语音快捷键等待超时必须失败，不能只等修饰键、不等当前描述符的主键，也不能超时后照常粘贴。
+- success 只代表安全核验、PID 定向 event post 与 clipboard outcome 成功；不得在 UI 文案中声称已证明目标控件消费文本。失败结果必须保持可区分，不能再次压扁成无法诊断的单一 Bool。
+- 点击胶囊编辑导致 Flotis 获得键盘焦点时，只能使用当前语音 session 开始时捕获并重新核验的非 Flotis target；显式胶囊输入可重激活该目标，从不同第三方 app 触发全局热键则必须 abort。不得直接向任意 frontmost app 或未核验 PID 发事件。
+- 旧命令的可打印全局快捷键必须包含 Command + 至少一个额外修饰键；固定 toggle、重复项与 `⌘V` 等危险组合必须拒绝。`⌃⌥A` 是主入口直接注册的固定 voice toggle 产品例外，不经过旧命令的 `shortcutSafetyError`，不得据此放宽用户命令快捷键的安全校验。
 - hotkey handler 必须同时监听 press/release 并以 gate 抑制 auto-repeat；注册必须保持 `kEventHotKeyExclusive`。handler 安装失败时不得继续注册；单项失败状态必须可见并自动重试，event signature 必须核验。
-- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应先恢复胶囊可见性。
-- panel 尺寸变更必须合并旧请求并只应用最后一次，锚点屏幕与底边位置不得随异步状态重算而漂移；整窗背景不得抢占审阅文本的拖选。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet。
-- idle 可以不主动展开 AX 权限提示，但 Settings 必须持续显示真实 AX 状态；缺 AX 导致实际注入失败后，胶囊必须显示权限错误和系统设置入口，不能吞掉失败或假装注入成功。
+- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败则继续显示 reviewing panel。
+- panel 必须允许用户从非交互背景拖动；尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。原生审阅文本视图必须继续声明不以鼠标按下移动窗口，避免整窗拖动抢占文本拖选。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
+- idle 的当前 Presentation contract 为 `108×54` 外壳、28 pt 白圆六条黑声波开始录音图、28 pt 白圆/16 pt 黑色八齿齿轮设置图，以及下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键；不得借视觉替换改变两个既有 `30×30` 点击区域、8 pt 间距、Start/Settings 无障碍标签与帮助、action、快捷键或语音状态映射，也不得为图标或文字对比度重新给整个原生 glass 加固定 tint。stop/cancel/retry/copy-and-return 等非 idle 状态图标继续按现有逻辑显示。若再次替换图稿，对应 `docs/assets/*-reference.png` 与 `Assets.xcassets/VoiceWaveformButton.imageset` / `SettingsGearButton.imageset` 的 1x/2x/3x 派生资源必须同步核对。
+- macOS 26+ 的胶囊外壳必须继续由原生 `NSGlassEffectView(style: .regular)` 承载并保留系统自适应 tint；不得给整个 glass 设置固定黑色 `tintColor`，也不得在 SwiftUI hosting root 后方铺全表面黑色/不透明/半透明填充来模拟对比度，否则会压掉原生 Liquid Glass 的高光、折射与背景适配。语义强调只能局部、按控件使用；macOS 13–25 的 material fallback 仍须保留。
+- 当前 Settings 不应展示 AX 状态或授权入口，胶囊 reviewing 也不应因缺 AX 展开提示；当前流程只需报告系统剪贴板写入失败。旧 AX 文案/类型可随兼容实现保留，但不得成为可达主流程。
 - Settings 的一键退出必须走 `NSApplication.terminate` → `applicationWillTerminate`，不得用 `exit`/kill 绕过热键与语音资源清理；`.injecting` 期间不仅要禁用页头按钮，`applicationShouldTerminate` 还必须统一拒绝菜单、`⌘Q` 等其他终止请求，避免剪贴板尚未完成安全恢复。
+
+## InputMethodKit 接口边界
+
+- `main.swift` 在输入法进程生命周期内只能创建一个 `IMKServer`，并使用 `IMKServer(name:bundleIdentifier:)` 让 InputMethodKit 从当前 bundle plist 解析 controller/delegate；不得改回已证明会在 nil delegate 下崩溃的 legacy initializer。connection name、controller class、顶层/模式级 `TISInputSourceID` 与图标键必须与生成的 Info.plist 保持一致。
+- 普通 `inputText` 必须返回 `false`，不能吞掉或改写用户日常键盘输入。显式 commit 只能通过当前 `client()` 的 `insertText` 在当前插入点执行，不得猜测任意 app、PID 或 replacement range。
+- 每次 controller activation 必须创建新 session；deactivate、close 或新 activation 必须使旧 session 失效。请求必须核验 protocol version、非空内容、1 MiB 上限和当前 session，验证失败不能触达 client。
+- service 只弱持有当前 endpoint，不记录、持久化或打印提交文本。session UUID 是防陈旧请求的时序 token，不是未来 IPC 身份认证；增加跨进程传输前必须另行定义同一签名/用户边界、调用方认证、超时和重放策略。
+- 输入法 target 当前不得读取 API key、connection、剪贴板、麦克风或语音文件，也不得调用 AX/`CGEvent`。在主 App 明确接线前，现有主 App 必须继续停在“reviewing → 系统剪贴板复制 → 回到可见 idle 小胶囊”；不得把输入法接口或旧注入器静默接回默认路径。
+- 构建不等于安装或可用。未经明确授权，不复制到 `~/Library/Input Methods`、不切换输入源、不启动输入法做真实提交；手动验证必须区分“系统发现”“激活”“client 收到文字”三层结果。即使 `TISRegisterInputSource` 返回成功，新安装/修改的 bundle 仍可能要在注销并重新登录后才出现在当前登录会话的输入源缓存；不得通过关闭 SIP 或强制终止受保护服务绕过该边界。
 
 ## 临时文件
 
@@ -170,8 +190,10 @@
 xcodegen generate
 xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisDerivedData CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisDerivedData CODE_SIGNING_ALLOWED=NO test
+xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethod -configuration Debug -derivedDataPath /tmp/FlotisInputMethodDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethodTests -configuration Debug -derivedDataPath /tmp/FlotisInputMethodTestsDerivedData CODE_SIGNING_ALLOWED=NO test
 git diff --check
 git status --short
 ```
 
-协议、AX/CGEvent、本地 secret store 或 audio engine 变更还需按 `docs/TESTING.md` 做对应文件系统/真机矩阵；自动化构建/单测不能替代真实权限和供应商联调。
+协议、AX/CGEvent、本地 secret store、audio engine 或 InputMethodKit 变更还需按 `docs/TESTING.md` 做对应文件系统/真机矩阵；自动化构建/单测不能替代真实权限、输入法客户端或供应商联调。

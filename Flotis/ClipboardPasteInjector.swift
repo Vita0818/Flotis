@@ -1,6 +1,58 @@
 import AppKit
 import CoreGraphics
 
+enum PasteInjectionFailure: Error, Equatable {
+    case accessibilityPermissionMissing
+    case targetUnavailable
+    case queueBusy
+    case clipboardUnavailable
+    case clipboardChanged
+    case clipboardWriteFailed
+    case targetActivationFailed
+    case targetActivationTimedOut
+    case shortcutReleaseTimedOut
+    case operationExpired
+    case eventCreationFailed
+    case clipboardRestoreFailed
+
+    var userMessage: String {
+        switch self {
+        case .accessibilityPermissionMissing:
+            return UIStrings.injectionAccessibilityMissing
+        case .targetUnavailable:
+            return UIStrings.injectionTargetUnavailable
+        case .queueBusy:
+            return UIStrings.injectionBusy
+        case .clipboardUnavailable:
+            return UIStrings.injectionClipboardUnavailable
+        case .clipboardChanged:
+            return UIStrings.injectionClipboardChanged
+        case .clipboardWriteFailed:
+            return UIStrings.injectionClipboardWriteFailed
+        case .targetActivationFailed, .targetActivationTimedOut:
+            return UIStrings.injectionTargetActivationFailed
+        case .shortcutReleaseTimedOut:
+            return UIStrings.injectionShortcutReleaseTimedOut
+        case .operationExpired:
+            return UIStrings.injectionOperationExpired
+        case .eventCreationFailed:
+            return UIStrings.injectionEventFailed
+        case .clipboardRestoreFailed:
+            return UIStrings.injectionClipboardRestoreFailed
+        }
+    }
+}
+
+enum PasteInjectionResult: Equatable {
+    case succeeded
+    case failed(PasteInjectionFailure)
+}
+
+struct PasteInjectionTarget {
+    fileprivate let application: NSRunningApplication
+    let processIdentifier: pid_t
+}
+
 final class ClipboardPasteInjector {
     static let shared = ClipboardPasteInjector()
 
@@ -13,13 +65,16 @@ final class ClipboardPasteInjector {
         let text: String
         let targetApplication: NSRunningApplication
         let targetProcessIdentifier: pid_t
+        let allowsTargetReactivation: Bool
+        let activationSourceProcessIdentifier: pid_t?
         let enqueuedAt: TimeInterval
-        let completion: (Bool) -> Void
+        let completion: (PasteInjectionResult) -> Void
     }
 
     private struct DeferredCompletion {
         let eventWasPosted: Bool
-        let completion: (Bool) -> Void
+        let failure: PasteInjectionFailure?
+        let completion: (PasteInjectionResult) -> Void
     }
 
     private enum Limits {
@@ -29,7 +84,6 @@ final class ClipboardPasteInjector {
     }
 
     private enum Timing {
-        static let activationTimeout: TimeInterval = 1
         static let pollInterval: TimeInterval = 0.03
         static let pasteboardConsumptionDelay: TimeInterval = 0.75
     }
@@ -91,6 +145,13 @@ final class ClipboardPasteInjector {
         modifierKeysAreDown || primaryKeyIsDown
     }
 
+    static func shouldAllowCapturedTargetReactivation(
+        explicitPanelRequest: Bool,
+        ownsKeyWindow: Bool
+    ) -> Bool {
+        explicitPanelRequest || ownsKeyWindow
+    }
+
     deinit {
         if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
@@ -100,18 +161,49 @@ final class ClipboardPasteInjector {
         }
     }
 
-    func inject(text: String, completion: @escaping (Bool) -> Void) {
+    func captureTarget() -> PasteInjectionTarget? {
+        guard Thread.isMainThread,
+              let application = targetApplicationForInjection(),
+              isValidTarget(application) else {
+            return nil
+        }
+        return PasteInjectionTarget(
+            application: application,
+            processIdentifier: application.processIdentifier
+        )
+    }
+
+    func inject(
+        text: String,
+        target: PasteInjectionTarget?,
+        allowsTargetReactivation: Bool,
+        completion: @escaping (PasteInjectionResult) -> Void
+    ) {
         if !Thread.isMainThread {
             DispatchQueue.main.async {
-                self.inject(text: text, completion: completion)
+                self.inject(
+                    text: text,
+                    target: target,
+                    allowsTargetReactivation: allowsTargetReactivation,
+                    completion: completion
+                )
             }
             return
         }
 
-        guard AccessibilityPermission.check(),
-              let targetApplication = targetApplicationForInjection(),
-              isValidTarget(targetApplication) else {
-            completion(false)
+        guard AccessibilityPermission.check() else {
+            completion(.failed(.accessibilityPermissionMissing))
+            return
+        }
+
+        guard let target else {
+            completion(.failed(.targetUnavailable))
+            return
+        }
+        let targetApplication = target.application
+        guard isValidTarget(targetApplication),
+              target.processIdentifier == targetApplication.processIdentifier else {
+            completion(.failed(.targetUnavailable))
             return
         }
 
@@ -120,20 +212,20 @@ final class ClipboardPasteInjector {
             inFlightCount: inFlightCount,
             burstOperationCount: burstOperationCount
         ) else {
-            completion(false)
+            completion(.failed(.queueBusy))
             return
         }
 
         let pasteboard = NSPasteboard.general
         if let managedPasteboardChangeCount,
            pasteboard.changeCount != managedPasteboardChangeCount {
-            completion(false)
+            completion(.failed(.clipboardChanged))
             return
         }
 
         if burstOriginalClipboard == nil {
             guard let snapshot = snapshot(from: pasteboard) else {
-                completion(false)
+                completion(.failed(.clipboardUnavailable))
                 return
             }
             burstOriginalClipboard = snapshot
@@ -148,6 +240,11 @@ final class ClipboardPasteInjector {
                 text: text,
                 targetApplication: targetApplication,
                 targetProcessIdentifier: targetApplication.processIdentifier,
+                allowsTargetReactivation: Self.shouldAllowCapturedTargetReactivation(
+                    explicitPanelRequest: allowsTargetReactivation,
+                    ownsKeyWindow: NSApp.keyWindow?.isKeyWindow == true
+                ),
+                activationSourceProcessIdentifier: frontmostProcessIdentifier(),
                 enqueuedAt: ProcessInfo.processInfo.systemUptime,
                 completion: completion
             )
@@ -165,15 +262,31 @@ final class ClipboardPasteInjector {
         }
 
         let operation = pendingOperations.removeFirst()
-        guard isOperationFresh(operation), isValidTarget(operation) else {
-            deferCompletion(for: operation, eventWasPosted: false)
+        guard isOperationFresh(operation) else {
+            deferCompletion(
+                for: operation,
+                eventWasPosted: false,
+                failure: .operationExpired
+            )
+            processNextOperationIfNeeded()
+            return
+        }
+        guard isValidTarget(operation) else {
+            deferCompletion(
+                for: operation,
+                eventWasPosted: false,
+                failure: .targetUnavailable
+            )
             processNextOperationIfNeeded()
             return
         }
 
         let pasteboard = NSPasteboard.general
         guard pasteboardIsUnchangedForCurrentBurst(pasteboard) else {
-            abortBurstPreservingExternalClipboard(currentOperation: operation)
+            abortBurstPreservingExternalClipboard(
+                currentOperation: operation,
+                failure: .clipboardChanged
+            )
             return
         }
 
@@ -182,14 +295,22 @@ final class ClipboardPasteInjector {
         let didSetText = pasteboard.setString(operation.text, forType: .string)
         managedPasteboardChangeCount = pasteboard.changeCount
         guard didSetText else {
-            finish(operation: operation, eventWasPosted: false)
+            finish(
+                operation: operation,
+                eventWasPosted: false,
+                failure: .clipboardWriteFailed
+            )
             return
         }
 
-        confirmTargetIsFrontmost(for: operation) { [weak self] targetIsFrontmost in
+        confirmTargetIsFrontmost(for: operation) { [weak self] activationResult in
             guard let self else { return }
-            guard targetIsFrontmost else {
-                self.finish(operation: operation, eventWasPosted: false)
+            if case .failure(let failure) = activationResult {
+                self.finish(
+                    operation: operation,
+                    eventWasPosted: false,
+                    failure: failure
+                )
                 return
             }
 
@@ -199,9 +320,20 @@ final class ClipboardPasteInjector {
             self.waitForVoiceShortcutToRelease(
                 until: operation.enqueuedAt + Limits.maximumOperationAge
             ) { modifiersWereReleased in
-                guard modifiersWereReleased,
-                      self.canPostPasteEvent(for: operation) else {
-                    self.finish(operation: operation, eventWasPosted: false)
+                guard modifiersWereReleased else {
+                    self.finish(
+                        operation: operation,
+                        eventWasPosted: false,
+                        failure: .shortcutReleaseTimedOut
+                    )
+                    return
+                }
+                if let failure = self.postValidationFailure(for: operation) {
+                    self.finish(
+                        operation: operation,
+                        eventWasPosted: false,
+                        failure: failure
+                    )
                     return
                 }
 
@@ -211,14 +343,26 @@ final class ClipboardPasteInjector {
                 }
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + Timing.pasteboardConsumptionDelay) {
-                    self.finish(operation: operation, eventWasPosted: didPostPaste)
+                    self.finish(
+                        operation: operation,
+                        eventWasPosted: didPostPaste,
+                        failure: didPostPaste ? nil : .eventCreationFailed
+                    )
                 }
             }
         }
     }
 
-    private func finish(operation: PasteOperation, eventWasPosted: Bool) {
-        deferCompletion(for: operation, eventWasPosted: eventWasPosted)
+    private func finish(
+        operation: PasteOperation,
+        eventWasPosted: Bool,
+        failure: PasteInjectionFailure?
+    ) {
+        deferCompletion(
+            for: operation,
+            eventWasPosted: eventWasPosted,
+            failure: failure
+        )
         isProcessingPaste = false
 
         if pendingOperations.isEmpty {
@@ -228,10 +372,15 @@ final class ClipboardPasteInjector {
         }
     }
 
-    private func deferCompletion(for operation: PasteOperation, eventWasPosted: Bool) {
+    private func deferCompletion(
+        for operation: PasteOperation,
+        eventWasPosted: Bool,
+        failure: PasteInjectionFailure?
+    ) {
         deferredCompletions.append(
             DeferredCompletion(
                 eventWasPosted: eventWasPosted,
+                failure: failure,
                 completion: operation.completion
             )
         )
@@ -242,7 +391,11 @@ final class ClipboardPasteInjector {
         var retainedOperations: [PasteOperation] = []
         for operation in pendingOperations {
             if Self.isOperationExpired(enqueuedAt: operation.enqueuedAt, now: now) {
-                deferCompletion(for: operation, eventWasPosted: false)
+                deferCompletion(
+                    for: operation,
+                    eventWasPosted: false,
+                    failure: .operationExpired
+                )
             } else {
                 retainedOperations.append(operation)
             }
@@ -270,14 +423,34 @@ final class ClipboardPasteInjector {
         let completions = deferredCompletions
         resetBurstState()
         for deferredCompletion in completions {
-            deferredCompletion.completion(deferredCompletion.eventWasPosted && clipboardOutcome)
+            if deferredCompletion.eventWasPosted && clipboardOutcome {
+                deferredCompletion.completion(.succeeded)
+            } else {
+                deferredCompletion.completion(
+                    .failed(
+                        deferredCompletion.failure
+                            ?? (clipboardOutcome ? .eventCreationFailed : .clipboardRestoreFailed)
+                    )
+                )
+            }
         }
     }
 
-    private func abortBurstPreservingExternalClipboard(currentOperation: PasteOperation) {
-        deferCompletion(for: currentOperation, eventWasPosted: false)
+    private func abortBurstPreservingExternalClipboard(
+        currentOperation: PasteOperation,
+        failure: PasteInjectionFailure
+    ) {
+        deferCompletion(
+            for: currentOperation,
+            eventWasPosted: false,
+            failure: failure
+        )
         for operation in pendingOperations {
-            deferCompletion(for: operation, eventWasPosted: false)
+            deferCompletion(
+                for: operation,
+                eventWasPosted: false,
+                failure: failure
+            )
         }
         pendingOperations.removeAll()
         isProcessingPaste = false
@@ -285,7 +458,13 @@ final class ClipboardPasteInjector {
         let completions = deferredCompletions
         resetBurstState()
         for deferredCompletion in completions {
-            deferredCompletion.completion(deferredCompletion.eventWasPosted)
+            if deferredCompletion.eventWasPosted {
+                deferredCompletion.completion(.succeeded)
+            } else {
+                deferredCompletion.completion(
+                    .failed(deferredCompletion.failure ?? failure)
+                )
+            }
         }
     }
 
@@ -328,30 +507,37 @@ final class ClipboardPasteInjector {
 
     private func confirmTargetIsFrontmost(
         for operation: PasteOperation,
-        completion: @escaping (Bool) -> Void
+        completion: @escaping (Result<Void, PasteInjectionFailure>) -> Void
     ) {
-        guard isValidTarget(operation), isOperationFresh(operation) else {
-            completion(false)
+        guard isValidTarget(operation) else {
+            completion(.failure(.targetUnavailable))
+            return
+        }
+        guard isOperationFresh(operation) else {
+            completion(.failure(.operationExpired))
             return
         }
 
         if targetIsReadyForPaste(
             processIdentifier: operation.targetProcessIdentifier
         ) {
-            completion(true)
+            completion(.success(()))
             return
         }
 
         resignOwnKeyWindowIfNeeded()
-        guard mayActivateTargetFromCurrentFrontmostApplication(for: operation),
-              operation.targetApplication.activate(options: [.activateIgnoringOtherApps]) else {
-            completion(false)
+        guard mayActivateTargetFromCurrentFrontmostApplication(for: operation) else {
+            completion(.failure(.targetUnavailable))
+            return
+        }
+        guard operation.targetApplication.activate(options: [.activateIgnoringOtherApps]) else {
+            completion(.failure(.targetActivationFailed))
             return
         }
 
         waitForTargetToBecomeFrontmost(
             operation,
-            until: ProcessInfo.processInfo.systemUptime + Timing.activationTimeout,
+            until: operation.enqueuedAt + Limits.maximumOperationAge,
             completion: completion
         )
     }
@@ -359,25 +545,28 @@ final class ClipboardPasteInjector {
     private func waitForTargetToBecomeFrontmost(
         _ operation: PasteOperation,
         until deadline: TimeInterval,
-        completion: @escaping (Bool) -> Void
+        completion: @escaping (Result<Void, PasteInjectionFailure>) -> Void
     ) {
-        guard isValidTarget(operation), isOperationFresh(operation) else {
-            completion(false)
+        guard isValidTarget(operation) else {
+            completion(.failure(.targetUnavailable))
             return
         }
 
         if targetIsReadyForPaste(
             processIdentifier: operation.targetProcessIdentifier
         ) {
-            completion(true)
+            completion(.success(()))
             return
         }
 
-        guard ProcessInfo.processInfo.systemUptime < deadline,
-              frontmostApplicationIsAllowedDuringActivation(
-                expectedTargetProcessIdentifier: operation.targetProcessIdentifier
-              ) else {
-            completion(false)
+        guard ProcessInfo.processInfo.systemUptime < deadline else {
+            completion(.failure(.targetActivationTimedOut))
+            return
+        }
+        guard frontmostApplicationIsAllowedDuringActivation(
+            for: operation
+        ) else {
+            completion(.failure(.targetUnavailable))
             return
         }
 
@@ -389,6 +578,7 @@ final class ClipboardPasteInjector {
     private func mayActivateTargetFromCurrentFrontmostApplication(
         for operation: PasteOperation
     ) -> Bool {
+        if operation.allowsTargetReactivation { return true }
         guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return false }
         if isCurrentProcess(frontmostApplication) { return true }
         if frontmostApplication.processIdentifier == operation.targetProcessIdentifier {
@@ -398,27 +588,42 @@ final class ClipboardPasteInjector {
     }
 
     private func frontmostApplicationIsAllowedDuringActivation(
-        expectedTargetProcessIdentifier: pid_t
+        for operation: PasteOperation
     ) -> Bool {
         guard let frontmostApplication = NSWorkspace.shared.frontmostApplication else { return true }
         if isCurrentProcess(frontmostApplication) { return true }
-        if frontmostApplication.processIdentifier == expectedTargetProcessIdentifier {
+        if frontmostApplication.processIdentifier == operation.targetProcessIdentifier {
+            return true
+        }
+        if operation.allowsTargetReactivation,
+           frontmostApplication.processIdentifier == operation.activationSourceProcessIdentifier {
             return true
         }
         return frontmostApplication.processIdentifier == lastPostedTargetProcessIdentifier
     }
 
-    private func canPostPasteEvent(for operation: PasteOperation) -> Bool {
-        guard AccessibilityPermission.check(),
-              isOperationFresh(operation),
-              isValidTarget(operation),
-              targetIsReadyForPaste(
-                processIdentifier: operation.targetProcessIdentifier
-              ),
-              let managedPasteboardChangeCount else {
-            return false
+    private func postValidationFailure(
+        for operation: PasteOperation
+    ) -> PasteInjectionFailure? {
+        guard AccessibilityPermission.check() else {
+            return .accessibilityPermissionMissing
         }
-        return NSPasteboard.general.changeCount == managedPasteboardChangeCount
+        guard isOperationFresh(operation) else {
+            return .operationExpired
+        }
+        guard isValidTarget(operation) else {
+            return .targetUnavailable
+        }
+        guard targetIsReadyForPaste(
+            processIdentifier: operation.targetProcessIdentifier
+        ) else {
+            return .targetActivationFailed
+        }
+        guard let managedPasteboardChangeCount,
+              NSPasteboard.general.changeCount == managedPasteboardChangeCount else {
+            return .clipboardChanged
+        }
+        return nil
     }
 
     private func isValidTarget(_ operation: PasteOperation) -> Bool {
@@ -457,10 +662,13 @@ final class ClipboardPasteInjector {
     }
 
     private func resignOwnKeyWindowIfNeeded() {
-        guard let keyWindow = NSApp.keyWindow, keyWindow.isKeyWindow else {
-            return
+        if let keyWindow = NSApp.keyWindow, keyWindow.isKeyWindow {
+            keyWindow.makeFirstResponder(nil)
+            keyWindow.resignKey()
         }
-        keyWindow.resignKey()
+        if NSApp.isActive {
+            NSApp.deactivate()
+        }
     }
 
     private func waitForVoiceShortcutToRelease(
@@ -542,8 +750,11 @@ final class ClipboardPasteInjector {
         keyDown.flags = CGEventFlags.maskCommand
         keyUp.flags = CGEventFlags.maskCommand
 
-        keyDown.post(tap: CGEventTapLocation.cghidEventTap)
-        keyUp.post(tap: CGEventTapLocation.cghidEventTap)
+        // Deliver only to the already-verified target PID. This avoids a global
+        // event-stream race if another app becomes frontmost between validation
+        // and the two event posts.
+        keyDown.postToPid(expectedTargetProcessIdentifier)
+        keyUp.postToPid(expectedTargetProcessIdentifier)
         return true
     }
 }

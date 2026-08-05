@@ -1,0 +1,40 @@
+{
+  "fill" : "system-light",
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "linear-gradient" : [
+              "extended-gray:0.00000,1.00000",
+              "display-p3:0.30756,0.30756,0.30756,1.00000"
+            ]
+          },
+          "image-name" : "message.badge.waveform.png",
+          "name" : "message.badge.waveform",
+          "position" : {
+            "scale" : 0.61,
+            "translation-in-points" : [
+              -48.18999999999994,
+              -10.980000000000018
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

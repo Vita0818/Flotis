@@ -23,8 +23,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var voiceController: VoiceInputController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        appState.checkAccessibility()
-        _ = ClipboardPasteInjector.shared
         voiceController = VoiceInputController(appState: appState, providerStore: providerStore)
         settingsWindowController = FlotisSettingsWindowController(
             appState: appState,
@@ -51,10 +49,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         HotkeyManager.shared.onToggleVoice = { [weak self] in
             guard let self else { return }
+            self.voiceController?.toggleRecording()
             if self.panelController?.window?.isVisible != true {
                 self.panelController?.showWindow(nil)
             }
-            self.voiceController?.toggleRecording()
         }
 
         HotkeyManager.shared.onRegistrationError = { [weak self] message in
@@ -84,15 +82,17 @@ final class FlotisSettingsWindowController: NSWindowController {
         providerStore: SpeechProviderStore
     ) {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
-            styleMask: [.titled, .closable, .miniaturizable],
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 600),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
-        window.title = UIStrings.openAICompatible
+        window.title = UIStrings.settings
+        window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
         window.collectionBehavior = [.moveToActiveSpace]
+        window.minSize = NSSize(width: 760, height: 540)
         window.contentViewController = NSHostingController(
             rootView: SettingsView(
                 appState: appState,

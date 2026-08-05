@@ -1,14 +1,14 @@
 # TESTING
 
-最近验证日期：2026-07-30
+最近验证日期：2026-08-04
 
 ## 环境与边界
 
-- macOS app，deployment target 13.0，Swift 5.0。
-- XcodeGen 生成 `Flotis.xcodeproj`；scheme `Flotis` 包含 app 与 unit tests。
-- 依赖 Carbon、AppKit、Speech、AVFoundation、Darwin 文件系统调用与真实 macOS Accessibility，不能用 iOS Simulator 验证核心交互。App 源码不再导入 Security 或调用系统钥匙串。
+- 两个 macOS application target，deployment target 13.0，Swift 5.0。
+- XcodeGen 生成 `Flotis.xcodeproj`；scheme 为 `Flotis`、`FlotisInputMethod` 与独立的 `FlotisInputMethodTests`。
+- 主 App 当前产品路径依赖 Carbon、AppKit、Speech、AVFoundation 与 Darwin 文件系统调用；保留的旧 `ClipboardPasteInjector` 仍编译真实 macOS Accessibility/`CGEvent` 代码但当前不可达。输入法 target 依赖 AppKit/InputMethodKit。二者都不能用 iOS Simulator 验证核心交互。App 源码不再导入 Security 或调用系统钥匙串。
 - 无第三方依赖，无仓内 SwiftLint/SwiftFormat 配置。
-- 当前没有 UI-test target、SwiftUI snapshot test、Preview fixture 或产品内 debug state 开关；视觉验收必须结合真实 macOS 运行态，不能由当前 57 个策略/协议/存储单测替代。
+- 当前没有 UI-test target、SwiftUI snapshot test、Preview fixture 或产品内 debug state 开关；视觉、物理热键、系统剪贴板/返回行为与输入客户端验收必须结合真实 macOS 运行态，不能由主 App 65 个测试或输入法接口 8 个测试替代。
 - API key 明文不进入仓库、UserDefaults、connection snapshot 或日志；自动化只使用内存 fake transport 与虚拟字符串。真实 provider 测试需由操作者在 UI 保存到 Flotis 本地 `secrets.json`。
 
 ## 标准静态与自动化验证
@@ -34,11 +34,154 @@ xcodebuild \
   -derivedDataPath /tmp/FlotisTestDerivedData \
   CODE_SIGNING_ALLOWED=NO \
   test
+xcodebuild \
+  -project Flotis.xcodeproj \
+  -scheme FlotisInputMethod \
+  -configuration Debug \
+  -derivedDataPath /tmp/FlotisInputMethodBuildDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+xcodebuild \
+  -project Flotis.xcodeproj \
+  -scheme FlotisInputMethodTests \
+  -configuration Debug \
+  -derivedDataPath /tmp/FlotisInputMethodTestDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  test
 git diff --check
 git status --short
 ```
 
 为 build 与 test 使用不同的临时 DerivedData。Xcode 26 的 test action 会把 XCTest framework 复制进 test host；复用已跑过 test 的 app bundle 再次执行普通 build，可能在 app validation 阶段把旧测试 framework 当作产品 framework 检查。
+
+2026-08-04 Icon Composer 应用图标与主 App 安装验证结果：
+
+- 用户新增的根目录 `Flotis.icon` 包含 `icon.json` 与一张 `1636×1280` RGBA 图层；已按 Xcode 原生 Icon Composer 路径加入主 `Flotis` target Resources，并设置 `ASSETCATALOG_COMPILER_APPICON_NAME=Flotis`。XcodeGen 生成工程把它识别为 `wrapper.icon`，没有改动独立输入法的 TIFF 图标或 target。
+- Debug 与 Release 的 `actool` 都同时编译 `Assets.xcassets` 和 `Flotis.icon`；产物生成 `Flotis.icns`、`Assets.car`，最终 Info.plist 为 `CFBundleIconFile=Flotis`、`CFBundleIconName=Flotis`。从 `.icns` 导出的 256 px 系统帧为白色圆角底、灰色对话框与声波；安装副本与 Release 产物的可执行文件和 `.icns` 分别逐字节一致。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisAppIconDebugBuild-20260804`、输入法 Debug build `/tmp/FlotisAppIconInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisAppIconMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisAppIconInputTests-20260804` 为 8 tests、0 failures。
+- 主 App Release `/tmp/FlotisAppIconRelease-20260804` 使用 `CODE_SIGN_IDENTITY=-` 构建成功并通过 `codesign --verify --deep --strict`。完整 app 已安装到 `/Applications/Flotis.app`、注册 Launch Services 并成功启动；安装版本为 `0.8.0 (1)`、bundle ID `com.Vita0818.FlotisMac`。这是 ad-hoc 本机身份，不等于 Developer ID/notarized 分发。
+- 本轮没有重新安装、启动或切换 `FlotisInputMethod.app`，没有录音、访问 provider/API key、修改系统权限或触发剪贴板确认链路。
+
+2026-08-04 idle 胶囊再收窄与快捷键清晰度验证结果：
+
+- `FloatingPanelLayout.idlePanelWidth` 从 116 pt 调整为 108 pt，高度仍为 54 pt；两个 `30×30` hit area、8 pt 间距、两枚图稿、action、无障碍标签和其余三档 panel 尺寸未改。位置策略 fixture 同步改为当前宽度，并继续覆盖中心/底边保持、可见区钳位与 reviewing 后恢复逻辑锚点。
+- 下方固定 `⌃⌥A` 从 11 pt Medium 系统 Monospaced/动态次级灰改为 12 pt Semibold 系统 Monospaced/动态主文字色，继续单行显示且不把字体或颜色写死为特定 Light/Dark 值。
+- 使用签名隔离 build `/tmp/FlotisShorterCapsuleVisual-20260804` 做真实运行态检查；Computer Use 截图精确为 `108×54`，两枚按钮未裁切或拥挤，快捷键清晰可见，AX tree 仍暴露 `Start`、`Settings` 与完整 `Press ⌃⌥A to start recording`。随后已正常退出预览；没有点击 Start、录音、修改 Settings、访问 provider/API key/AX，也没有安装、启动或切换输入法。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisShorterCapsuleMainBuild-20260804`、输入法 Debug build `/tmp/FlotisShorterCapsuleInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisShorterCapsuleMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisShorterCapsuleInputTests-20260804` 为 8 tests、0 failures。
+- 本次运行态只覆盖当前系统 appearance 的窗口级白底合成；Dark、Reduce Transparency、Increase Contrast 与 macOS 13–25 material fallback 仍保留在人工视觉矩阵中。
+
+2026-08-04 黑色八齿设置图标验证结果：
+
+- 用户提供的 `1061×1061` RGBA PNG 透明通道确认为完整八齿齿轮；原图已更新到 `docs/assets/settings-gear-button-reference.png`，并生成 `SettingsGearButton.imageset` 的 16×16、32×32、48×48 三档透明黑色资源。
+- `FloatingPanelView` 用 28 pt 固定白圆承载 16 pt 黑色齿轮，与旁边 28 pt 白圆黑声波使用同一视觉语法；两个 `30×30` hit area、8 pt 间距、Settings 无障碍标签/帮助与 action 均未改变。亮背景由黑齿轮提供识别，暗背景由白圆提供识别，未给整个原生 glass 重新加 tint。
+- 第一版只给旧白齿轮增加约 0.75 pt 深色轮廓，真实白底窗口截图仍过轻，因此未保留；最终新图在真实白底运行态中轮廓和中心孔清晰，AX tree 仍暴露 `Start`/`Settings`，实际打开并关闭既有 Settings 窗口成功。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisNewGearMainBuild-20260804`、输入法 Debug build `/tmp/FlotisNewGearInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisNewGearMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisNewGearInputTests-20260804` 为 8 tests、0 failures。
+- 视觉检查后已正常退出临时 app；没有点击 Start、录音、修改 Settings、访问 provider/API key/AX，也没有安装、启动或切换输入法。
+
+2026-08-04 `⌃⌥A` voice hotkey 验证结果：
+
+- `KeyboardShortcutDescriptor.toggleVoice` 已固定为 Carbon virtual key `0`/A 与 Control+Option；胶囊与 Settings 共用的显示值为 `⌃⌥A`。策略测试同时锁定 key code、modifier 与 display contract，既有 Carbon exclusive registration 和 press/release gate 未改变。
+- 通用三段式 Settings 说明不包含具体键位，本次无需修改 `UIStrings`。start → stop → reviewing/copy-and-return 状态机、panel 可见性、剪贴板写入与旧注入器不可达边界未改。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisControlOptionAMainBuild-20260804`、输入法 Debug build `/tmp/FlotisControlOptionAInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisControlOptionAMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisControlOptionAInputTests-20260804` 为 8 tests、0 failures。
+- 本轮未手动启动产品 App、未按物理组合键、未录音、未访问 provider/凭据/AX，也未安装或启动输入法。`⌃⌥A` 的真实 start/stop/copy-and-return 三次触发仍在手动矩阵中。
+
+2026-08-04 `⌃⌥⇧W` voice hotkey 临时方案验证结果（已被后续 `⌃⌥A` 取代）：
+
+- `KeyboardShortcutDescriptor.toggleVoice` 已固定为 Carbon virtual key `13`/W 与 Control+Option+Shift；胶囊与 Settings 共用的显示值为 `⌃⌥⇧W`。策略测试同时锁定 key code、modifier 与 display contract，既有 Carbon exclusive registration 和 press/release gate 未改变。
+- Settings 已移除 F5/麦克风键及系统功能键说明，恢复为与具体键位解耦的三段式操作文案。start → stop → reviewing/copy-and-return 状态机、panel 可见性、剪贴板写入与旧注入器不可达边界未改。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisCtrlOptionShiftWMainBuild-20260804`、输入法 Debug build `/tmp/FlotisCtrlOptionShiftWInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisCtrlOptionShiftWMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisCtrlOptionShiftWInputTests-20260804` 为 8 tests、0 failures。
+- 当时未手动启动产品 App、未按物理组合键、未录音、未访问 provider/凭据/AX，也未安装或启动输入法。该结果只作为已取代方案的历史记录，不再属于当前手动矩阵。
+
+2026-08-04 标准 F5 voice hotkey 临时方案验证结果（已被后续固定组合键方案取代）：
+
+- `KeyboardShortcutDescriptor.toggleVoice` 已固定为 Carbon virtual key `0x60`/标准 F5、无修饰键；胶囊与 Settings 共用的显示值为 `F5`。新增策略测试同时锁定 key code、modifier 与 display contract，既有 Carbon exclusive registration 和 press/release gate 未改变。
+- 本机 Apple 顶排仍处于系统功能模式；按 Apple 官方定义，麦克风图标在该模式下属于系统功能而非标准 F5。Flotis 没有改系统设置、监听 consumer-control 听写事件或引入 Input Monitoring：当前模式需按 `Fn-F5`，直接按麦克风图标需先由用户在 Keyboard Settings 启用标准功能键。
+- `xcodegen generate` 成功；最终主 App Debug build `/tmp/FlotisF5FinalMainBuild-20260804`、输入法 Debug build `/tmp/FlotisF5InputBuild-20260804` 成功。最终完整主 App XCTest `/tmp/FlotisF5FinalMainTests-20260804` 为 65 tests、0 failures；输入法 XCTest `/tmp/FlotisF5InputTests-20260804` 为 8 tests、0 failures。
+- 独立一次性 `LSUIElement` Carbon 探针在本机以 `kVK_F5`、0 modifiers、`kEventHotKeyExclusive` 注册返回 `status=0, registered=yes`，随后立即注销并删除临时探针。该结果证明标准 F5 当前可被 Carbon 独占注册，但不证明默认系统功能模式下的物理麦克风键会发出标准 F5。
+- 当时未启动 App、未按物理麦克风键、未录音、未触发系统听写、未访问 provider/凭据/AX，也未安装或启动输入法。该结果只作为已取代方案的历史记录，不再属于当前手动矩阵。
+
+2026-08-04 原生 Liquid Glass 修正验证结果：
+
+- 根因确认：macOS 26+ 外壳已是 `NSGlassEffectView(style: .regular)`，但整面 `tintColor = .black` 与 SwiftUI hosting root 的 18% 黑色背景叠加后，把系统自适应材质压成普通深色磨砂。修正移除这两层，继续保留原生 `.regular`、20 pt 圆角、macOS 27+ `effectIsInteractive` 与 macOS 13–25 material fallback；未改胶囊尺寸、图稿、点击区域、快捷键、拖动、审阅或语音状态机。
+- 使用本机签名身份构建 `/tmp/FlotisNativeGlassVisual-20260804` 并通过 Computer Use 启动隔离预览；真实运行态确认 `116×54` idle 胶囊恢复系统亮色自适应表面与边缘高光，Start/Settings/快捷键 AX 元素仍存在。窗口级截图服务会把透明窗口单独合成在白底，无法可靠证明彩色背景折射，因此跨背景动态采样仍保留为人工目视项。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisNativeGlassMainBuild-20260804`、输入法 Debug build `/tmp/FlotisNativeGlassInputBuild-20260804` 成功。完整主 App XCTest `/tmp/FlotisNativeGlassMainTests-20260804.xcresult` 为 64 tests、0 failures；输入法 XCTest `/tmp/FlotisNativeGlassInputTests-20260804.xcresult` 为 8 tests、0 failures。
+- 测试前已正常退出旧 Xcode Debug 实例和隔离视觉预览；视觉核验没有点击录音/设置按钮，没有访问麦克风、provider、API key、AX 或剪贴板，也没有安装、启动或切换输入法。
+
+2026-08-04 审阅取消位置恢复验证结果：
+
+- 根因是 reviewing 大框靠近屏幕边缘时会被可见区钳位，而旧实现下一次 resize 直接以这个临时大框 frame 计算锚点，导致取消缩回后沿用被移动的中心。现在 panel 独立保存 `FloatingPanelPositionAnchor`；程序 resize 的 `windowDidMove` 不回写锚点，用户拖动才更新。
+- 新增右侧边缘矩阵：`116×54` 胶囊位于可见区右缘，展开 `420×160` 时临时左移，缩回仍恢复原 `x/y`。定向 `HotkeyAndInjectionPolicyTests` 在 `/tmp/FlotisPanelAnchorTargetedTest` 为 18 tests、0 failures。
+- `xcodegen generate` 成功；最终主 App Debug build `/tmp/FlotisPanelAnchorFinalBuild`、输入法 Debug build `/tmp/FlotisPanelAnchorInputBuild` 成功；最终完整主 App XCTest `/tmp/FlotisPanelAnchorFinalTest` 为 64 tests、0 failures，输入法 XCTest `/tmp/FlotisPanelAnchorInputTest` 为 8 tests、0 failures。
+- 本轮未启动 App、未录音、未请求 provider、未访问凭据，也未安装/启动输入法。真实窗口拖到屏幕边缘后完成转写并取消的组合仍需当前构建运行态确认。
+
+2026-08-04 三段式复制并返回验证结果：
+
+- reviewing 热键策略由 `copyAndClose` 改为 `copyAndReturn`；`VoiceInputController.toggleRecording()` 不再返回窗口 action outcome。第三次热键和右侧“复制并返回”按钮共用同一同步 clipboard 路径：只用 trim 拒绝纯空白，实际写入保留用户编辑文本原样；成功推进 generation、清空文字并回 `idle`，失败保持 reviewing/文字和可重试错误。
+- AppDelegate、panel controller 与 SwiftUI view 中的 `.closePanel` / `onClosePanel` 路径已移除。复制成功后 panel 保持可见，`VoiceInputState` 回 idle 触发 `420×160` 审阅框按 `FloatingPanelPositionAnchor` 缩回原位置的 `116×54` 小胶囊；隐藏状态下触发 voice hotkey 仍会恢复胶囊可见性。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisCopyReturnMainBuild-20260804` 与输入法 Debug build `/tmp/FlotisCopyReturnInputBuild-20260804` 成功。最终完整主 App XCTest `/tmp/FlotisCopyReturnMainTestsPassed-20260804` 为 64 tests、0 failures；隔离输入法 XCTest `/tmp/FlotisCopyReturnInputTestsRetry-20260804` 为 8 tests、0 failures。
+- 主测试最初被 Xcode 中仍在调试的旧 Flotis 唯一实例占用，LaunchServices 在测试代码执行前拒绝启动 host；该 app 受对应 `debugserver` 保持，普通/强制结束 app PID 均未释放。结束仅对应的 debugserver 后，同一源码在全新 DerivedData 全部通过，不是编译、签名或断言失败。
+- 本轮没有启动新 App、录音、请求 provider、访问凭据、安装/启动输入法、调用 AX 或发送 `CGEvent`。真实三次物理热键、剪贴板内容与审阅框缩回原胶囊位置仍需人工验证。
+
+2026-08-04 三段式复制并关闭历史验证结果（同日稍后的复制并返回决定已取代该行为）：
+
+- reviewing 热键策略由 `inject` 改为 `copyAndClose`；第三次热键和审阅确认按钮共用 `VoiceInputController.toggleRecording()` 的 outcome。clipboard writer 只用 trim 拒绝纯空白，实际写入保留用户编辑文本原样；成功才重置 session/文字并返回 `.closePanel`，失败保持 reviewing/文字并显示错误。
+- 当前可达入口已移除目标 app 捕获、`ClipboardPasteInjector.inject`、AX 轮询/提示和 Settings AX 卡；旧注入器、安全失败类型、`.injecting` state 与测试仍保留但不可达。审阅页右侧确认改为“复制并关闭”，左侧复制全部仍只复制、不关闭。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisCopyCloseBuild` 与输入法 Debug build `/tmp/FlotisCopyCloseInputBuild` 成功；最终主 App XCTest `/tmp/FlotisCopyCloseTest2` 为 63 tests、0 failures，其中 `HotkeyAndInjectionPolicyTests` 为 17 tests，新增复制成功重置/关闭请求与复制失败保留审阅两个测试；隔离输入法 XCTest `/tmp/FlotisCopyCloseInputTest` 为 8 tests、0 failures。
+- 第一次 `/tmp/FlotisCopyCloseTest` 只因旧 `/private/tmp/FlotisLiquidGlassVisualBuild/.../Flotis` 预览仍运行、`LSMultipleInstancesProhibited=YES` 阻止 test host 启动而失败；仅退出 PID 68934 后，全新 DerivedData 的同一源码全部通过，不是编译或断言失败。
+- 该阶段未启动新 App、未采集麦克风、未请求 provider、未读取/保存真实 API key，也未调用 AX/`CGEvent`。当时尚待人工验证的 panel 关闭行为现已从产品路径删除。
+
+2026-08-03 胶囊比例与 Liquid Glass 精修验证结果：
+
+- idle 几何由 `120×56` 轻收为 `116×54`，双按钮间距由 10 pt 收为 8 pt；设置图稿由 26 pt 收为 24 pt，并从用户原图重新生成 24×24、48×48、72×72 三档 asset。两个按钮的 `30×30` hit area、无障碍标签/帮助、action、快捷键与非 idle 状态均未改变。
+- macOS 26+ 的整个 panel surface 使用原生 `NSGlassEffectView(style: .regular)` 与 20 pt 圆角；macOS 27+ 开启 `effectIsInteractive`。SwiftUI hosting content 只在该路径增加 18% 黑色对比层；macOS 13–25 继续走 `.popover` `NSVisualEffectView`、alpha `maskImage` 与原生阴影 fallback。
+- `xcodegen generate` 成功；签名视觉 build `/tmp/FlotisLiquidGlassVisualBuild` 成功，未签名主 App build `/tmp/FlotisLiquidGlassCompile` 成功，输入法 Debug build `/tmp/FlotisLiquidGlassInputBuild` 成功。最终主 App XCTest `/tmp/FlotisLiquidGlassFinalMainTest` 为 61 tests、0 failures；输入法 XCTest `/tmp/FlotisLiquidGlassInputTest` 为 8 tests、0 failures。
+- Computer Use 在真实 macOS 运行态捕获最终 `116×54` idle 胶囊，并完成旧版/新版全胶囊与 24 pt 齿轮局部合成对比；设置按钮仍暴露为 `Settings` button，打开/关闭既有独立 Settings 窗口正常。`design-qa.md` 最终为 passed。
+- 坐标式拖动冒烟落入录音按钮区域并短暂进入 recording；已立即终止且重启临时视觉预览，没有执行 stop/transcribe、provider 请求、reviewing 或注入。由于这次误触，最终 glass surface 的空白区拖动未再次做坐标自动化；拖动策略单测与此前真实拖动验证仍通过，但新 surface 的人工拖动保留在手动矩阵。
+
+2026-08-03 idle 录音按钮视觉替换验证结果：
+
+- 用户提供的 `1009×1010` PNG 原图已原样保存在 `docs/assets/voice-waveform-button-reference.png`，并生成 `Flotis/Assets.xcassets/VoiceWaveformButton.imageset` 的 28×28、56×56、84×84 三档资源。首次把 loose PNG 当 bundle resource 时 SwiftUI 运行态没有解析到命名图；改为 asset catalog 后恢复稳定加载。
+- 原图的黑色声波实际是透明镂空；首次运行态会透出 material 成为灰色。最终在 28 pt 图稿内加入完全被白圆覆盖的黑色 backing，使镂空稳定呈现为黑色且不会产生外部黑边。修改只发生在 idle 开始录音分支；30×30 点击区域、Start 无障碍标签/帮助、action、快捷键和非 idle 状态图标均未改变。
+- `xcodegen generate` 成功；主 App 最终签名 Debug build `/tmp/FlotisVoiceButtonVisualBuild` 成功，输入法 Debug build `/tmp/FlotisVoiceButtonFinalInputBuild` 成功。主 App 最终 XCTest `/tmp/FlotisVoiceButtonFinalTest2` 为 61 tests、0 failures；输入法 XCTest `/tmp/FlotisVoiceButtonFinalInputTest` 为 8 tests、0 failures。
+- 第一次最终主 App test `/tmp/FlotisVoiceButtonFinalTest` 仅因视觉预览实例仍在运行、`LSMultipleInstancesProhibited=YES` 阻止 test host 启动而失败；正常退出该预览实例后，同一源码在全新 DerivedData 中重跑全部通过，不是编译或测试断言失败。
+- 已在真实 macOS 运行态检查 idle 胶囊，并将参考图与运行态按钮做并排放大对比；白圆、六条黑色圆角声波的数量、顺序和比例一致，`design-qa.md` 结论为 passed。为避免真实录音副作用，没有点击 Start，因此未申请麦克风、未访问 provider/API key、未触发 AX 或发送 `CGEvent`。
+
+2026-08-03 设置按钮视觉替换验证结果：
+
+- 用户提供的 `1139×1138` 透明 PNG 已原样保存在 `docs/assets/settings-gear-button-reference.png`，并生成 `Flotis/Assets.xcassets/SettingsGearButton.imageset` 的 26×26、52×52、78×78 三档资源；SHA-256 与用户临时原图一致。SwiftUI 使用原始色彩与透明区域，不再使用 `gearshape` SF Symbol。
+- 设置按钮继续使用原 `30×30` 点击区域、Settings 无障碍标签/帮助与 `onOpenSettings()` action，仅将居中的可见图稿改为 26 pt。录音按钮、快捷键、胶囊尺寸、语音状态和 Settings 内容没有改变。
+- `xcodegen generate` 成功；主 App 签名 Debug build `/tmp/FlotisSettingsButtonVisualBuild` 与输入法 Debug build `/tmp/FlotisSettingsButtonFinalInputBuild` 均成功。主 App XCTest `/tmp/FlotisSettingsButtonFinalTest` 为 61 tests、0 failures；输入法 XCTest `/tmp/FlotisSettingsButtonFinalInputTest` 为 8 tests、0 failures。
+- Computer Use 在真实 idle 胶囊中确认白色齿轮的外圈齿、三段内构、中心圆点与参考一致，并实际点击 Settings、打开既有独立设置窗口、再正常关闭返回胶囊；AX tree 中该控件仍为 `Settings` button。没有改动任何配置、凭据或权限。
+- 参考图与运行态 `30×30` 按钮区域已组成同一张放大比较图；最新 `design-qa.md` 为 passed。Dark、Reduce Transparency 与 Increase Contrast 尚未分别截图，但图稿使用固定原始白色、透明区域继续显示既有原生 material。
+
+2026-08-02 输入法签名、安装与运行态验证结果：
+
+- Release build 使用 `CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=YES CODE_SIGN_IDENTITY=-` 生成本机 ad-hoc 签名的 build `3`；项目未配置 Development Team，因此这是“Sign to Run Locally”级别的本机验证身份，不是稳定 Apple Development 或发布签名。最终产物与安装副本均通过 `codesign --verify --deep --strict`。
+- 输入法元数据改为 `LSBackgroundOnly=YES`，顶层与 `Flotis Voice` mode 均声明并打包 `FlotisInputMethodIcon.tiff`。安装副本位于 `~/Library/Input Methods/FlotisInputMethod.app`，其可执行文件与 Release product 逐字节一致，`CFBundleVersion=3`。
+- 首次安装的 build `2` 在 `_IMKServerLegacy initWithName:controllerClass:delegateClass:` 崩溃；入口由 legacy nil-delegate initializer 改为 `IMKServer(name:bundleIdentifier:)` 后，build `3` 可稳定后台运行。已在确认进程持续存活且无新崩溃报告后正常终止冒烟实例，安装副本保留但当前不在运行。
+- `TISRegisterInputSource` 返回 `0`，但当前登录会话对 bundle `com.Vita0818.FlotisInputMethod` 与 mode `com.Vita0818.FlotisInputMethod.Voice` 的精确枚举仍为 `0`。尝试正常刷新 `TextInputMenuAgent` 未改变结果；SIP 拒绝原地 kickstart `com.apple.imklaunchagent`，未绕过系统保护。下一步必须由用户注销并重新登录，再在 Keyboard Settings 启用 `Flotis Voice`。
+- `FlotisInputMethodTests` 使用独立 `/tmp/FlotisInputMethodInstallTest3`：8 tests、0 failures、0 unexpected；主 `Flotis` scheme 使用 `/tmp/FlotisInstallRegression`：61 tests、0 failures、0 unexpected。没有访问 provider/API key、麦克风、剪贴板或辅助功能。
+- 因当前会话尚未发现输入源，没有切换到 `Flotis Voice`，也没有在 TextEdit 执行菜单 commit、普通键盘透传或焦点竞态矩阵；本轮只证明签名/安装副本有效且 server 可稳定启动，不证明任何文本客户端已收到文字。
+
+2026-08-01 隔离 InputMethodKit 接口验证结果：
+
+- `xcodegen generate` 成功；生成工程含 `Flotis`、`FlotisInputMethod`、`FlotisTests`、`FlotisInputMethodTests` 四个 target，以及三个 scheme。
+- `FlotisInputMethod` 独立 Debug build 在 `/tmp/FlotisInputMethodDerived` 成功；生成 app 的 Info.plist 已展开 bundle ID、connection/controller class、顶层/模式级 input-source ID 与 macOS 13 minimum version；`otool -L` 确认链接 InputMethodKit/AppKit，`nm` 确认 Objective-C runtime class `_OBJC_CLASS_$_FlotisInputController` 存在。
+- `FlotisInputMethodTests` 在 `/tmp/FlotisInputMethodTestsDerived` 为 8 tests、0 failures，覆盖精确原文、协议版本、空白、1 MiB 上限、旧/关闭 session、弱 endpoint 与 client failure。
+- 原 `Flotis` scheme 在独立 `/tmp/FlotisRegressionDerived` 回归为 61 tests、0 failures。既有非致命 warning 仍是 `AppleSpeechTranscriber` 在 Swift 5 模式下的 Swift 6 `NSLock` 兼容提示，以及 macOS 13 test target 链接较新 XCTest dylib；本次未修改对应源码。
+- 没有复制到 `~/Library/Input Methods`、启动输入法、切换系统输入源、连接主 App、访问麦克风/provider/API key 或向真实文本客户端提交文字。因此自动化只证明 bundle/接口可构建与纯策略正确，不证明系统发现或客户端兼容。
+
+2026-08-01 拖动、辅助功能、注入与 Settings 重构验证结果：
+
+- 根因确认：panel 源码明确关闭了 `isMovableByWindowBackground`，且每次 resize/show 都回到底部中央；`run.sh` 每次启动主动 reset Accessibility TCC，同时 Debug app 为 ad-hoc 签名；注入目标是在结束阶段按“最近 app”推断且焦点恢复窗口过短，失败只返回 Bool；旧 Settings 把权限、退出、连接与表单动作堆在同一平面。
+- panel 现允许从非交互背景拖动，`resizedOrigin` 策略单测覆盖保持用户中心/底边和屏幕可见区钳制；原生 `NSTextView.mouseDownCanMoveWindow=false` 保持文字拖选优先。
+- AX 状态检查保持非提示式，用户点击授权或实际注入缺权才发起提示式请求并打开系统设置。`run.sh` 通过 `bash -n`，复用固定临时 DerivedData，不再删除缓存或运行 `tccutil reset`，并对 ad-hoc 产物输出稳定签名提示。
+- controller 在录音开始前捕获目标 app；注入策略覆盖显式面板重激活、第三方 app 切换拒绝、PID 定向 `⌘V`、完整快捷键释放、operation 过期和类型化失败文案。没有放宽 AX、frontmost、pasteboard 或剪贴板恢复核验。
+- Settings 运行态 Light appearance 冒烟覆盖通用页、转写页、折叠高级区、右侧滚动和窗口尺寸约束；视觉检查发现并修复了内容展开时侧栏/页头向标题栏溢出，最终 GeometryReader 约束下 chrome 固定。没有输入、保存或清除 API key。
+- `xcodegen generate` 与 `bash -n run.sh`：成功。
+- 最终独立 Debug build：`/tmp/FlotisFourFixesFinalBuild`，成功；第一次沙箱内验证被 SwiftUI macro plugin 的 `sandbox_apply` 拦截，使用正常 Xcode 构建权限后同一源码通过，不是源码错误。
+- 最终完整 XCTest：`/tmp/FlotisFourFixesFinalTest`，61 tests、0 failures、0 skipped。
+- 已启动并关闭独立 Debug 测试实例做视觉/拖动冒烟；未授予 Accessibility、未采集麦克风、未读取或保存真实 API key、未请求 provider、未向真实目标文本框发送 `CGEvent`。AX 授权跨重编译稳定性与真实目标消费粘贴仍需用户在 Apple Development 签名的新构建上确认。
 
 2026-07-30 胶囊交互、窗口与热键稳定性修复结果：
 
@@ -141,14 +284,22 @@ git status --short
 
 ### `HotkeyAndInjectionPolicyTests`
 
-11 tests：
+19 tests：
 
-- V0.8 语音热键严格映射 start → stop → reviewing/inject。
+- V0.8 语音热键严格映射 start → stop → reviewing/copyAndReturn。
+- copy-and-return 成功时原样交给 clipboard writer、重置会话并回 idle；panel 保持可见并缩回小胶囊。
+- clipboard writer 失败时保留 reviewing、编辑文字和可区分错误供重试。
 - requesting/connecting 保持 cancel；stopping/transcribing/injecting 忽略重复动作。
 - Carbon hotkey 使用独占注册。
 - press gate 在 release 前只接受一次按下，并可 reset。
-- `⌘⌥⇧R` 的修饰键与主键 R 都释放后才允许继续注入。
+- 固定 voice descriptor 为 `⌃⌥A`，并锁定 Carbon key `0` 与 Control/Option。
+- 保留旧注入器要求当前 voice 主键及相关修饰键都释放后才允许继续。
+- 保留旧注入器的显式胶囊重试只允许重激活捕获目标。
 - 四档胶囊尺寸保持稳定，status 不改变 reviewing 高度。
+- panel resize 保持用户拖动后的水平中心与底边。
+- panel resize 会把拖动位置钳制在目标屏幕可见区。
+- reviewing 大框被可见区临时钳位后，缩回小胶囊仍使用展开前的逻辑位置锚点。
+- 旧注入失败保留可区分的用户错误文案。
 - 可打印全局快捷键要求 Command + 额外修饰键。
 - `⌘V` 及常见 app 系统快捷键被拒绝。
 - 默认三修饰键命令仍有效。
@@ -205,6 +356,16 @@ git status --short
 - 只允许第一首选语言决定界面语言；后续列表中的简中不能覆盖第一语言。
 - 简中与英文 case 分别选择对应文案。
 
+### `FlotisInputMethodServiceTests`
+
+8 tests（独立 `FlotisInputMethodTests` target）：
+
+- 当前 session 将原始文本原样交给 endpoint，不 trim 或改写内容。
+- 不支持的 protocol version、纯空白和超过 1 MiB 的 UTF-8 payload 在 delivery 前拒绝。
+- 新 activation 与匹配的 deactivate 都会让旧 session 失效。
+- endpoint 为弱引用；controller 生命周期结束后请求返回 endpoint unavailable。
+- client 无法提交时返回可区分的 client failure。
+
 自动化单测刻意针对纯策略、迁移、组装、本地 secret 文件与 mock transport；真实 Carbon、AX、pasteboard、audio engine、跨进程崩溃/断电窗口以及 WebSocket/HTTP 服务端不是 unit-test 能完全替代的边界。
 
 ## Presentation / Design System 视觉验收
@@ -212,23 +373,36 @@ git status --short
 每次修改 `FlotisDesign.swift`、`FloatingPanelView.swift`、`FloatingPanelController.swift` 或 `VoiceSettingsView.swift` 后，至少手动检查：
 
 - Light / Dark appearance，以及 Reduce Transparency / Increase Contrast 开关前后。
-- idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、injecting、failed；状态不能只靠颜色表达。
-- reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与输入；点击文本时 panel 可成为 key，但注入前必须把焦点还给目标。
-- 四档静态 panel 尺寸、固定启动屏幕底边锚点、小屏/多屏边界、显示器拔插/排列变化、跨 Space 与长错误单行截断；连续快速状态切换不能回放旧尺寸或跳到另一屏幕。
-- Settings 只能通过可复用独立窗口打开，不能附着成胶囊 sheet；齿轮重复点击只前置同一窗口，关闭不能误关胶囊。
+- idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、failed，以及保留但当前不可达的 injecting；状态不能只靠颜色表达。
+- reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与复制并返回；点击文本时 panel 可成为 key，但当前确认不应激活或切换任何目标 app。
+- 四档静态 panel 尺寸、首次屏幕底边位置、背景拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化、跨 Space 与长错误单行截断；连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
+- Settings 只能通过可复用独立窗口打开，不能附着成胶囊 sheet；齿轮重复点击只前置同一窗口，关闭不能误关胶囊。缩放、切页、展开高级项和滚动时，侧栏与页头必须保持在标题栏下方。
 - 主表单只显示 Model、Endpoint（Base URL / Path 两个输入共用一个标签）、API Key；Connection Name、多连接侧栏、音频格式、采样率、声道、response mode 以及其他 adapter 选择不出现，Language/Prompt/Temperature 只在折叠高级区。
 - OpenAI Compatible 空态、隐藏 active provider、custom endpoint warning/confirmation、Clear API Key、connection test、disabled/error/success、Esc 与 `⌘W`。
-- 按钮 hover/focus/disabled 层级、键盘导航、SF Symbol 与文字标签；主操作使用系统动态黑/白，红/橙/绿只用于明确语义状态。
-- macOS 26 原生 Liquid Glass 路径与 macOS 13–15 Material/native bordered fallback。当前自动化不能证明 fallback 的实际像素和交互。
+- 按钮 hover/focus/disabled 层级、键盘导航、idle 双白圆资源、其余 SF Symbol 与文字标签；idle 外壳当前应为 `108×54`，录音图稿必须保持白圆六条黑色圆角声波，设置图稿必须保持 28 pt 白圆中的 16 pt 黑色八齿齿轮，二者均不得裁切或产生外部黑边，下方 `⌃⌥A` 应为清晰的 12 pt Semibold 系统 Monospaced/动态主文字色。主操作使用系统动态黑/白，红/橙/绿只用于明确语义状态。
+- macOS 26+ 原生 Liquid Glass 路径必须核对 `NSGlassEffectView(style: .regular)`、系统默认自适应 tint、无 hosting-root 全表面深色填充，并在真实运行态检查边缘高光与背景适配；macOS 13–15 Material/native bordered fallback 也需真机核对。当前自动化不能证明两条路径的实际像素和交互。
 
 ## 真机手动验证矩阵
+
+### 输入法安装与客户端
+
+仅在用户明确要求安装后执行；稳定 Apple Development 身份是重复安装与长期使用的目标，ad-hoc 身份只适合本机冒烟并必须明确其缓存/身份限制：
+
+| 场景 | 操作 | 预期 |
+|---|---|---|
+| 系统发现 | 将签名后的 `FlotisInputMethod.app` 安装到用户 Input Methods 目录，再按当前 macOS 要求刷新登录会话/输入源列表 | Keyboard Settings 中只出现声明的 `Flotis Voice` 输入源；不影响主 Flotis app |
+| 激活与透传 | 在 TextEdit 选择 Flotis Voice 后输入普通键盘文字 | 普通文字由客户端正常处理，输入法不吞键、不产生额外文本 |
+| 菜单接口测试 | 在空白文本框保持 caret，执行输入法菜单“插入接口测试文本” | 测试文本只出现在当前插入点；切换目标后的旧 session 不会提交 |
+| 客户端矩阵 | 分别在 TextEdit、Notes、浏览器普通 input/textarea 与至少一个不支持标准文本输入的控件测试 | 标准 IMK client 可提交；不支持的控件安全失败，不向其他 app 发送文字 |
+| 焦点竞态 | 触发请求前后快速切 app、关窗口、换文本框或禁用输入源 | 延迟请求因 session 不匹配或 client 缺失被拒绝，不落入新目标 |
+| 隐私检查 | 检查 Console、UserDefaults 与应用支持目录 | 不出现接口测试文本或未来 transcript；输入法不创建 secret/audio/clipboard 数据 |
 
 ### 构建、启动与权限
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 冷启动 | `./run.sh` | 工程生成/构建成功，app 启动；因脚本重置 TCC 需重新授权 |
-| AX 未授权 | 拒绝/撤销 Accessibility 后在 reviewing 触发输入 | 胶囊保留文字并显示权限错误，不发送 `CGEvent`，目标 app 不收到文本 |
+| 冷启动 | `./run.sh` | 工程生成/增量构建成功，app 启动；脚本不删除 DerivedData、不重置 TCC；ad-hoc 产物会提示配置稳定签名 |
+| AX 未授权 | 拒绝/撤销 Accessibility 后完成三段式语音 | 第三次仍可复制并返回小胶囊，不显示 AX 提示、不发送 `CGEvent`；Settings 不展示 AX 卡 |
 | 麦克风拒绝 | 拒绝 microphone | 会话进入明确 failed，可取消/重试，不遗留 audio engine |
 | Speech 拒绝/设备不支持 | Apple provider 启动 | 明确报告设备端识别不可用，不退回云端 |
 | 简中系统语言 | 将第一首选语言设为简体中文并重启 App | 胶囊、Settings、App 自定义错误与权限说明均为简中；中文标题使用系统默认字体 |
@@ -239,33 +413,30 @@ git status --short
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 固定 toggle | `⌘⌥⇧0` / `⌘⌥⇧R` | panel 与 voice 各自响应一次；隐藏时 voice 会先显示胶囊 |
-| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→injecting→idle；不会在转写完成时自动注入 |
-| 按住/自动重复 | 按住 `⌘⌥⇧R` 约 2 秒后松开 | 整次物理按下只触发一个动作，松开后下一次按下才生效 |
+| 固定 toggle | `⌘⌥⇧0` / `⌃⌥A` | panel 与 voice 各自响应一次；隐藏时 voice 显示胶囊，reviewing 第三次成功复制后保持可见并缩回 idle |
+| 胶囊拖动 | 从按钮和审阅文本以外的空白处把小胶囊拖到屏幕边缘，切换到 reviewing 后取消；再在 reviewing 主动拖动并取消 | 可拖动；大框可为保持可见而临时内移，第一次取消后小胶囊回到展开前位置；主动拖动大框后以新中心/底边缩回，文本拖选不会移动窗口 |
+| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→clipboard copy→idle capsule visible；不会在转写完成时自动复制 |
+| 按住/自动重复 | 按住 `⌃⌥A` 约 2 秒后松开 | 整次物理按下只触发一个动作，松开后下一次按下才生效 |
 | 处理中误按 | stopping/transcribing 中再次按语音热键 | 忽略，不取消终态处理、不清空即将审阅的转写 |
-| 胶囊编辑 | reviewing 点击文本并修改，再按 `⌘⌥⇧R` | 修改后文本注入最后一个有效的非 Flotis 输入目标 |
+| 胶囊编辑 | reviewing 点击文本修改，再按 `⌃⌥A` 或点“复制并返回” | 剪贴板获得包含首尾在内的原样编辑文本，审阅框清空并缩回原位置小胶囊；不激活、不切换、不输入到任何目标 app |
 | 审阅复制 | reviewing 选中部分文字按 `⌘C`、右键 Copy，再测试复制全部图标 | 部分选区或全文进入剪贴板；文本仍可继续编辑，窗口不随拖选移动 |
-| 编辑后取消 | reviewing 修改后按 Esc/取消 | 清空本次文本并回 idle，不注入 |
-| 注入失败重试 | reviewing 时让目标退出或撤销 AX 后确认 | 返回 reviewing 且保留修改文本，恢复条件后可再次确认 |
-| 热键冲突 | 在系统/其他 app 占用组合后保存 | 错误持久显示；解除冲突后自动重试成功 |
+| 编辑后取消 | reviewing 修改后按 Esc/取消 | 清空本次文本并回 idle，不复制 |
+| 复制后下一轮 | 第三次成功缩回后再按一次 voice hotkey | 当前可见小胶囊直接开始新录音；不会重复复制上一轮文字 |
+| 热键冲突 | 让系统或其他 app 独占 `⌃⌥A` 后启动 Flotis | 错误持久显示；解除冲突后自动重试成功 |
 | 旧命令兼容 | 启动 V0.8 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
 
-### 剪贴板注入
+### 当前剪贴板确认
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 普通语音确认 | 目标 app 文本框有焦点，reviewing 再按语音热键 | 审阅文本注入，原剪贴板恢复 |
-| 完整组合键释放 | reviewing 中按语音热键后正常释放 `⌘⌥⇧R` | 修饰键和主键 R 都释放后，在当前 5 秒 operation 有效期内继续注入 |
-| 组合键不释放 | 持续按住任一修饰键或 R 直到 operation 过期 | 不粘贴，返回失败 |
-| 快速连按 | 连续触发超过队列/burst 上限 | 新请求受控失败，不产生长期 backlog/过期粘贴 |
-| 目标退出 | 入队后立即退出目标 app | 不向其他 frontmost app 粘贴 |
-| 用户切 app | 激活/等待期间切到第三个 app | operation abort，第三个 app 不收到文本 |
-| 跨 Space/慢激活 | 目标在另一 Space 或激活较慢 | 仅在目标 PID 真正 frontmost 时粘贴，否则失败 |
-| 外部复制竞争 | 注入后恢复前在另一 app Copy | 新 clipboard 内容被保留，不被旧 snapshot 覆盖 |
-| 复杂剪贴板 | 文件、图片、富文本、延迟 provider | 能完整快照才注入；否则安全失败且原内容不丢 |
-| 剪贴板管理器 | 启用常见 manager 后重复上述场景 | 不覆盖 manager 新写内容；记录任何真实竞争 |
+| 第三次热键 | reviewing 再按语音热键 | 系统剪贴板替换为原样审阅文本，状态回 idle，panel 保持可见并缩回原位置小胶囊；不恢复旧剪贴板 |
+| 审阅确认按钮 | 点击右侧“复制并返回” | 与第三次热键完全一致 |
+| 复制全部按钮 | 点击左侧复制图标 | 全文进入剪贴板但仍停留 reviewing，panel 不关闭，可继续编辑 |
+| 部分复制 | 选中文字按 `⌘C` 或右键 Copy | 只复制选区，reviewing 与原文保持 |
+| 纯空白 | 将审阅内容改成纯空白后确认 | 动作禁用或显示无可复制文字；panel/审阅不丢失 |
+| 外部粘贴 | 成功返回小胶囊后由用户在任意 app 手动 `⌘V` | 由用户选择的位置收到剪贴板文字；Flotis 不参与目标选择或事件发送 |
 
-注意：completion=true 只能证明安全核验、event post 与剪贴板结局，需目视确认目标控件确实消费文本。
+保留的 `ClipboardPasteInjector` 不是当前产品手测项。只有未来用户明确重新启用旧注入路径时，才恢复 AX、目标 PID/frontmost、完整快捷键释放、队列/过期、复杂剪贴板 snapshot、外部 clipboard 竞争与恢复矩阵；在此之前不得把这些结果描述为当前三段式流程的要求。
 
 ### Connection 配置与迁移
 
@@ -313,4 +484,4 @@ git status --short
 
 ## Lint / Format
 
-仓内没有 SwiftLint/SwiftFormat。最低门槛是完整 `xcodebuild build`、`xcodebuild test` 与 `git diff --check`；纯 parse 不等于完整工程验证。
+仓内没有 SwiftLint/SwiftFormat。最低门槛是主 App 与输入法接口各自的完整 `xcodebuild build` / `xcodebuild test`（按变更范围执行）以及 `git diff --check`；纯 parse 不等于完整工程验证。

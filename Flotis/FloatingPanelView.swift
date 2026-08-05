@@ -32,7 +32,6 @@ struct FloatingPanelView: View {
         }
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
         .onAppear {
-            appState.checkAccessibility()
             reportPreferredSize(layout.panelSize)
         }
         .onChange(of: layout.panelSize) { newSize in
@@ -41,21 +40,18 @@ struct FloatingPanelView: View {
         .onExitCommand {
             voiceController.cancel()
         }
-        .onReceive(Timer.publish(every: 1.0, on: .main, in: .common).autoconnect()) { _ in
-            appState.checkAccessibility()
-        }
     }
 
     private var idleControls: some View {
         VStack(spacing: 2) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 actionButton
                 settingsButton
             }
 
             Text(KeyboardShortcutDescriptor.toggleVoice.displayString)
-                .font(FlotisType.mono(11, .medium))
-                .foregroundStyle(FlotisTheme.secondary(colorScheme))
+                .font(FlotisType.mono(12, .semibold))
+                .foregroundStyle(FlotisTheme.primary(colorScheme))
                 .lineLimit(1)
                 .accessibilityLabel(
                     UIStrings.pressToStartRecording(
@@ -91,12 +87,29 @@ struct FloatingPanelView: View {
 
     private var actionButton: some View {
         Button {
-            voiceController.toggleRecording()
+            performPrimaryAction()
         } label: {
-            Image(systemName: actionIcon)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(actionColor)
-                .frame(width: 18, height: 18)
+            if appState.voiceState == .idle {
+                ZStack {
+                    Circle()
+                        .fill(.black)
+                        .frame(width: 24, height: 24)
+
+                    Image("VoiceWaveformButton")
+                        .resizable()
+                        .renderingMode(.original)
+                        .interpolation(.high)
+                        .antialiased(true)
+                        .scaledToFit()
+                        .frame(width: 28, height: 28)
+                }
+                .frame(width: 28, height: 28)
+            } else {
+                Image(systemName: actionIcon)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(actionColor)
+                    .frame(width: 18, height: 18)
+            }
         }
         .buttonStyle(.plain)
         .contentShape(Circle())
@@ -110,10 +123,20 @@ struct FloatingPanelView: View {
         Button {
             onOpenSettings()
         } label: {
-            Image(systemName: "gearshape")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(FlotisTheme.secondary(colorScheme))
-                .frame(width: 16, height: 16)
+            ZStack {
+                Circle()
+                    .fill(.white)
+                    .frame(width: 28, height: 28)
+
+                Image("SettingsGearButton")
+                    .resizable()
+                    .renderingMode(.original)
+                    .interpolation(.high)
+                    .antialiased(true)
+                    .scaledToFit()
+                    .frame(width: 16, height: 16)
+            }
+            .frame(width: 28, height: 28)
         }
         .buttonStyle(.plain)
         .contentShape(Circle())
@@ -157,19 +180,6 @@ struct FloatingPanelView: View {
 
                 Spacer(minLength: 0)
 
-                if requiresAccessibilityAttention {
-                    Button {
-                        AccessibilityPermission.openSettings()
-                    } label: {
-                        Image(systemName: "accessibility")
-                            .frame(width: 16, height: 16)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(width: 28, height: 28)
-                    .accessibilityLabel(UIStrings.openSettings)
-                    .help(UIStrings.openSettings)
-                }
-
                 Button {
                     voiceController.cancel()
                 } label: {
@@ -182,17 +192,17 @@ struct FloatingPanelView: View {
                 .help(UIStrings.cancel)
 
                 Button {
-                    voiceController.toggleRecording()
+                    performPrimaryAction()
                 } label: {
-                    Image(systemName: "arrow.up.forward")
+                    Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
                         .frame(width: 16, height: 16)
                 }
                 .buttonStyle(.borderedProminent)
                 .flotisCircularButtonBorder()
                 .controlSize(.small)
-                .accessibilityLabel(UIStrings.insertText)
-                .help(UIStrings.insertText)
+                .accessibilityLabel(UIStrings.copyAndReturn)
+                .help(UIStrings.copyAndReturn)
                 .disabled(
                     appState.transcriptPreview
                         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -204,15 +214,10 @@ struct FloatingPanelView: View {
     }
 
     private var statusMessage: String? {
-        if requiresAccessibilityAttention {
-            return UIStrings.accessibilityPastePermission
+        if let pasteError = appState.pasteError {
+            return pasteError
         }
-        return appState.pasteError ?? appState.hotkeyError
-    }
-
-    private var requiresAccessibilityAttention: Bool {
-        !appState.hasAccessibilityPermission
-            && appState.pasteError == UIStrings.reviewInjectionFailed
+        return appState.hotkeyError
     }
 
     private var compactStatusText: String {
@@ -296,8 +301,8 @@ struct FloatingPanelView: View {
             return "stop.fill"
         case .cancel:
             return "xmark"
-        case .inject:
-            return "arrow.up.forward"
+        case .copyAndReturn:
+            return "checkmark"
         case .none:
             return "ellipsis"
         }
@@ -307,7 +312,7 @@ struct FloatingPanelView: View {
         switch appState.voiceState.hotkeyAction {
         case .stop:
             return .red
-        case .start, .cancel, .inject, .none:
+        case .start, .cancel, .copyAndReturn, .none:
             return FlotisTheme.action(colorScheme)
         }
     }
@@ -338,8 +343,8 @@ struct FloatingPanelView: View {
             return UIStrings.stop
         case .cancel:
             return UIStrings.cancel
-        case .inject:
-            return UIStrings.insertText
+        case .copyAndReturn:
+            return UIStrings.copyAndReturn
         case .none:
             return UIStrings.speechBusy
         }
@@ -354,7 +359,15 @@ struct FloatingPanelView: View {
     private func copyReviewedTranscript() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        _ = pasteboard.setString(appState.transcriptPreview, forType: .string)
+        if pasteboard.setString(appState.transcriptPreview, forType: .string) {
+            appState.pasteError = nil
+        } else {
+            appState.pasteError = UIStrings.copyReviewedTranscriptFailed
+        }
+    }
+
+    private func performPrimaryAction() {
+        voiceController.toggleRecording()
     }
 
 }
@@ -434,8 +447,10 @@ private struct ReviewTextEditor: NSViewRepresentable {
 }
 
 struct FloatingPanelLayout: Equatable {
-    static let minPanelWidth: CGFloat = 120
-    static let minPanelHeight: CGFloat = 56
+    static let idlePanelWidth: CGFloat = 108
+    static let idlePanelHeight: CGFloat = 54
+    static let minPanelWidth = idlePanelWidth
+    static let minPanelHeight = idlePanelHeight
     static let activePanelWidth: CGFloat = 188
     static let maxPanelWidth: CGFloat = 460
     static let maxPanelHeight: CGFloat = 180
@@ -462,11 +477,18 @@ struct FloatingPanelLayout: Equatable {
         } else if hasStatusArea || isFailed {
             width = Self.statusPanelWidth
         } else if state == .idle {
-            width = Self.minPanelWidth
+            width = Self.idlePanelWidth
         } else {
             width = Self.activePanelWidth
         }
-        let height = isReviewing ? Self.reviewHeight : Self.headerHeight
+        let height: CGFloat
+        if isReviewing {
+            height = Self.reviewHeight
+        } else if state == .idle, !hasStatusArea {
+            height = Self.idlePanelHeight
+        } else {
+            height = Self.headerHeight
+        }
         panelSize = CGSize(width: width, height: height)
     }
 }

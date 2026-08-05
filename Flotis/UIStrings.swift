@@ -68,6 +68,22 @@ enum UIStrings {
         english: "Voice input, permissions, and OpenAI Compatible",
         simplifiedChinese: "语音输入、权限与 OpenAI Compatible"
     )
+    static let generalSettings = localized(
+        english: "General",
+        simplifiedChinese: "概览"
+    )
+    static let transcriptionSettings = localized(
+        english: "Transcription",
+        simplifiedChinese: "转写服务"
+    )
+    static let generalSettingsSubtitle = localized(
+        english: "Permission status and the essentials for using Flotis.",
+        simplifiedChinese: "查看权限状态与 Flotis 的核心使用方式。"
+    )
+    static let transcriptionSettingsSubtitle = localized(
+        english: "Configure the OpenAI-compatible service used for voice transcription.",
+        simplifiedChinese: "配置用于语音转写的 OpenAI 兼容服务。"
+    )
     static let commands = localized(english: "Commands", simplifiedChinese: "命令")
     static let speech = localized(english: "Speech", simplifiedChinese: "语音")
     static let transcriptionProviders = localized(
@@ -95,6 +111,10 @@ enum UIStrings {
     static let save = localized(english: "Save", simplifiedChinese: "保存")
     static let cancel = localized(english: "Cancel", simplifiedChinese: "取消")
     static let copyText = localized(english: "Copy text", simplifiedChinese: "复制文字")
+    static let copyAndReturn = localized(
+        english: "Copy and return",
+        simplifiedChinese: "复制并返回"
+    )
     static let resetDefaults = localized(
         english: "Restore Defaults",
         simplifiedChinese: "恢复默认"
@@ -276,6 +296,62 @@ enum UIStrings {
     )
     static let enabledStatus = localized(english: "Enabled", simplifiedChinese: "已启用")
     static let disabledStatus = localized(english: "Disabled", simplifiedChinese: "未启用")
+    static let accessibilityReadyDescription = localized(
+        english: "Flotis can securely send the reviewed text to the app where recording started.",
+        simplifiedChinese: "Flotis 可以把确认后的文字安全输入到开始录音时的 App。"
+    )
+    static let accessibilityRequiredDescription = localized(
+        english: "Allow Flotis in Privacy & Security → Accessibility. This permission is required only for the final Command-V event.",
+        simplifiedChinese: "请在“隐私与安全性 → 辅助功能”中允许 Flotis；该权限仅用于最后发送 Command-V。"
+    )
+    static let grantAccessibility = localized(
+        english: "Grant Access",
+        simplifiedChinese: "开启权限"
+    )
+    static let checkAgain = localized(
+        english: "Check Again",
+        simplifiedChinese: "重新检查"
+    )
+    static let voiceShortcutTitle = localized(
+        english: "Voice shortcut",
+        simplifiedChinese: "语音快捷键"
+    )
+    static let voiceShortcutDescription = localized(
+        english: "Press once to start recording, again to stop, and once more to copy the reviewed text and return to the capsule.",
+        simplifiedChinese: "按一次开始录音，再按一次停止，确认文字后第三次复制并回到小胶囊。"
+    )
+    static let floatingPanelTitle = localized(
+        english: "Floating capsule",
+        simplifiedChinese: "悬浮胶囊"
+    )
+    static let floatingPanelDragDescription = localized(
+        english: "Drag any empty area of the capsule. Its position is preserved while the capsule changes size.",
+        simplifiedChinese: "拖动胶囊任意空白处；胶囊切换尺寸时会保留当前位置。"
+    )
+    static let connectionDetails = localized(
+        english: "Connection",
+        simplifiedChinese: "连接"
+    )
+    static let connectionDetailsDescription = localized(
+        english: "Model and HTTPS transcription endpoint.",
+        simplifiedChinese: "模型与 HTTPS 转写接口。"
+    )
+    static let credentials = localized(
+        english: "Credentials",
+        simplifiedChinese: "凭据"
+    )
+    static let credentialsDescription = localized(
+        english: "The key stays in Flotis local app data and is never written to the connection snapshot.",
+        simplifiedChinese: "密钥仅保存在 Flotis 本地应用数据中，不会写入连接配置快照。"
+    )
+    static let optionalParameters = localized(
+        english: "Optional parameters",
+        simplifiedChinese: "可选参数"
+    )
+    static let addConnectionDescription = localized(
+        english: "Add one OpenAI-compatible endpoint to start transcribing.",
+        simplifiedChinese: "添加一个 OpenAI 兼容接口后即可开始转写。"
+    )
     static let customRealtime = localized(
         english: "Custom Realtime Transcription",
         simplifiedChinese: "自定义实时转写"
@@ -582,12 +658,60 @@ enum UIStrings {
         simplifiedChinese: "正在确认目标输入位置"
     )
     static let emptyTranscript = localized(
-        english: "There is no transcript to insert.",
-        simplifiedChinese: "没有可输入的转写文字。"
+        english: "There is no transcript to copy.",
+        simplifiedChinese: "没有可复制的转写文字。"
+    )
+    static let copyReviewedTranscriptFailed = localized(
+        english: "Flotis could not copy the reviewed text. It was preserved so you can try again.",
+        simplifiedChinese: "Flotis 无法复制确认后的文字；文字已保留，可以重试。"
     )
     static let reviewInjectionFailed = localized(
         english: "Insert failed. Your text was preserved. Check the target input location and Accessibility permission, then try again.",
         simplifiedChinese: "输入失败，文字已保留；请确认目标输入位置和辅助功能权限后重试。"
+    )
+    static let injectionAccessibilityMissing = localized(
+        english: "Accessibility is not enabled for this Flotis build. Your text was preserved.",
+        simplifiedChinese: "当前 Flotis 构建尚未获得辅助功能权限，文字已保留。"
+    )
+    static let injectionTargetUnavailable = localized(
+        english: "The app where recording started is no longer available. Your text was preserved.",
+        simplifiedChinese: "开始录音时的目标 App 已不可用，文字已保留。"
+    )
+    static let injectionBusy = localized(
+        english: "Another insert is still finishing. Try again in a moment.",
+        simplifiedChinese: "上一次输入仍在收尾，请稍后重试。"
+    )
+    static let injectionClipboardUnavailable = localized(
+        english: "The current clipboard could not be copied safely. It was left unchanged.",
+        simplifiedChinese: "无法安全备份当前剪贴板，已保持原内容不变。"
+    )
+    static let injectionClipboardChanged = localized(
+        english: "The clipboard changed during insertion, so Flotis stopped safely.",
+        simplifiedChinese: "输入期间剪贴板发生变化，Flotis 已安全停止。"
+    )
+    static let injectionClipboardWriteFailed = localized(
+        english: "Flotis could not place the reviewed text on the clipboard.",
+        simplifiedChinese: "Flotis 无法把确认后的文字写入剪贴板。"
+    )
+    static let injectionTargetActivationFailed = localized(
+        english: "The original app did not regain keyboard focus in time. Your text was preserved.",
+        simplifiedChinese: "原目标 App 未能及时恢复键盘焦点，文字已保留。"
+    )
+    static let injectionShortcutReleaseTimedOut = localized(
+        english: "Release the voice shortcut before inserting, then try again.",
+        simplifiedChinese: "请先完全松开语音快捷键，再重试输入。"
+    )
+    static let injectionOperationExpired = localized(
+        english: "The insert request expired before it was safe to continue. Try again.",
+        simplifiedChinese: "输入请求在安全核验完成前已过期，请重试。"
+    )
+    static let injectionEventFailed = localized(
+        english: "macOS could not create the paste event. Your text was preserved.",
+        simplifiedChinese: "macOS 无法创建粘贴事件，文字已保留。"
+    )
+    static let injectionClipboardRestoreFailed = localized(
+        english: "Text was sent, but the previous clipboard could not be restored.",
+        simplifiedChinese: "文字已发送，但此前的剪贴板内容未能恢复。"
     )
     static let injecting = localized(
         english: "Inserting...",

@@ -9,6 +9,8 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - path: Flotis
+      - path: Flotis.icon
+        buildPhase: resources
     info:
       path: Flotis/Info.plist
       properties:
@@ -23,6 +25,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisMac
         MARKETING_VERSION: 0.8.0
         CURRENT_PROJECT_VERSION: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: Flotis
         SWIFT_VERSION: "5.0"
   FlotisTests:
     type: bundle.unit-test
@@ -35,5 +38,61 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisMacTests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "5.0"
+  FlotisInputMethod:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: FlotisInputMethod
+    dependencies:
+      - sdk: InputMethodKit.framework
+    info:
+      path: FlotisInputMethod/Info.plist
+      properties:
+        CFBundleDisplayName: "Flotis Voice"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSBackgroundOnly: true
+        NSPrincipalClass: NSApplication
+        NSSupportsSuddenTermination: true
+        InputMethodConnectionName: com.Vita0818.FlotisInputMethod_Connection
+        InputMethodServerControllerClass: FlotisInputController
+        tsInputMethodIconFileKey: FlotisInputMethodIcon.tiff
+        TISInputSourceID: com.Vita0818.FlotisInputMethod
+        ComponentInputModeDict:
+          tsInputModeListKey:
+            com.Vita0818.FlotisInputMethod.Voice:
+              TISInputSourceID: com.Vita0818.FlotisInputMethod.Voice
+              tsInputModeMenuIconFileKey: FlotisInputMethodIcon.tiff
+              tsInputModeDefaultStateKey: true
+              tsInputModeIsVisibleKey: true
+              tsInputModePrimaryInScriptKey: false
+              tsInputModeScriptKey: smUnicodeScript
+              TISIconLabels:
+                Primary: F
+          tsVisibleInputModeOrderedArrayKey:
+            - com.Vita0818.FlotisInputMethod.Voice
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisInputMethod
+        PRODUCT_NAME: FlotisInputMethod
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 3
+        SWIFT_VERSION: "5.0"
+        INSTALL_PATH: "$(HOME)/Library/Input Methods"
+        SKIP_INSTALL: NO
+  FlotisInputMethodTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: FlotisInputMethodTests
+      - path: FlotisInputMethod/FlotisInputMethodProtocol.swift
+      - path: FlotisInputMethod/FlotisInputMethodService.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisInputMethodTests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "5.0"

@@ -33,7 +33,7 @@ enum VoiceHotkeyAction: Equatable {
     case start
     case stop
     case cancel
-    case inject
+    case copyAndReturn
     case none
 }
 
@@ -49,7 +49,7 @@ extension VoiceInputState {
         case .stopping, .transcribing:
             return .none
         case .reviewing:
-            return .inject
+            return .copyAndReturn
         case .injecting:
             return .none
         }

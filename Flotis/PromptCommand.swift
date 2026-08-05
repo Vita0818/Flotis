@@ -24,6 +24,13 @@ struct ShortcutModifiers: Codable, Equatable, Hashable {
         command || option || shift || control
     }
 
+    static let controlOption = ShortcutModifiers(
+        command: false,
+        option: true,
+        shift: false,
+        control: true
+    )
+
     static let commandOptionShift = ShortcutModifiers(
         command: true,
         option: true,
@@ -39,8 +46,8 @@ extension KeyboardShortcutDescriptor {
     )
 
     static let toggleVoice = KeyboardShortcutDescriptor(
-        keyCode: 15,
-        modifiers: .commandOptionShift
+        keyCode: 0, // kVK_ANSI_A
+        modifiers: .controlOption
     )
 
     static func defaultNumber(_ number: Int) -> KeyboardShortcutDescriptor? {

@@ -1,4 +1,17 @@
+import AppKit
 import Foundation
+
+protocol TranscriptClipboardWriting {
+    func writeTranscript(_ text: String) -> Bool
+}
+
+struct SystemTranscriptClipboardWriter: TranscriptClipboardWriting {
+    func writeTranscript(_ text: String) -> Bool {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        return pasteboard.setString(text, forType: .string)
+    }
+}
 
 @MainActor
 final class VoiceInputController {
@@ -7,6 +20,7 @@ final class VoiceInputController {
     private let providerStore: SpeechProviderStore
     private let runtimeFactory: TranscriptionRuntimeFactory
     private let secretStore: SecretStoring
+    private let transcriptClipboardWriter: TranscriptClipboardWriting
     private var activeRuntime: TranscriptionRuntimePlan?
     private var realtimeAudioCapture: StreamingAudioCapture?
     private var audioRecorder: AudioRecorder?
@@ -23,12 +37,14 @@ final class VoiceInputController {
         appState: AppState,
         providerStore: SpeechProviderStore = .shared,
         runtimeFactory: TranscriptionRuntimeFactory = .shared,
-        secretStore: SecretStoring = LocalSecretStore.shared
+        secretStore: SecretStoring = LocalSecretStore.shared,
+        transcriptClipboardWriter: TranscriptClipboardWriting = SystemTranscriptClipboardWriter()
     ) {
         self.appState = appState
         self.providerStore = providerStore
         self.runtimeFactory = runtimeFactory
         self.secretStore = secretStore
+        self.transcriptClipboardWriter = transcriptClipboardWriter
     }
 
     func toggleRecording() {
@@ -41,8 +57,8 @@ final class VoiceInputController {
             stopAndPrepareReview()
         case .cancel:
             cancel()
-        case .inject:
-            injectReviewedTranscript()
+        case .copyAndReturn:
+            copyReviewedTranscriptAndReset()
         case .none:
             return
         }
@@ -458,33 +474,23 @@ final class VoiceInputController {
         isTransitioning = false
     }
 
-    private func injectReviewedTranscript() {
+    private func copyReviewedTranscriptAndReset() {
         guard !isTransitioning, appState.voiceState == .reviewing else { return }
-        let sessionID = sessionGeneration
-        let text = appState.transcriptPreview.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else {
+        let reviewedText = appState.transcriptPreview
+        guard !reviewedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             showShortStatus(UIStrings.emptyTranscript)
             return
         }
 
-        isTransitioning = true
-        appState.voiceState = .injecting
-        appState.pasteError = nil
-
-        ClipboardPasteInjector.shared.inject(text: text) { [weak self] success in
-            Task { @MainActor [weak self] in
-                guard let self, self.isCurrent(sessionID) else { return }
-                if success {
-                    self.appState.voiceState = .idle
-                    self.appState.transcriptPreview = ""
-                    self.appState.pasteError = nil
-                } else {
-                    self.appState.voiceState = .reviewing
-                    self.appState.pasteError = UIStrings.reviewInjectionFailed
-                }
-                self.isTransitioning = false
-            }
+        guard transcriptClipboardWriter.writeTranscript(reviewedText) else {
+            appState.pasteError = UIStrings.copyReviewedTranscriptFailed
+            return
         }
+
+        invalidateSessionAndCancelResources()
+        appState.voiceState = .idle
+        appState.transcriptPreview = ""
+        appState.pasteError = nil
     }
 
     private func configureStreamingHandlers(
