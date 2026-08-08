@@ -84,6 +84,48 @@ final class TranscriptionAdapterRuntimeTests: XCTestCase {
         XCTAssertFalse(bodyText.contains("name=\"temperature\""))
     }
 
+    func testOpenRouterHTTPTesterBuildsJSONBase64Request() async throws {
+        let transport = FakeHTTPTransport(
+            statusCode: 200,
+            headers: ["Content-Type": "application/json"],
+            body: Data(#"{"text":"openrouter accepted"}"#.utf8)
+        )
+        let tester = try makeTester(httpTransport: transport)
+        var connection = SpeechProviderConfig.openAIHTTP
+        connection.name = "OpenRouter"
+        connection.baseURL = "https://openrouter.ai/api"
+        connection.endpointPath = "/v1/audio/transcriptions"
+        connection.model = "openai/gpt-4o-transcribe"
+        connection.requestEncoding = .jsonBase64
+        connection = connection.normalizedForProtocol()
+
+        let record = try await tester.test(
+            connection: connection,
+            apiKey: "openrouter-test-key"
+        )
+
+        XCTAssertEqual(record.outcome, .succeeded)
+        let captured = try XCTUnwrap(transport.captured)
+        XCTAssertEqual(
+            captured.request.url?.absoluteString,
+            "https://openrouter.ai/api/v1/audio/transcriptions"
+        )
+        XCTAssertEqual(
+            captured.request.value(forHTTPHeaderField: "Content-Type"),
+            "application/json"
+        )
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: captured.body) as? [String: Any]
+        )
+        XCTAssertEqual(json["model"] as? String, "openai/gpt-4o-transcribe")
+        let inputAudio = try XCTUnwrap(json["input_audio"] as? [String: Any])
+        XCTAssertEqual(inputAudio["format"] as? String, "wav")
+        let encodedAudio = try XCTUnwrap(inputAudio["data"] as? String)
+        let decodedAudio = try XCTUnwrap(Data(base64Encoded: encodedAudio))
+        XCTAssertEqual(String(decoding: decodedAudio.prefix(4), as: UTF8.self), "RIFF")
+        XCTAssertNil(json["file"])
+    }
+
     func testSameHTTPAdapterKeepsCustomEndpointAndModelIsolated() async throws {
         let transport = FakeHTTPTransport(
             statusCode: 200,

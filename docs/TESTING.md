@@ -1,6 +1,6 @@
 # TESTING
 
-最近验证日期：2026-08-04
+最近验证日期：2026-08-07
 
 ## 环境与边界
 
@@ -8,8 +8,8 @@
 - XcodeGen 生成 `Flotis.xcodeproj`；scheme 为 `Flotis`、`FlotisInputMethod` 与独立的 `FlotisInputMethodTests`。
 - 主 App 当前产品路径依赖 Carbon、AppKit、Speech、AVFoundation 与 Darwin 文件系统调用；保留的旧 `ClipboardPasteInjector` 仍编译真实 macOS Accessibility/`CGEvent` 代码但当前不可达。输入法 target 依赖 AppKit/InputMethodKit。二者都不能用 iOS Simulator 验证核心交互。App 源码不再导入 Security 或调用系统钥匙串。
 - 无第三方依赖，无仓内 SwiftLint/SwiftFormat 配置。
-- 当前没有 UI-test target、SwiftUI snapshot test、Preview fixture 或产品内 debug state 开关；视觉、物理热键、系统剪贴板/返回行为与输入客户端验收必须结合真实 macOS 运行态，不能由主 App 65 个测试或输入法接口 8 个测试替代。
-- API key 明文不进入仓库、UserDefaults、connection snapshot 或日志；自动化只使用内存 fake transport 与虚拟字符串。真实 provider 测试需由操作者在 UI 保存到 Flotis 本地 `secrets.json`。
+- 当前没有 UI-test target、SwiftUI snapshot test、Preview fixture 或产品内 debug state 开关；视觉、物理热键、系统剪贴板/返回行为、多模型真实服务与输入客户端验收必须结合真实 macOS 运行态，不能由主 App 单元测试或输入法接口 8 个测试替代。
+- API key 明文不进入仓库、UserDefaults、日志或单独凭据文件；自动化只使用临时目录、内存 fake transport 与虚拟字符串。真实 provider 的 key 由操作者在 UI 保存到私有权限 `config.json` 对应 provider 的 `options.apiKey`。
 
 ## 标准静态与自动化验证
 
@@ -53,6 +53,74 @@ git status --short
 ```
 
 为 build 与 test 使用不同的临时 DerivedData。Xcode 26 的 test action 会把 XCTest framework 复制进 test host；复用已跑过 test 的 app bundle 再次执行普通 build，可能在 app validation 阶段把旧测试 framework 当作产品 framework 检查。
+
+2026-08-07 Settings 快捷键页精简与重新安装验证：
+
+- 以用户提供的已安装 Settings 截图为真实问题依据，侧栏品牌区移除应用图标，“General/概览”改为“Shortcuts/快捷键”；删除固定 voice 流程、胶囊拖动说明、重复 section 标题与每行长描述，只在一张卡中保留固定 voice 和三项可配置组合。组合键 surface 由最小 `92×32` / 11 pt 扩至固定 `220×50` / 17 pt，原生录制态同尺寸，录制提示为 14 pt；可配置项整块 surface 可点。
+- `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisShortcutUI-MainBuild-20260807` 与输入法 Debug build `/private/tmp/FlotisShortcutUI-InputBuild-20260807` 均成功。
+- 使用隔离 bundle ID `com.Vita0818.FlotisShortcutUIRegression20260807` 的完整主 App XCTest `/private/tmp/FlotisShortcutUI-MainTests-20260807` 为 79 tests、0 failures；独立输入法 XCTest `/private/tmp/FlotisShortcutUI-InputTests-20260807` 为 8 tests、0 failures。
+- ad-hoc Release `/private/tmp/FlotisShortcutUI-ReleaseInstall-20260807/Build/Products/Release/Flotis.app` 为 `0.12 (3)`，通过 `codesign --verify --deep --strict`。上一版已移动到 `/private/tmp/Flotis-before-shortcut-ui-install-20260807-2211.app`；新版本已安装到 `/Applications/Flotis.app`、注册 Launch Services 并启动，安装可执行文件、`Flotis.icns` 与 `Assets.car` 和 Release 逐字节一致。更早的可配置快捷键首次安装产物为 `/private/tmp/FlotisHotkeyReleaseInstall-20260807/Build/Products/Release/Flotis.app`，其替换前副本仍在 `/private/tmp/Flotis-before-configurable-hotkeys-install-20260807-2150.app`。
+- 原生 Computer Use 服务连续两次启动失败；按产品设计工作流没有改用未授权 GUI 自动化，也没有把当前像素结果标为视觉通过。编译、签名、安装内容和启动链路已核验，最终层级、间距与命中观感仍需用户在已安装应用中目视确认。
+- 保留既有 `AppleSpeechTranscriber` async-context `NSLock` Swift 6 兼容 warning、XCTest deployment 与本机 Xcode 诊断提示；本轮没有新增编译 warning。没有录音、请求 provider、产生费用、读取或修改真实 API key，也没有覆盖、启动或切换用户 Input Methods 副本。
+
+2026-08-07 可配置 panel / 对比导航快捷键验证：
+
+- 通用设置新增 panel 显隐、上一个成功结果、下一个成功结果三项录制与恢复入口；默认值仍为 `⌘⌥⇧0`、`⌥←`、`⌥→`，固定 voice `⌃⌥A` 未开放修改。策略覆盖无修饰键、固定 voice 冲突、三项重复拒绝，以及 canonical `shortcuts` 保存、重载并保持 provider/comparison 分区不变；`HotkeyAndInjectionPolicyTests` 为 23 tests、0 failures。
+- `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisHotkeyMainBuild-20260807` 与输入法 Debug build `/private/tmp/FlotisHotkeyInputBuild-20260807` 均成功。
+- 使用隔离 bundle ID `com.Vita0818.FlotisHotkeyRegression20260807` 的完整主 App XCTest `/private/tmp/FlotisHotkeyMainTests-20260807` 为 79 tests、0 failures；独立输入法 XCTest `/private/tmp/FlotisHotkeyInputTests-20260807` 为 8 tests、0 failures。
+- `docs/CONFIGURATION_GUIDE.md` 的两个完整 JSON 文档代码块已由 Ruby JSON parser 验证；其余四个 `json` 代码块是有意展示的局部字段片段。
+- 构建只保留既有的 `AppleSpeechTranscriber` async-context `NSLock` Swift 6 兼容 warning，以及 XCTest deployment/本机 Xcode 诊断提示；本轮新增源码没有编译错误或新增 warning。该第一阶段尚未启动 UI、录音、请求 provider、读取或修改真实 API key，也尚未安装/替换 `/Applications/Flotis.app` 或用户 Input Methods 副本；随后完成的安装与界面精简见上一节。物理按键录制、Carbon 新旧 descriptor 即时切换和对比态临时注册/注销仍列入人工矩阵。
+
+2026-08-06 V0.12 版本与安装验证：
+
+- 主 App `MARKETING_VERSION` 提升为 `0.12`、`CURRENT_PROJECT_VERSION` 提升为 `3`；输入法保持 `0.1.0 (3)`。`xcodegen generate` 后，生成工程与 Release Info.plist 均展开为 `0.12 (3)`。
+- 沙箱内第一次 Release build 仅因 Icon Composer 无法访问系统导出服务失败；在正常 Xcode 环境用同一源码重跑后成功。ad-hoc Release 位于 `/private/tmp/Flotis-v012-Release-20260806/Build/Products/Release/Flotis.app`，严格签名校验通过，`Flotis.icns` 与 `Assets.car` 均存在。
+- 唯一 bundle ID 的完整主 App XCTest `/private/tmp/Flotis-v012-MainTests-20260806` 为 77 tests、0 failures；输入法 Debug build `/private/tmp/Flotis-v012-InputBuild-20260806` 成功，输入法 XCTest `/private/tmp/Flotis-v012-InputTests-20260806` 为 8 tests、0 failures。保留既有 Apple Speech Swift 6 锁兼容 warning 与 XCTest deployment warning。
+- 安装前 `/Applications/Flotis.app` 为 `0.8.0 (2)`。旧副本已移动到 `/private/tmp/Flotis-before-v0.12-install-20260806-1453.app`，新 `0.12 (3)` 已安装、注册 Launch Services 并启动；最终签名有效，安装可执行文件和 `Flotis.icns` 与 Release 产物逐字节一致，进程从 `/Applications/Flotis.app/Contents/MacOS/Flotis` 运行。
+- 本轮没有读取或改写真实 Provider/API key、没有录音或请求供应商，也没有覆盖、启动或切换 `~/Library/Input Methods/FlotisInputMethod.app`。
+
+2026-08-06 Settings / 录音状态 / 多结果导航交互验证：
+
+- Settings 的 Connection、Models、Comparison、Advanced 使用全宽最小 44 pt button，Provider 行至少 48 pt，对比 route 整卡至少 44 pt。录音状态保留原有图标与文案，用 `recordingStartedAt` 驱动 `mm:ss` 并替代右侧 stop 方块；stopping/transcribing 保留原有省略号状态图标与原有文案，只抑制右侧重复的禁用 action。对比 reviewing 为 `560×300` 固定双列网格，首个成功项自动打开，`⌥←` / `⌥→` 跳过失败项并循环导航；候选优先只显示会话开始时快照的 Model Display name，无名称时显示主 Model ID + 次 Provider，不显示 endpoint。
+- 新增/修正的策略覆盖使 `HotkeyAndInjectionPolicyTests` 增至 21 tests；`TranscriptionComparisonTests` 仍为 5 tests，覆盖自动首项、失败跳过、前后 wrap、每项编辑保持及 voice hotkey 复制当前项。先用默认 bundle 跑定向测试时，已运行的 `/Applications/Flotis.app` 因 `LSMultipleInstancesProhibited` 在断言前阻止 test host；改用唯一测试 bundle ID 后定向 26 tests、0 failures，确认不是源码或断言失败。
+- `xcodegen generate` 成功；主 App Debug build `/private/tmp/FlotisUXFinalMainBuild-20260806`、输入法 Debug build `/private/tmp/FlotisUXFinalInputBuild-20260806` 均成功。唯一 bundle ID 的完整主 App XCTest `/private/tmp/FlotisUXFinalMainTests-20260806` 为 77 tests、0 failures；独立输入法 XCTest `/private/tmp/FlotisUXFinalInputTestsVerbose-20260806` 为 8 tests、0 failures。
+- 唯一 bundle ID `com.Vita0818.FlotisUXHandoff` 的 ad-hoc Release 预览产物位于 `/private/tmp/FlotisUXHandoff-20260806/Build/Products/Release/Flotis.app`，并通过 `codesign --verify --deep --strict`；它未启动、未安装，也没有替换当前 `/Applications/Flotis.app`。
+- 构建只保留既有的 `AppleSpeechTranscriber` async-context `NSLock` Swift 6 兼容 warning，以及 XCTest deployment/本机 Xcode 诊断提示；本轮新增源码没有引入新的编译 warning。
+- 通过规定的原生 Computer Use 路径尝试做交互截图对照时，服务启动连续失败，因此未用其他 GUI 自动化替代，也没有把本轮标为视觉通过。全行鼠标命中、录音计时观感、四项 2×2、物理 Option 方向键注册/注销仍需人工运行态确认。
+- 本轮没有读取或改写真实 API key、没有录音、没有请求 provider 或产生费用、没有安装/替换 `/Applications/Flotis.app`，也没有安装、启动或切换输入法。
+
+2026-08-05 Intatis 式 Provider/Models Settings 验证：
+
+- 源码与真实界面参考来自 Intatis 的 `IntatisSettingsPanel` / `IntatisDesign`，运行态参考图为 `/private/tmp/Intatis-Providers-Reference-20260805.jpeg`（折叠）和 `/private/tmp/Intatis-Models-Reference-20260805.jpeg`（Models 展开），视口均为 `1100×760`。
+- Flotis 隔离 Debug bundle 的最终运行态捕获为 `/private/tmp/Flotis-Intatis-Style-Models-Collapsed-Composited-20260805.png` 与 `/private/tmp/Flotis-Intatis-Style-Models-Expanded-Composited-20260805.png`，均为 Retina `2200×1584`，即 `1100×792` 外框、`1100×760` 内容。API key 字段只显示占位状态，没有输出密钥。
+- 同屏比较图 `/private/tmp/Intatis-Flotis-Models-Collapsed-Comparison-20260805.png` 与 `/private/tmp/Intatis-Flotis-Models-Expanded-Comparison-20260805.png` 均为 `2200×760`，左侧 Intatis、右侧 Flotis。检查了 Provider 列表/选中态、模型计数、Provider name/API key/Active model、Connection/Models disclosure、Add/Delete model、Model ID/Display name、Test Provider/Save、间距、边框、字号与展开层级。
+- 第一轮真实捕获发现 HostingController 会把请求的 1100 pt 内容宽度收缩到 `820` pt，只显示窄版布局；这是 P1 视觉问题。修复为在 hosting controller 装配后先设置 `contentMinSize=820×600`，再显式 `setContentSize(1100×760)`，最终折叠与展开均保持 Intatis 式双栏。
+- 当前用户 catalog 中存在多个独立 Provider group、每组一个模型，因此最终截图的模型数量与 Intatis 示例的单 Provider 多模型数据不同；没有为截图合并、保存或迁移真实配置。界面和 store 仍支持在同一 Provider 下新增多个模型，并保存每个模型的可选 Display name。
+- 主 App 使用唯一测试 bundle ID 的签名 test host 完成 75 tests、0 failures；输入法 application Debug build 成功，输入法 8 tests、0 failures。没有真实 provider 请求、录音、费用、配置保存、主 App 安装或输入法安装；临时视觉捕获 hook 已从源码完全移除。
+
+2026-08-05 schema v2 同 Provider 多模型修正验证：
+
+- `config.json` 当前为 schema v2：一个 provider 保存一次 endpoint/API key/options 和多个 models，active/comparison 使用只在第一个 `/` 分割的完整 selector；fresh document 与迁移结果都不写 Apple。
+- OpenRouter route 使用 `json-base64`，fake transport 验证最终 URL、`application/json`、完整 `openai/...` model ID、WAV format 和可还原的 Base64 RIFF 音频；普通 OpenAI-compatible multipart 路径仍保留。
+- canonical v1 fixture 验证自动原子升级、Apple 条目删除、同 Provider 两个 slash model ID、active selector 与 key 保留；旧 UserDefaults v3/v2/v1、comparison v1 与 `secrets.json` 仍只作迁移输入。
+- Settings 代码路径覆盖 Intatis 式 Provider 列表、Provider name/共享 API key/Active model、Connection/Models disclosure、逐模型 Model ID/Display name、Request Encoding 和同 Provider 多模型对比。折叠/展开新表单已按上节运行态核对；真实 OpenRouter key、真实录音和计费仍须按下方矩阵人工验证。
+- `xcodegen generate` 成功；主 App `build-for-testing` `/tmp/FlotisSchemaV2MainBuild-20260805`、输入法 Debug build `/tmp/FlotisSchemaV2InputBuild-20260805` 与 ad-hoc Release `/tmp/FlotisSchemaV2Release-20260805` 均成功。Release 通过 `codesign --verify --deep --strict`。
+- schema v2 阶段曾有一次 M4A fixture 受本机 CoreAudio 环境阻止；随后使用唯一测试 bundle ID 的签名 hosted runner 重跑同一完整主测试集，最终 75 tests、0 failures。与本轮直接相关的配置、模型 Display name、5 个对比测试及 OpenRouter JSON+Base64 请求测试均通过；输入法 8 tests、0 failures。
+- Release `0.8.0 (2)` 已替换安装并启动于 `/Applications/Flotis.app`，bundle ID 为 `com.Vita0818.FlotisMac`；可执行文件和 `Flotis.icns` 与 Release 产物逐字节一致。旧 app 可从 `/private/tmp/Flotis-before-schema-v2-install-20260805-221200.app` 恢复。安装实例启动后，实际 `config.json` 权限为 `0600`、schema 为 `2`、Apple adapter 条目数量为 `0`；核验没有输出 Provider 内容或 API key。
+- `git diff --check` 通过，最终 `git status --short` 保留本任务源码、测试、工程与文档改动。没有真实录音、没有向 OpenRouter 或其他 Provider 发请求/产生费用，也没有重新安装或切换输入法。
+
+2026-08-05 schema v1 单文件阶段历史验证结果（已由 v2 取代）：
+
+- 当时 `config.json` 已完成同文件 key、`.config.lock`、read-modify-atomic-write、`0700`/`0600` 权限与坏文件拒绝，并通过当时的 72 个主 App 测试。其按 UUID connection 索引的 schema v1 不是当前配置格式，只作为 v2 迁移输入。
+- 当时 ad-hoc Release `0.8.0 (2)` 已安装到 `/Applications/Flotis.app`；该阶段的安装副本随后已由上节记录的 schema v2 Release 重新构建并替换。
+
+2026-08-05 多模型 recorded-file 对比历史验证结果（交互已由 2026-08-06 版本取代）：
+
+- 当时新增 `TranscriptionComparisonStore` / `FileTranscriptionComparisonRunner` 与 5 个策略测试，覆盖 2–4 项偏好、坏数据不覆写、同一 file URL fan-out、provider 失败隔离、结果顺序与人工选择门控。该阶段的“不预选”和 `560×250` 横向布局已被 2026-08-06 的自动首项、方向键导航与 `560×300` 双列布局取代。
+- 第一次完整主测试在测试代码执行前被已运行的 `/Applications/Flotis.app` 占用 `LSMultipleInstancesProhibited`；系统日志明确返回 “already running”。正常退出该安装实例后，定向 `TranscriptionComparisonTests` 5 tests、0 failures，完整主 App `/tmp/FlotisComparisonMainTestsFinal-20260805.xcresult` 为 70 tests、0 failures。这不是编译、签名或断言问题。
+- `xcodegen generate` 成功；主 App Debug build `/tmp/FlotisComparisonMainBuildFinal-20260805`、输入法 Debug build `/tmp/FlotisComparisonInputBuildFinal-20260805` 成功；输入法 `/tmp/FlotisComparisonInputTestsFinal-20260805.xcresult` 为 8 tests、0 failures。`git diff --check` 通过。
+- 构建仍只有既有的 `AppleSpeechTranscriber` async-context `NSLock` Swift 6 兼容 warning，以及 XCTest deployment dylib/本机 Xcode 诊断提示；新增对比测试自身未再引入锁 warning。
+- 本轮没有读取或修改真实 API key、没有录音或请求任何 provider，也没有安装/启动输入法、切换输入源、调用 AX 或发送 `CGEvent`。用户随后明确要求安装当时实现：Release `/tmp/FlotisComparisonInstall-20260805` 使用 `CODE_SIGN_IDENTITY=-` 构建成功并通过 `codesign --verify --deep --strict`；旧 app 移到 `/private/tmp/Flotis-before-multiprovider-install-20260805-1524.app`，新 app 安装到 `/Applications/Flotis.app`。安装版本为 `0.8.0 (1)`、bundle ID `com.Vita0818.FlotisMac`，可执行文件与 Release 产物逐字节一致，启动后进程稳定；设置与应用支持数据未删除。这里记录的是历史安装，不代表 2026-08-06 新交互已安装或已做运行态验收。
 
 2026-08-04 Icon Composer 应用图标与主 App 安装验证结果：
 
@@ -284,18 +352,21 @@ git status --short
 
 ### `HotkeyAndInjectionPolicyTests`
 
-19 tests：
+23 tests：
 
-- V0.8 语音热键严格映射 start → stop → reviewing/copyAndReturn。
+- V0.12 语音热键严格映射 start → stop → reviewing/copyAndReturn。
 - copy-and-return 成功时原样交给 clipboard writer、重置会话并回 idle；panel 保持可见并缩回小胶囊。
 - clipboard writer 失败时保留 reviewing、编辑文字和可区分错误供重试。
 - requesting/connecting 保持 cancel；stopping/transcribing/injecting 忽略重复动作。
 - Carbon hotkey 使用独占注册。
 - press gate 在 release 前只接受一次按下，并可 reset。
 - 固定 voice descriptor 为 `⌃⌥A`，并锁定 Carbon key `0` 与 Control/Option。
+- panel/previous/next 可配置 descriptor 保留 `⌘⌥⇧0` / `⌥←` / `⌥→` 默认值；覆盖至少一个修饰键、固定 voice 冲突、三项重复拒绝，以及 canonical `shortcuts` 持久化/重载且不改 provider/comparison 分区。
+- 录音开始时间在 recording→streaming 期间保持，在离开捕获态后清空；计时格式覆盖 `mm:ss` 与小时边界。
 - 保留旧注入器要求当前 voice 主键及相关修饰键都释放后才允许继续。
 - 保留旧注入器的显式胶囊重试只允许重激活捕获目标。
 - 四档胶囊尺寸保持稳定，status 不改变 reviewing 高度。
+- 对比 reviewing 使用独立 `560×300` 静态尺寸，单结果仍为 `420×160`。
 - panel resize 保持用户拖动后的水平中心与底边。
 - panel resize 会把拖动位置钳制在目标屏幕可见区。
 - reviewing 大框被可见区临时钳位后，缩回小胶囊仍使用展开前的逻辑位置锚点。
@@ -321,27 +392,25 @@ git status --short
 
 ### `SpeechProviderConfigurationTests`
 
-24 tests：
+28 tests：
 
-- 六个稳定 adapter ID、canonical v3 编码以及 unsupported/legacy 字段省略。
-- 全新 v3 仅有 Apple connection；Add 只创建内存 draft，Save 前不持久化。
+- 六个稳定 adapter ID、runtime connection v3 编码兼容以及 unsupported/legacy 字段省略。
+- 全新 canonical config 是空 provider catalog，不持久化 Apple；Add 只创建内存 draft，Save 前不持久化，也不写 UserDefaults。
 - 通用 HTTP 默认 WAV PCM16 16 kHz mono，prompt/temperature 默认 nil；preset 只填字段，不改 identity/adapter。
-- v2 六类 + 自定义 connection 无损迁移：UUID、名称、顺序、active ID、endpoint/model/options 与 `apiKeyReference` 保留；v1 兼容迁移仍受测。
-- 同 adapter 多 connection 的 endpoint/model/key reference 相互隔离。
-- secret boundary 覆盖 adapter、scheme、host、effective port、auth；边界变化会轮换 reference，清理失败时配置与新 secret 回滚。
-- provider 删除时若 secret 清理失败，connection/UserDefaults 删除会回滚。
-- 坏 v3 从 v3 LKG 恢复；坏 v2 可从 v2 LKG 迁移；两者均保留原 authoritative bytes 与 corrupt backup。
-- API key 明文不会进入 v3 snapshot；Test Connection fingerprint 覆盖配置与 credential revision，名称变化不失效。
+- canonical v1 自动升级为 grouped v2：Apple 条目删除，slash model ID、active selector、endpoint/options/key 保留；旧 v3/v2/v1 connection、comparison v1 与 `secrets.json` 只读迁移，canonical 存在后忽略旧源。
+- 同一个 OpenRouter provider 拥有两个模型和一份共享 endpoint/key/reference；不同 provider 的边界继续隔离。
+- secret boundary 覆盖 adapter、scheme、host、effective port、auth；边界变化会轮换 reference，provider、新 key 与旧 key 清理在同一 canonical 原子事务内提交，失败一起回滚。
+- provider/model 更新、删除、Clear key 与 comparison 分区更新都不覆盖同文件其他字段；损坏 canonical JSON 被拒绝且原 bytes 不被默认值覆写。
+- API key 明文只进入 canonical `provider.<id>.options.apiKey`；Test Connection fingerprint 覆盖配置与 credential revision，名称变化不失效。
 - 自定义 endpoint 显式 approval 与不安全/歧义 URL 拒绝。
-- `LocalSecretStore` 跨实例持久化、替换、删除与并发保存不丢 reference；目录 `0700`、secret/lock 文件 `0600`，读取时会收紧意外放宽的文件权限。
-- 损坏 JSON 不会被静默覆盖；secret 路径为符号链接时读、写、删均拒绝且不会影响链接目标。
+- Canonical Flotis 目录 `0700`，`config.json` / `.config.lock` 为 `0600`；旧 `LocalSecretStore` 的并发、损坏与符号链接防护仍作为一次性迁移读取器回归保留。
 
 ### `TranscriptionAdapterRuntimeTests`
 
-10 tests：
+11 tests：
 
 - registry 恰好注册六个唯一 adapter；重复 ID 被拒绝，六条路径只生成声明的三类通用 runtime plan。
-- OpenAI-compatible HTTP 生成严格 multipart WAV；自定义 endpoint/model/key 按 connection 隔离；显式 M4A 使用匹配扩展名与 MIME。
+- OpenAI-compatible HTTP 生成严格 multipart WAV；OpenRouter 生成 JSON+Base64 `input_audio` 并保留完整 slash model ID；自定义 endpoint/model/key 按 provider 隔离；显式 M4A 使用匹配扩展名与 MIME。
 - HTTP 只接受 `application/json` 与顶层 `text`，错误 Content-Type/嵌套猜测被拒绝。合成测试音得到合法空 `text` 时仍可判定 transport/响应结构成功。
 - 失败摘要限长；自定义端点原样回显非 `sk-*` 的任意 opaque API key 时仍被精确脱敏。
 - GLM SSE 要求正确 media type、有效 JSON、明确 delta/done 与 `[DONE]`，并脱敏错误中的实际 Key。
@@ -353,6 +422,16 @@ git status --short
 
 - `zh-Hans`、`zh-CN`、`zh-SG`、`zh-MY` 作为第一首选语言时选择简中。
 - 繁体中文、英文、日文、法文、粤语、空数组和非法标识回退英文。
+
+### `TranscriptionComparisonTests`
+
+5 tests：
+
+- 对比偏好至少需要 2 个 model selector，最多按顺序保存 4 个；同 Provider 的多个 slash model ID 可分别选择，正好 2 个仍保持开启，降为 1 个自动关闭。
+- 损坏偏好安全回退为关闭且不会在加载阶段覆盖原 bytes。
+- 候选安装后按 selector/display 顺序自动打开首个成功项；前后导航跳过失败项并在两端循环，切换成功候选时分别保留编辑内容。
+- reviewing 第三次动作复制当前候选的当前编辑文本并清空会话；控制器前后导航与点击候选共用同一 selection 状态。
+- runner 把同一个录音 file URL 交给所有 job，按 selector 顺序返回，并把单个 route 错误隔离成失败候选。
 - 只允许第一首选语言决定界面语言；后续列表中的简中不能覆盖第一语言。
 - 简中与英文 case 分别选择对应文案。
 
@@ -366,19 +445,19 @@ git status --short
 - endpoint 为弱引用；controller 生命周期结束后请求返回 endpoint unavailable。
 - client 无法提交时返回可区分的 client failure。
 
-自动化单测刻意针对纯策略、迁移、组装、本地 secret 文件与 mock transport；真实 Carbon、AX、pasteboard、audio engine、跨进程崩溃/断电窗口以及 WebSocket/HTTP 服务端不是 unit-test 能完全替代的边界。
+自动化单测刻意针对纯策略、迁移、组装、本地 secret 文件、对比 fan-out 与 mock transport；真实 Carbon、AX、pasteboard、audio engine、跨进程崩溃/断电窗口以及多个 WebSocket/HTTP 服务端不是 unit-test 能完全替代的边界。
 
 ## Presentation / Design System 视觉验收
 
-每次修改 `FlotisDesign.swift`、`FloatingPanelView.swift`、`FloatingPanelController.swift` 或 `VoiceSettingsView.swift` 后，至少手动检查：
+每次修改 `FlotisDesign.swift`、`FloatingPanelView.swift`、`FloatingPanelController.swift`、`VoiceSettingsView.swift` 或 `IntatisStyleSpeechProviderSettingsView.swift` 后，至少手动检查：
 
 - Light / Dark appearance，以及 Reduce Transparency / Increase Contrast 开关前后。
 - idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、failed，以及保留但当前不可达的 injecting；状态不能只靠颜色表达。
-- reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与复制并返回；点击文本时 panel 可成为 key，但当前确认不应激活或切换任何目标 app。
-- 四档静态 panel 尺寸、首次屏幕底边位置、背景拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化、跨 Space 与长错误单行截断；连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
-- Settings 只能通过可复用独立窗口打开，不能附着成胶囊 sheet；齿轮重复点击只前置同一窗口，关闭不能误关胶囊。缩放、切页、展开高级项和滚动时，侧栏与页头必须保持在标题栏下方。
-- 主表单只显示 Model、Endpoint（Base URL / Path 两个输入共用一个标签）、API Key；Connection Name、多连接侧栏、音频格式、采样率、声道、response mode 以及其他 adapter 选择不出现，Language/Prompt/Temperature 只在折叠高级区。
-- OpenAI Compatible 空态、隐藏 active provider、custom endpoint warning/confirmation、Clear API Key、connection test、disabled/error/success、Esc 与 `⌘W`。
+- 单结果 reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与复制并返回；对比 reviewing 还要检查 2–4 个候选的固定双列布局（四项为 2×2、无横向滚动）、成功/失败的非颜色表达、Display name 存在时只显示该名称、Display name 为空时显示主 Model ID + 次 Provider、endpoint 不可见、长名称/model/provider 截断、首个成功项自动打开、用户配置的 previous/next（默认 `⌥←` / `⌥→`）跳过失败项并循环，以及候选切换后的编辑内容保持。点击文本时 panel 可成为 key，但当前确认不应激活或切换任何目标 app。
+- idle/工作/提示/单结果审阅/对比审阅各档静态 panel 尺寸、首次屏幕底边位置、背景拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化、跨 Space 与长错误单行截断；连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
+- Settings 只能通过可复用独立窗口打开，不能附着成胶囊 sheet；齿轮重复点击只前置同一窗口，关闭不能误关胶囊。实际内容初始尺寸应为 `1100×760`、最小 `820×600`；缩放、切页、展开 Models/Connection/高级项和滚动时，侧栏与页头必须保持在标题栏下方，1100 pt 宽时主卡必须保持双栏。侧栏左上只显示 `Flotis` 与版本、不得出现应用图标，导航应为“快捷键 / 转写”。快捷键页只能有一张卡，固定 voice 与三项可配置组合均使用 `220×50` / 17 pt 的大号 surface；三项可配置组合应整块可点，录制态保持同尺寸、获得键盘焦点并可用 Esc 取消，逐项/全部恢复及错误文本不能导致卡片裁切。Connection、Models、Comparison、Advanced 标题应整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换；点击文案或空白区域也必须生效。
+- 转写页的主卡应与 Intatis 信息层级一致：左侧 Providers 标题/Add、Provider 列表与模型数；右侧 Provider name、共享 API key、Active model、Connection 和 Models disclosure。Models 展开后每个模型有独立 Model ID、可选 Display name 和删除动作，并可 Add model；Test Provider/Save 在卡片下方。音频格式、采样率、声道、response mode 和其他 adapter 选择不出现。
+- Flotis 特有的 2–4 route Comparison 与费用提醒放在主卡下方的独立 disclosure；Language/Prompt/Temperature 继续位于高级区。检查 OpenAI Compatible 空态、多 provider 新增/切换/未保存草稿门控、同 Provider 多模型、隐藏 adapter 保留、OpenRouter 自动 JSON+Base64、custom endpoint warning/confirmation、Clear API Key、Test Provider、对比不足 2 项/超过 4 项/失效项 reconcile、disabled/error/success、Esc 与 `⌘W`。
 - 按钮 hover/focus/disabled 层级、键盘导航、idle 双白圆资源、其余 SF Symbol 与文字标签；idle 外壳当前应为 `108×54`，录音图稿必须保持白圆六条黑色圆角声波，设置图稿必须保持 28 pt 白圆中的 16 pt 黑色八齿齿轮，二者均不得裁切或产生外部黑边，下方 `⌃⌥A` 应为清晰的 12 pt Semibold 系统 Monospaced/动态主文字色。主操作使用系统动态黑/白，红/橙/绿只用于明确语义状态。
 - macOS 26+ 原生 Liquid Glass 路径必须核对 `NSGlassEffectView(style: .regular)`、系统默认自适应 tint、无 hosting-root 全表面深色填充，并在真实运行态检查边缘高光与背景适配；macOS 13–15 Material/native bordered fallback 也需真机核对。当前自动化不能证明两条路径的实际像素和交互。
 
@@ -404,7 +483,7 @@ git status --short
 | 冷启动 | `./run.sh` | 工程生成/增量构建成功，app 启动；脚本不删除 DerivedData、不重置 TCC；ad-hoc 产物会提示配置稳定签名 |
 | AX 未授权 | 拒绝/撤销 Accessibility 后完成三段式语音 | 第三次仍可复制并返回小胶囊，不显示 AX 提示、不发送 `CGEvent`；Settings 不展示 AX 卡 |
 | 麦克风拒绝 | 拒绝 microphone | 会话进入明确 failed，可取消/重试，不遗留 audio engine |
-| Speech 拒绝/设备不支持 | Apple provider 启动 | 明确报告设备端识别不可用，不退回云端 |
+| Speech 拒绝/设备不支持 | 空 catalog 时启动内部 Apple 设备端 fallback | 明确报告设备端识别不可用，不退回云端；`config.json` 不出现 Apple Provider |
 | 简中系统语言 | 将第一首选语言设为简体中文并重启 App | 胶囊、Settings、App 自定义错误与权限说明均为简中；中文标题使用系统默认字体 |
 | 英文/其他系统语言 | 将第一首选语言设为英文、繁中或其他语言并重启 App | App 自定义界面统一为英文；英文品牌和标题使用 Serif |
 | 多语言顺序 | 第一语言设为日文，后续保留简中并重启 | App 使用英文，不扫描后续简中改写界面语言 |
@@ -413,17 +492,24 @@ git status --short
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 固定 toggle | `⌘⌥⇧0` / `⌃⌥A` | panel 与 voice 各自响应一次；隐藏时 voice 显示胶囊，reviewing 第三次成功复制后保持可见并缩回 idle |
+| 默认 toggle | 默认 `⌘⌥⇧0` / 固定 `⌃⌥A` | panel 与 voice 各自响应一次；隐藏时 voice 显示胶囊，reviewing 第三次成功复制后保持可见并缩回 idle |
+| 自定义 panel 快捷键 | 在“快捷键”页录制一个新的双修饰键组合，再分别按旧组合和新组合 | 新组合立即显示并控制 panel；旧组合不再触发；重启后仍恢复新组合；逐项恢复后回到默认值 |
+| 自定义对比导航 | 把 previous/next 改为两个不同组合，分别在 idle、单结果 reviewing 与多结果 reviewing 中按下 | 前两种状态不抢占按键；仅多结果 reviewing 中临时生效、跳过失败项并循环；离开后立即注销 |
+| 快捷键校验 | 尝试无修饰键、与另一项相同、固定 `⌃⌥A`，并用其他 app 独占一个合法新组合 | 前三种不写入并显示明确错误；外部 Carbon 冲突可见且解除冲突后自动重试，不覆盖原 `config.json` 其他分区 |
 | 胶囊拖动 | 从按钮和审阅文本以外的空白处把小胶囊拖到屏幕边缘，切换到 reviewing 后取消；再在 reviewing 主动拖动并取消 | 可拖动；大框可为保持可见而临时内移，第一次取消后小胶囊回到展开前位置；主动拖动大框后以新中心/底边缩回，文本拖选不会移动窗口 |
-| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→clipboard copy→idle capsule visible；不会在转写完成时自动复制 |
+| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→clipboard copy→idle capsule visible；录音态保留原有图标/文案、无 stop 方块且 `mm:ss` 连续递增，stopping/transcribing 保留原有省略号状态图标/文案且无右侧重复 action；不会在转写完成时自动复制 |
+| 对比三段式 | 在一个 OpenRouter Provider 下建立 2–4 个 ready model route、勾选并开启对比；依次开始、停止、查看结果 | endpoint/key 只配置一次；麦克风只录制一次；各模型请求并发处理；`560×300` 审阅页按选择顺序用双列展示，四项为 2×2，首个成功项自动打开且无需横向滚动 |
+| 对比导航与编辑 | 自动打开候选 A 后修改，按当前 next（默认 `⌥→`）到 B 修改，再按当前 previous（默认 `⌥←`）回 A，最后按 `⌃⌥A` | A/B 各自编辑内容保持；导航快捷键跳过失败项并在边界循环；第三次 voice hotkey 只复制当前 A；候选清空、临时导航热键注销、panel 缩回原位置 idle |
+| 对比部分失败 | 让一个 endpoint 返回错误、另一个成功 | 成功结果仍可选择/编辑；失败卡显示失败语义和可查看的受限错误，不取消成功项、不泄漏 key/完整响应 |
+| 对比取消 | 录音中和并发转写中分别取消 | 所有 request/transcriber 取消，共享临时文件清理，不出现延迟候选覆盖下一会话 |
 | 按住/自动重复 | 按住 `⌃⌥A` 约 2 秒后松开 | 整次物理按下只触发一个动作，松开后下一次按下才生效 |
 | 处理中误按 | stopping/transcribing 中再次按语音热键 | 忽略，不取消终态处理、不清空即将审阅的转写 |
 | 胶囊编辑 | reviewing 点击文本修改，再按 `⌃⌥A` 或点“复制并返回” | 剪贴板获得包含首尾在内的原样编辑文本，审阅框清空并缩回原位置小胶囊；不激活、不切换、不输入到任何目标 app |
 | 审阅复制 | reviewing 选中部分文字按 `⌘C`、右键 Copy，再测试复制全部图标 | 部分选区或全文进入剪贴板；文本仍可继续编辑，窗口不随拖选移动 |
 | 编辑后取消 | reviewing 修改后按 Esc/取消 | 清空本次文本并回 idle，不复制 |
 | 复制后下一轮 | 第三次成功缩回后再按一次 voice hotkey | 当前可见小胶囊直接开始新录音；不会重复复制上一轮文字 |
-| 热键冲突 | 让系统或其他 app 独占 `⌃⌥A` 后启动 Flotis | 错误持久显示；解除冲突后自动重试成功 |
-| 旧命令兼容 | 启动 V0.8 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
+| 热键冲突 | 让系统或其他 app 独占固定 `⌃⌥A` 或任一用户配置组合后启动 Flotis | 错误持久显示；解除冲突后自动重试成功 |
+| 旧命令兼容 | 启动 V0.12 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
 
 ### 当前剪贴板确认
 
@@ -438,28 +524,31 @@ git status --short
 
 保留的 `ClipboardPasteInjector` 不是当前产品手测项。只有未来用户明确重新启用旧注入路径时，才恢复 AX、目标 PID/frontmost、完整快捷键释放、队列/过期、复杂剪贴板 snapshot、外部 clipboard 竞争与恢复矩阵；在此之前不得把这些结果描述为当前三段式流程的要求。
 
-### Connection 配置与迁移
+### Provider 配置与迁移
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 全新安装 | 清空本 app defaults 后启动 | v3 只创建 Apple connection；Settings 显示 OpenAI Compatible 空态，由用户点击 Add 创建未持久化草稿 |
-| v2 升级 | 用含六类和自定义实例的 v2 snapshot 启动 | 迁移为 v3；UUID、名称、顺序、active、模型、endpoint 与安全的 key reference 不丢；v2 bytes 不改 |
-| v1 升级 | 用旧 A/B/C snapshot 启动 | 先按 legacy 规则规范，再写 v3；用户自定义 provider/model 不丢 |
-| v3/v2 损坏 | 注入不可 decode bytes，并准备对应 LKG | 原 bytes 备份、不被默认值覆写；使用对应 LKG 或安全默认并报错 |
-| Settings 可见性 | 预置六类及多个 OpenAI HTTP connection，打开、编辑、关闭 Settings | UI 只显示 OpenAI HTTP；完整 snapshot、隐藏 connection、active ID 与 `apiKeyReference` 不因过滤而改变 |
-| 隐藏 active provider | 让 Apple/Realtime 等隐藏 connection 保持 active 后打开 Settings | 概览显示“当前未使用 OpenAI Compatible”，编辑器只选择首个可见 OpenAI connection且不自动激活 |
+| 全新安装 | 在无 canonical 文件与旧输入时启动 | schema v2 `config.json` 的 provider catalog 为空且没有 Apple 条目；Settings 显示 OpenAI Compatible 空态，由用户点击 Add 创建未持久化草稿 |
+| canonical v1 升级 | 用含 Apple、OpenRouter 和 slash model ID 的 schema v1 文件启动 | 原子改写为 v2；Apple 删除；Provider、模型、endpoint、active 与 key 保留；selector 只在首个 `/` 分割 |
+| 旧分散配置升级 | 用 v3/v2/v1 snapshot、comparison v1 与旧 secret 启动 | 一次写入 canonical v2；网络配置、名称、顺序、active、模型、endpoint、可恢复 comparison、key/reference 尽量保留，Apple 不持久化；旧 bytes 不改，之后改动旧源不影响运行时 |
+| canonical 损坏 | 用不可 decode、未知 schema 或结构不一致的 bytes 占据 `config.json` | Provider/comparison 在内存安全降级并报错，所有保存被拒绝，原 bytes 不被默认值覆写 |
+| Settings 可见性 | 预置多个 adapter/provider/model，打开、编辑、关闭 Settings | adapter UI 只显示 OpenAI HTTP；Intatis 式左 Provider/右详情主卡不改变完整 canonical document，隐藏 provider/model、active selector 与 key/reference 不因过滤而改变 |
+| 隐藏 active provider | 让 Realtime 等隐藏 route 保持 active 后打开 Settings | editor 选择首个可见 OpenAI provider 但不因打开页面自动激活；只有显式 Save 才改变当前 route |
 | adapter 切换兼容 fixture | 通过迁移/兼容测试执行 OpenAI→Dash/Volc/GLM/Apple | 普通 Settings 不提供该入口；底层不支持字段重置、secret boundary 与旧本地记录清理仍受回归覆盖 |
 | 自定义 host | 在 OpenAI Compatible 中改非 trusted HTTPS host | Save 前要求显式批准，并显示 key/音频目标 host |
 | 不安全 URL | 输入 http/ws、userinfo、query、fragment、歧义 path | Save 被拒绝 |
 | Add/半编辑配置 | 新增或输入一半 URL 后 Cancel/触发全局 voice | runtime 仍使用已保存配置；Cancel 不落盘 |
-| 同 adapter 多实例 | 建两个不同 endpoint/model/key 的 HTTP connection | 独立显示、编辑、选择；凭据和配置不串用 |
+| 同 Provider 多模型 | 在一个 OpenRouter Provider 的 Models disclosure 中 Add 两个 `openai/...` 模型，并分别填写 Display name | endpoint/key 只保存一次；两个 Model ID/name 独立持久化，两个 route 在 Comparison 中独立出现并可并发选择，Active model 只决定默认单模型路径 |
+| 多 Provider 隔离 | 建两个不同 endpoint/key/name 的 HTTP Provider | 左侧 Provider 列表独立显示并带模型数；凭据和配置不串用，Save 后仅显式 Active model 成为当前 route |
+| 对比偏好持久化 | 选择 2–4 个 selector 并开启，重启后再删除其中一个模型 | `comparison.enabled` / `comparison.models` 的顺序/开关恢复；失效 selector 被 reconcile，剩余少于 2 项时自动关闭；同文件 provider/key 不被改写 |
+| 对比分区损坏 | 向 canonical 顶层写入非法 comparison/ID 结构后启动 | 对比安全关闭并提示，原 canonical bytes 不被空默认覆盖 |
 | Test Connection | 使用内置合成音测试 HTTP/Realtime | 验证 transport 与响应结构，不采麦克风；空 transcript 可成功；失败不泄漏 key/响应正文 |
-| 无 key 激活 | 选择需要 key 但未保存 key 的 connection | Set Current/Picker 禁用或失败并提示 |
-| Clear key | 清除 active connection key | key 删除，active 安全切回 ready connection/Apple |
-| 本地文件权限 | 保存虚拟 key 后检查 Flotis 目录、`secrets.json` 与 `.secrets.lock` | 分别为 `0700`、`0600`、`0600`；文件被意外放宽时，下次读取会安全收紧 |
-| 损坏/符号链接 | 用损坏 JSON 或指向其他文件的符号链接占据 secret 路径 | 拒绝读写和删除，不覆盖损坏 bytes，不修改链接目标 |
-| 多实例保存 | 两个本地 store/两个 Flotis 进程同时保存不同 connection | read-modify-write 由进程内共享锁与跨进程写锁串行化，不丢另一条 reference |
-| 旧钥匙串条目 | 从使用旧系统钥匙串的构建升级 | 新构建完全不访问、迁移或删除旧条目；connection 保留但需要重新输入一次 API key |
+| 无 key 激活 | 选择需要 key 但未保存 key 的 route | Set Current/Picker 禁用或失败并提示 |
+| Clear key | 清除 active Provider 的共享 key | key 删除，该 Provider 的全部模型变为未就绪；不得只让一个 sibling model 继续偷偷使用旧 key |
+| 本地文件权限 | 保存虚拟 key 后检查 Flotis 目录、`config.json` 与 `.config.lock` | 分别为 `0700`、`0600`、`0600`；API key 与 endpoint/model 位于同一 provider options/models 结构 |
+| 损坏/符号链接 | 用损坏 JSON 或指向其他文件的符号链接占据 canonical 路径 | 拒绝读写，不覆盖损坏 bytes，不修改链接目标 |
+| 多实例保存 | 两个本地 store/两个 Flotis 进程同时更新不同 provider/comparison 分区 | read-modify-write 由进程内共享锁与跨进程写锁串行化，不丢另一个分区的更新 |
+| 旧钥匙串条目 | 从使用旧系统钥匙串的构建升级 | 新构建完全不访问、迁移或删除旧条目；网络 Provider 保留但需要重新输入一次 API key |
 
 ### 六个语音路径
 
@@ -469,10 +558,12 @@ git status --short
 | OpenAI Realtime | 多个停顿形成多 item，再 stop | partial 连续；乱序 final 不丢句；commit 后等待终态；可取消 |
 | DashScope | 说“好的。好的。”再 stop | 重复句保留；finish-task 后结果收至 task-finished |
 | Volcengine | 开/关二遍识别，各录一段 | resource ID/model name 正确；terminal packet 后完成；错误包有提示 |
-| OpenAI-compatible HTTP | 默认 `.wav` 与迁移/显式 `.m4a`、自定义 endpoint/model、stop/cancel | MIME/文件匹配；multipart 磁盘流式上传；严格顶层 `text`；cancel 立即结束 |
+| OpenAI-compatible HTTP | OpenAI multipart、OpenRouter JSON+Base64、默认 `.wav` 与迁移/显式 `.m4a`、自定义 endpoint/model、stop/cancel | URL/encoding 与 Provider 匹配；完整 model ID 不被首个 `/` 后再次截断；严格顶层 `text`；cancel 立即结束 |
 | GLM HTTP SSE | 接近 30 秒、超过/接近 25 MiB、cancel | 倒计时自动 stop；超限上传前拦截；partial SSE 与 `[DONE]` 正确 |
 
 每个网络 provider 还应验证：无效 key、401/403、429、5xx、断网、慢网络、服务端提前关闭、redirect。Authorization 与完整转写文本不得写入测试报告。
+
+对比模式至少先用同一 OpenRouter Provider 的两个模型，再用两个不同 OpenAI-compatible Provider，验证同一 `.wav` 文件内容/大小一致、请求近似同时开始、候选顺序不受完成先后影响、逐 route 费用提示可见、最严格 upload/录制限制生效，以及全部失败时只进入一次全局失败。Realtime、Apple、DashScope、Volcengine 与 GLM 不是当前 Settings 可选的对比范围，不得用单个 route 测试结果推导其已支持共享捕获。
 
 ## 建议的并发/诊断验证
 

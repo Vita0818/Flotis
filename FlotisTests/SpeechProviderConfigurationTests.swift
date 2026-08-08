@@ -2,6 +2,18 @@ import XCTest
 @testable import Flotis
 
 final class SpeechProviderConfigurationTests: XCTestCase {
+    private var configurationRootURL: URL?
+    private var configurationFileURL: URL?
+
+    override func tearDown() {
+        if let configurationRootURL {
+            try? FileManager.default.removeItem(at: configurationRootURL)
+        }
+        configurationRootURL = nil
+        configurationFileURL = nil
+        super.tearDown()
+    }
+
     func testCanonicalAdapterIDsAreStableAndVersioned() {
         XCTAssertEqual(
             TranscriptionAdapterID.allCases.map(\.rawValue),
@@ -16,24 +28,113 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         )
     }
 
-    func testFreshV3StoreContainsOnlyAppleConnection() {
+    func testFreshConfigHasEmptyProviderCatalogAndDoesNotPersistApple() throws {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        let store = SpeechProviderStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
 
-        XCTAssertEqual(store.providers.map(\.adapterID), [.appleOnDevice])
+        XCTAssertTrue(store.providers.isEmpty)
+        XCTAssertTrue(store.providerGroups.isEmpty)
         XCTAssertEqual(store.activeProviderID, TranscriptionConnection.appleSpeechID)
-        XCTAssertNotNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+        XCTAssertEqual(store.activeProvider.adapterID, .appleOnDevice)
+        let document = try configurationDocument()
+        XCTAssertEqual(document.schemaVersion, 2)
+        XCTAssertEqual(document.providerOrder, [])
+        XCTAssertEqual(document.provider, [:])
+        XCTAssertEqual(document.model, "")
+        XCTAssertFalse(document.provider.values.contains { $0.adapter == .appleOnDevice })
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
         XCTAssertNil(defaults.data(forKey: "flotis.speechProviders.v2"))
+    }
+
+    func testCanonicalV1MigratesToGroupedV2DropsAppleAndPreservesSlashModelIDs() throws {
+        let (defaults, suiteName) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "FlotisConfigurationTests-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        let directory = root.appendingPathComponent("Flotis", isDirectory: true)
+        let fileURL = directory.appendingPathComponent("config.json")
+        configurationRootURL = root
+        configurationFileURL = fileURL
+        try FileManager.default.createDirectory(
+            at: directory,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: NSNumber(value: 0o700)]
+        )
+        let legacyProviderID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        let legacyJSON = #"""
+        {
+          "$schema": "https://flotis.app/config/v1",
+          "schema_version": 1,
+          "model": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb/openai/gpt-4o-transcribe",
+          "provider_order": [
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          ],
+          "enabled_providers": [
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          ],
+          "comparison": { "enabled": true },
+          "provider": {
+            "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+              "name": "Apple Speech Recognition",
+              "adapter": "apple-on-device",
+              "options": { "language": "zh-CN" },
+              "models": {}
+            },
+            "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb": {
+              "name": "OpenRouter",
+              "adapter": "openai-audio-transcriptions-http-v1",
+              "options": {
+                "baseURL": "https://openrouter.ai/api",
+                "path": "/v1/audio/transcriptions",
+                "apiKey": "legacy-openrouter-key",
+                "language": "zh",
+                "authentication": "bearer",
+                "audio": { "format": "wav", "sampleRate": 16000, "channels": 1 },
+                "transcription": { "responseMode": "json" }
+              },
+              "models": {
+                "openai/gpt-4o-mini-transcribe": {},
+                "openai/gpt-4o-transcribe": {}
+              },
+              "credentialRevision": 1
+            }
+          }
+        }
+        """#
+        try Data(legacyJSON.utf8).write(to: fileURL)
+
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let expectedSelector = "\(legacyProviderID)/openai/gpt-4o-transcribe"
+
+        XCTAssertEqual(store.providerGroups.map(\.id), [legacyProviderID])
+        XCTAssertEqual(
+            Set(store.providerGroups[0].modelIDs),
+            ["openai/gpt-4o-mini-transcribe", "openai/gpt-4o-transcribe"]
+        )
+        XCTAssertEqual(store.activeModelSelector, expectedSelector)
+        XCTAssertEqual(Set(store.providers.map(\.requestEncoding)), [.jsonBase64])
+        XCTAssertEqual(store.load(for: "flotis.config.provider.\(legacyProviderID).apikey"), "legacy-openrouter-key")
+
+        let migrated = try configurationDocument()
+        XCTAssertEqual(migrated.schema, FlotisConfigurationDocument.schemaIdentifier)
+        XCTAssertEqual(migrated.schemaVersion, 2)
+        XCTAssertEqual(migrated.model, expectedSelector)
+        XCTAssertEqual(migrated.providerOrder, [legacyProviderID])
+        XCTAssertFalse(migrated.provider.values.contains { $0.adapter == .appleOnDevice })
+        XCTAssertFalse(String(decoding: try Data(contentsOf: fileURL), as: UTF8.self).contains("config/v1"))
     }
 
     func testMakeNewConnectionIsPureDraftAndDoesNotPersistUntilCreate() {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = SpeechProviderStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
         let providersBeforeDraft = store.providers
-        let snapshotBeforeDraft = defaults.data(forKey: "flotis.transcriptionConnections.v3")
+        let snapshotBeforeDraft = try! Data(contentsOf: configurationFileURL!)
 
         var draft = store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1)
         draft.name = "Cancelled draft"
@@ -41,7 +142,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
 
         XCTAssertEqual(store.providers, providersBeforeDraft)
         XCTAssertEqual(
-            defaults.data(forKey: "flotis.transcriptionConnections.v3"),
+            try! Data(contentsOf: configurationFileURL!),
             snapshotBeforeDraft
         )
         XCTAssertFalse(store.providers.contains { $0.id == draft.id })
@@ -50,7 +151,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
     func testUnsavedCredentialTestRecordRequiresExpectedRevisionForCreateAndUpdate() {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let store = SpeechProviderStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
 
         var testedCreate = store.makeNewConnection(
             adapterID: .openAIAudioTranscriptionsHTTPV1
@@ -167,15 +268,18 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         let v2Data = try JSONEncoder().encode(legacy)
         defaults.set(v2Data, forKey: "flotis.speechProviders.v2")
 
-        let store = SpeechProviderStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
 
-        XCTAssertEqual(store.providers.map(\.id), connections.map(\.id))
-        XCTAssertEqual(store.providers.map(\.name), connections.map(\.name))
-        XCTAssertEqual(store.activeProviderID, custom.id)
+        let networkConnections = connections.filter { $0.adapterID != .appleOnDevice }
+        XCTAssertEqual(store.providers.map(\.name), networkConnections.map(\.name))
+        XCTAssertEqual(store.activeProvider.name, custom.name)
+        XCTAssertEqual(
+            store.activeModelSelector,
+            "\(custom.id.uuidString.lowercased())/\(custom.model)"
+        )
         XCTAssertEqual(
             store.providers.map(\.adapterID),
             [
-                .appleOnDevice,
                 .openAIRealtimeTranscriptionGA,
                 .openAIAudioTranscriptionsHTTPV1,
                 .openAIAudioTranscriptionsHTTPV1,
@@ -184,12 +288,20 @@ final class SpeechProviderConfigurationTests: XCTestCase {
                 .glmASRHTTPSSEV4
             ]
         )
-        let migratedCustom = store.providers.first { $0.id == custom.id }!
+        let migratedCustom = store.providers.first {
+            $0.configurationProviderID == custom.id.uuidString.lowercased()
+        }!
         XCTAssertEqual(migratedCustom.apiKeyReference, "legacy-custom-key-reference")
         XCTAssertEqual(migratedCustom.inputAudioFormat, "m4a")
         XCTAssertEqual(migratedCustom.displayNameForUI, "OpenAI HTTP")
         XCTAssertEqual(defaults.data(forKey: "flotis.speechProviders.v2"), v2Data)
-        XCTAssertNotNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+        let document = try configurationDocument()
+        XCTAssertEqual(
+            document.providerOrder,
+            networkConnections.map { $0.id.uuidString.lowercased() }
+        )
+        XCTAssertFalse(document.provider.values.contains { $0.adapter == .appleOnDevice })
     }
 
     func testV1MigrationUpgradesExactLegacyRealtimeDefaultAndAddsFormerV2Presets() {
@@ -211,11 +323,64 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         XCTAssertEqual(migrated.activeConnectionID, TranscriptionConnection.openAIRealtimeID)
     }
 
+    func testLegacySplitSourcesMigrateOnceIntoCanonicalConfig() throws {
+        let (defaults, suiteName) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let secrets = InMemorySecretStore()
+        var connection = TranscriptionConnection.openAIHTTP
+        connection.id = UUID()
+        connection.name = "Migrated connection"
+        connection.apiKeyReference = "legacy-reference"
+        let snapshot = SpeechProviderStoreSnapshot(
+            connections: [.appleSpeech, connection],
+            activeConnectionID: connection.id
+        )
+        defaults.set(
+            try JSONEncoder().encode(snapshot),
+            forKey: "flotis.transcriptionConnections.v3"
+        )
+        let comparison = LegacyComparisonPreferencesFixture(
+            schemaVersion: 1,
+            isEnabled: true,
+            connectionIDs: [TranscriptionConnection.appleSpeechID, connection.id]
+        )
+        defaults.set(
+            try JSONEncoder().encode(comparison),
+            forKey: "flotis.transcriptionComparison.v1"
+        )
+        secrets.secrets["legacy-reference"] = "legacy-api-key"
+
+        let first = makeStore(defaults: defaults, secretStore: secrets)
+        let selector = "\(connection.id.uuidString.lowercased())/\(connection.model)"
+        XCTAssertEqual(first.activeModelSelector, selector)
+        XCTAssertEqual(first.load(for: "legacy-reference"), "legacy-api-key")
+        let migratedDocument = try configurationDocument()
+        XCTAssertFalse(migratedDocument.comparison.enabled)
+        XCTAssertEqual(migratedDocument.comparison.models, [selector])
+        XCTAssertEqual(
+            migratedDocument.enabledProviders,
+            [connection.id.uuidString.lowercased()]
+        )
+        XCTAssertFalse(migratedDocument.provider.values.contains { $0.adapter == .appleOnDevice })
+
+        secrets.secrets["legacy-reference"] = "changed-legacy-key"
+        var changedSnapshot = snapshot
+        changedSnapshot.connections[1].name = "Changed legacy name"
+        defaults.set(
+            try JSONEncoder().encode(changedSnapshot),
+            forKey: "flotis.transcriptionConnections.v3"
+        )
+
+        let reloaded = makeStore(defaults: defaults, secretStore: secrets)
+        XCTAssertEqual(reloaded.activeProvider.name, "Migrated connection")
+        XCTAssertEqual(reloaded.load(for: "legacy-reference"), "legacy-api-key")
+    }
+
     func testSameAdapterSupportsMultipleIsolatedConnectionsAndSecrets() {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
+        let store = makeStore(defaults: defaults, secretStore: secrets)
 
         var first = store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1)
         first.name = "Official"
@@ -233,8 +398,9 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         let persistedSecond = store.providers.first { $0.id == secondID }!
         XCTAssertNotEqual(firstID, secondID)
         XCTAssertNotEqual(persistedFirst.apiKeyReference, persistedSecond.apiKeyReference)
-        XCTAssertEqual(secrets.secrets[persistedFirst.apiKeyReference!], "first-key")
-        XCTAssertEqual(secrets.secrets[persistedSecond.apiKeyReference!], "second-key")
+        XCTAssertEqual(store.load(for: persistedFirst.apiKeyReference!), "first-key")
+        XCTAssertEqual(store.load(for: persistedSecond.apiKeyReference!), "second-key")
+        XCTAssertTrue(secrets.secrets.isEmpty)
     }
 
     func testSecretBoundaryIncludesAdapterSchemeHostEffectivePortAndAuthentication() {
@@ -256,7 +422,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
+        let store = makeStore(defaults: defaults, secretStore: secrets)
 
         let id = store.createConnection(
             store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1),
@@ -270,16 +436,16 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         XCTAssertTrue(store.updateProvider(provider, savingAPIKey: "new-secret"))
         let persisted = store.providers.first { $0.id == id }!
         XCTAssertNotEqual(persisted.apiKeyReference, oldReference)
-        XCTAssertNil(secrets.secrets[oldReference])
-        XCTAssertEqual(secrets.secrets[persisted.apiKeyReference!], "new-secret")
-        XCTAssertTrue(secrets.deletedReferences.contains(oldReference))
+        XCTAssertNil(store.load(for: oldReference))
+        XCTAssertEqual(store.load(for: persisted.apiKeyReference!), "new-secret")
+        XCTAssertTrue(secrets.deletedReferences.isEmpty)
     }
 
-    func testBoundaryCleanupFailureRollsBackConfigAndNewSecret() throws {
+    func testBoundaryUpdateRollsBackConnectionAndSecretWhenConfigIsMalformed() throws {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
+        let store = makeStore(defaults: defaults, secretStore: secrets)
 
         let id = store.createConnection(
             store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1),
@@ -287,7 +453,8 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         )!
         var provider = store.providers.first { $0.id == id }!
         let oldReference = provider.apiKeyReference!
-        secrets.deletionFailures.insert(oldReference)
+        let malformed = Data("{malformed-config".utf8)
+        try malformed.write(to: configurationFileURL!, options: .atomic)
         provider.baseURL = "https://asr.example.com"
         provider.isCustomEndpointApproved = true
 
@@ -295,36 +462,30 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         let rolledBack = store.providers.first { $0.id == id }!
         XCTAssertEqual(rolledBack.apiKeyReference, oldReference)
         XCTAssertEqual(rolledBack.baseURL, "https://api.openai.com")
-        XCTAssertEqual(secrets.secrets, [oldReference: "old-secret"])
-        XCTAssertEqual(store.lastError, UIStrings.providerSecretCleanupFailed)
-
-        let data = defaults.data(forKey: "flotis.transcriptionConnections.v3")!
-        let snapshot = try JSONDecoder().decode(SpeechProviderStoreSnapshot.self, from: data)
-        XCTAssertEqual(
-            snapshot.connections.first { $0.id == id }?.apiKeyReference,
-            oldReference
-        )
+        XCTAssertEqual(store.load(for: oldReference), "old-secret")
+        XCTAssertTrue(secrets.secrets.isEmpty)
+        XCTAssertEqual(store.lastError, UIStrings.providerConfigSaveFailed)
+        XCTAssertEqual(try Data(contentsOf: configurationFileURL!), malformed)
     }
 
-    func testDeleteCleanupFailureRollsBackProviderAndSnapshot() throws {
+    func testDeleteRollsBackProviderAndSecretWhenConfigIsMalformed() throws {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
+        let store = makeStore(defaults: defaults, secretStore: secrets)
         let id = store.createConnection(
             store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1),
             savingAPIKey: "retained-secret"
         )!
         let reference = store.providers.first { $0.id == id }!.apiKeyReference!
-        secrets.deletionFailures.insert(reference)
+        let malformed = Data("{malformed-config".utf8)
+        try malformed.write(to: configurationFileURL!, options: .atomic)
 
         XCTAssertFalse(store.deleteProvider(id: id))
         XCTAssertTrue(store.providers.contains { $0.id == id })
-        XCTAssertEqual(secrets.secrets[reference], "retained-secret")
-
-        let data = defaults.data(forKey: "flotis.transcriptionConnections.v3")!
-        let snapshot = try JSONDecoder().decode(SpeechProviderStoreSnapshot.self, from: data)
-        XCTAssertTrue(snapshot.connections.contains { $0.id == id })
+        XCTAssertEqual(store.load(for: reference), "retained-secret")
+        XCTAssertTrue(secrets.secrets.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: configurationFileURL!), malformed)
     }
 
     func testCorruptV3UsesLastKnownGoodWithoutOverwritingCorruptBytes() throws {
@@ -345,15 +506,13 @@ final class SpeechProviderConfigurationTests: XCTestCase {
             forKey: "flotis.transcriptionConnections.v3.lastKnownGood"
         )
 
-        let store = SpeechProviderStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
 
         XCTAssertEqual(store.providers.map(\.name), ["Recovery Name"])
-        XCTAssertEqual(store.activeProviderID, recovered.id)
+        XCTAssertEqual(store.activeProvider.name, "Recovery Name")
         XCTAssertEqual(defaults.data(forKey: "flotis.transcriptionConnections.v3"), corrupt)
-        XCTAssertEqual(
-            defaults.data(forKey: "flotis.transcriptionConnections.corruptBackup"),
-            corrupt
-        )
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.corruptBackup"))
+        XCTAssertEqual(try configurationDocument().providerOrder, [recovered.id.uuidString.lowercased()])
     }
 
     func testCorruptV2MigratesItsLastKnownGoodWithoutOverwritingLegacyBytes() throws {
@@ -376,19 +535,14 @@ final class SpeechProviderConfigurationTests: XCTestCase {
             forKey: "flotis.speechProviders.v2.lastKnownGood"
         )
 
-        let store = SpeechProviderStore(
-            defaults: defaults,
-            secretStore: InMemorySecretStore()
-        )
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
 
         XCTAssertEqual(store.providers.map(\.name), ["Recovered v2 connection"])
-        XCTAssertEqual(store.activeProviderID, recovered.id)
+        XCTAssertEqual(store.activeProvider.name, "Recovered v2 connection")
         XCTAssertEqual(defaults.data(forKey: "flotis.speechProviders.v2"), corrupt)
-        XCTAssertEqual(
-            defaults.data(forKey: "flotis.transcriptionConnections.corruptBackup"),
-            corrupt
-        )
-        XCTAssertNotNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.corruptBackup"))
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+        XCTAssertEqual(try configurationDocument().providerOrder, [recovered.id.uuidString.lowercased()])
     }
 
     func testCanonicalEncodingOmitsLegacyAndUnsupportedFields() throws {
@@ -416,22 +570,107 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         XCTAssertNil(options["twoPassRecognition"])
     }
 
-    func testPlaintextAPIKeyNeverEntersV3Snapshot() {
+    func testConfigJSONStoresEndpointModelAndAPIKeyTogetherWithoutSeparateSecretWrite() throws {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
-        let plaintext = "unit-test-secret-must-not-be-persisted"
+        let store = makeStore(defaults: defaults, secretStore: secrets)
+        let plaintext = "unit-test-secret-in-single-config"
 
         let id = store.createConnection(
             store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1),
             savingAPIKey: plaintext
         )!
-        let data = defaults.data(forKey: "flotis.transcriptionConnections.v3")!
-        let serialized = String(data: data, encoding: .utf8)!
+        let data = try Data(contentsOf: configurationFileURL!)
+        let serialized = try XCTUnwrap(String(data: data, encoding: .utf8))
+        let document = try configurationDocument()
+        let route = try XCTUnwrap(store.providers.first { $0.id == id })
+        let providerID = try XCTUnwrap(route.configurationProviderID)
+        let provider = try XCTUnwrap(document.provider[providerID])
 
-        XCTAssertFalse(serialized.contains(plaintext))
-        XCTAssertTrue(serialized.contains(store.providers.first { $0.id == id }!.apiKeyReference!))
+        XCTAssertEqual(document.schema, FlotisConfigurationDocument.schemaIdentifier)
+        XCTAssertEqual(provider.options.baseURL, "https://api.openai.com")
+        XCTAssertEqual(provider.models.keys.first, "gpt-4o-mini-transcribe")
+        XCTAssertEqual(provider.options.apiKey, plaintext)
+        XCTAssertTrue(serialized.contains(plaintext))
+        XCTAssertTrue(secrets.secrets.isEmpty)
+        XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
+    }
+
+    func testOneOpenRouterProviderOwnsMultipleModelsAndOneSharedCredential() throws {
+        let (defaults, suiteName) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
+        var draft = store.makeNewConnection(
+            adapterID: .openAIAudioTranscriptionsHTTPV1
+        )
+        draft.name = "OpenRouter"
+        draft.baseURL = "https://openrouter.ai/api"
+        draft.endpointPath = "/v1/audio/transcriptions"
+        draft.isCustomEndpointApproved = true
+        let models = [
+            "openai/gpt-4o-mini-transcribe",
+            "openai/gpt-4o-transcribe"
+        ]
+
+        let providerID = try XCTUnwrap(
+            store.saveProviderGroup(
+                existingProviderID: nil,
+                draft: draft,
+                modelIDs: models,
+                selectedModelID: models[0],
+                modelDisplayNames: [
+                    models[0]: "GPT-4o mini transcribe",
+                    models[1]: "GPT-4o transcribe"
+                ],
+                savingAPIKey: "openrouter-test-key"
+            )
+        )
+
+        XCTAssertEqual(providerID, "openrouter")
+        XCTAssertEqual(store.providerGroups.count, 1)
+        XCTAssertEqual(store.providerGroups[0].modelIDs, models)
+        XCTAssertEqual(store.providers.map(\.model), models)
+        XCTAssertEqual(Set(store.providers.map(\.baseURL)), ["https://openrouter.ai/api"])
+        XCTAssertEqual(Set(store.providers.compactMap(\.apiKeyReference)).count, 1)
+        XCTAssertEqual(Set(store.providers.map(\.id)).count, 2)
+        XCTAssertEqual(
+            store.activeModelSelector,
+            "openrouter/openai/gpt-4o-mini-transcribe"
+        )
+
+        let document = try configurationDocument()
+        let configuration = try XCTUnwrap(document.provider["openrouter"])
+        XCTAssertEqual(configuration.options.apiKey, "openrouter-test-key")
+        XCTAssertEqual(
+            configuration.options.transcription?.requestEncoding,
+            .jsonBase64
+        )
+        XCTAssertEqual(Set(configuration.models.keys), Set(models))
+        XCTAssertEqual(
+            configuration.models[models[0]]?.name,
+            "GPT-4o mini transcribe"
+        )
+        XCTAssertEqual(
+            configuration.models[models[1]]?.name,
+            "GPT-4o transcribe"
+        )
+        XCTAssertEqual(document.providerOrder, ["openrouter"])
+        XCTAssertFalse(document.provider.values.contains { $0.adapter == .appleOnDevice })
+    }
+
+    func testConfigJSONAndLockUsePrivatePermissions() throws {
+        let (defaults, suiteName) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        _ = makeStore(defaults: defaults, secretStore: InMemorySecretStore())
+        let directoryURL = try XCTUnwrap(configurationFileURL).deletingLastPathComponent()
+
+        XCTAssertEqual(try posixPermissions(at: directoryURL), 0o700)
+        XCTAssertEqual(try posixPermissions(at: XCTUnwrap(configurationFileURL)), 0o600)
+        XCTAssertEqual(
+            try posixPermissions(at: directoryURL.appendingPathComponent(".config.lock")),
+            0o600
+        )
     }
 
     func testConnectionTestFingerprintExcludesNameAndIncludesConfigurationAndCredentialRevision() {
@@ -453,7 +692,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         let (defaults, suiteName) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let secrets = InMemorySecretStore()
-        let store = SpeechProviderStore(defaults: defaults, secretStore: secrets)
+        let store = makeStore(defaults: defaults, secretStore: secrets)
         let id = store.createConnection(
             store.makeNewConnection(adapterID: .openAIAudioTranscriptionsHTTPV1),
             savingAPIKey: "first-key"
@@ -467,6 +706,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
             )
         )
         var provider = store.providers.first { $0.id == id }!
+        let configurationProviderID = provider.configurationProviderID
         XCTAssertTrue(provider.isConnectionTestCurrent)
         XCTAssertFalse(provider.lastConnectionTest!.safeSummary.contains("\n"))
         XCTAssertFalse(provider.lastConnectionTest!.safeSummary.lowercased().contains("authorization"))
@@ -478,29 +718,37 @@ final class SpeechProviderConfigurationTests: XCTestCase {
 
         provider.model = "whisper-large-v3"
         XCTAssertTrue(store.updateProvider(provider))
-        provider = store.providers.first { $0.id == id }!
+        provider = store.providers.first {
+            $0.configurationProviderID == configurationProviderID
+        }!
         XCTAssertNil(provider.lastConnectionTest)
 
         provider.recordConnectionTest(outcome: .succeeded, safeSummary: "retested")
         XCTAssertTrue(store.updateProvider(provider))
-        provider = store.providers.first { $0.id == id }!
+        provider = store.providers.first {
+            $0.configurationProviderID == configurationProviderID
+        }!
         XCTAssertTrue(provider.isConnectionTestCurrent)
         let revision = provider.credentialRevision
         XCTAssertTrue(store.saveAPIKey("second-key", for: provider))
-        provider = store.providers.first { $0.id == id }!
+        provider = store.providers.first {
+            $0.configurationProviderID == configurationProviderID
+        }!
         XCTAssertEqual(provider.credentialRevision, revision + 1)
         XCTAssertNil(provider.lastConnectionTest)
 
         XCTAssertTrue(
             store.recordConnectionTest(
-                providerID: id,
+                providerID: provider.id,
                 outcome: .succeeded,
                 safeSummary: "tested second key"
             )
         )
-        let revisionBeforeClear = store.providers.first { $0.id == id }!.credentialRevision
-        XCTAssertTrue(store.clearAPIKey(for: id))
-        provider = store.providers.first { $0.id == id }!
+        let revisionBeforeClear = provider.credentialRevision
+        XCTAssertTrue(store.clearAPIKey(for: provider.id))
+        provider = store.providers.first {
+            $0.configurationProviderID == configurationProviderID
+        }!
         XCTAssertEqual(provider.credentialRevision, revisionBeforeClear + 1)
         XCTAssertNil(provider.lastConnectionTest)
     }
@@ -659,10 +907,42 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         return (defaults, suiteName)
     }
 
+    private func makeStore(
+        defaults: UserDefaults,
+        secretStore: SecretStoring
+    ) -> SpeechProviderStore {
+        if configurationRootURL == nil {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(
+                "FlotisConfigurationTests-\(UUID().uuidString)",
+                isDirectory: true
+            )
+            configurationRootURL = root
+            configurationFileURL = root
+                .appendingPathComponent("Flotis", isDirectory: true)
+                .appendingPathComponent("config.json")
+        }
+        return SpeechProviderStore(
+            defaults: defaults,
+            secretStore: secretStore,
+            configurationStore: FlotisConfigurationStore(fileURL: configurationFileURL!)
+        )
+    }
+
+    private func configurationDocument() throws -> FlotisConfigurationDocument {
+        let data = try Data(contentsOf: XCTUnwrap(configurationFileURL))
+        return try JSONDecoder().decode(FlotisConfigurationDocument.self, from: data)
+    }
+
     private func posixPermissions(at url: URL) throws -> Int {
         let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
         return (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
     }
+}
+
+private struct LegacyComparisonPreferencesFixture: Encodable {
+    let schemaVersion: Int
+    let isEnabled: Bool
+    let connectionIDs: [UUID]
 }
 
 private final class InMemorySecretStore: SecretStoring {

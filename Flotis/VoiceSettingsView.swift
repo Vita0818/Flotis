@@ -34,13 +34,13 @@ enum SettingsCloseMode {
 }
 
 private enum SettingsDestination: Hashable {
-    case general
+    case shortcuts
     case transcription
 
     var title: String {
         switch self {
-        case .general:
-            return UIStrings.generalSettings
+        case .shortcuts:
+            return UIStrings.shortcutSettings
         case .transcription:
             return UIStrings.transcriptionSettings
         }
@@ -48,8 +48,8 @@ private enum SettingsDestination: Hashable {
 
     var systemImage: String {
         switch self {
-        case .general:
-            return "slider.horizontal.3"
+        case .shortcuts:
+            return "keyboard"
         case .transcription:
             return "waveform.badge.mic"
         }
@@ -59,10 +59,12 @@ private enum SettingsDestination: Hashable {
 struct SettingsView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var providerStore: SpeechProviderStore
+    @ObservedObject var comparisonStore: TranscriptionComparisonStore
+    @ObservedObject var hotkeyStore: HotkeyConfigurationStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
-    @State private var destination: SettingsDestination = .general
+    @State private var destination: SettingsDestination = .shortcuts
 
     let closeMode: SettingsCloseMode
     let onClose: (() -> Void)?
@@ -70,11 +72,15 @@ struct SettingsView: View {
     init(
         appState: AppState,
         providerStore: SpeechProviderStore,
+        comparisonStore: TranscriptionComparisonStore,
+        hotkeyStore: HotkeyConfigurationStore,
         closeMode: SettingsCloseMode = .done,
         onClose: (() -> Void)? = nil
     ) {
         _appState = ObservedObject(wrappedValue: appState)
         _providerStore = ObservedObject(wrappedValue: providerStore)
+        _comparisonStore = ObservedObject(wrappedValue: comparisonStore)
+        _hotkeyStore = ObservedObject(wrappedValue: hotkeyStore)
         self.closeMode = closeMode
         self.onClose = onClose
     }
@@ -100,7 +106,7 @@ struct SettingsView: View {
                 alignment: .topLeading
             )
         }
-        .frame(minWidth: 760, minHeight: 540)
+        .frame(minWidth: 820, minHeight: 600)
         .onExitCommand {
             closeSettings()
         }
@@ -108,28 +114,17 @@ struct SettingsView: View {
 
     private var settingsSidebar: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 11) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(FlotisTheme.primary(colorScheme))
-
-                    Image(systemName: "waveform")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-                }
-                .frame(width: 34, height: 34)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Flotis")
-                        .font(FlotisType.brand(18, .semibold))
-                    Text(appVersionText)
-                        .font(FlotisType.mono(10, .medium))
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Flotis")
+                    .font(FlotisType.brand(20, .semibold))
+                Text(appVersionText)
+                    .font(FlotisType.mono(10, .medium))
+                    .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 10)
 
             VStack(spacing: 6) {
-                sidebarButton(.general)
+                sidebarButton(.shortcuts)
                 sidebarButton(.transcription)
             }
 
@@ -191,8 +186,11 @@ struct SettingsView: View {
     @ViewBuilder
     private var settingsContent: some View {
         switch destination {
-        case .general:
-            GeneralSettingsPage()
+        case .shortcuts:
+            ShortcutSettingsPage(
+                appState: appState,
+                hotkeyStore: hotkeyStore
+            )
         case .transcription:
             VStack(alignment: .leading, spacing: 0) {
                 FlotisPageHeader(
@@ -203,8 +201,9 @@ struct SettingsView: View {
                 .padding(.top, 26)
                 .padding(.bottom, 20)
 
-                SpeechProviderSettingsView(
+                IntatisStyleSpeechProviderSettingsView(
                     providerStore: providerStore,
+                    comparisonStore: comparisonStore,
                     isActive: destination == .transcription
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -224,38 +223,74 @@ struct SettingsView: View {
     }
 }
 
-private struct GeneralSettingsPage: View {
+private enum ShortcutSettingsLayout {
+    static let controlWidth: CGFloat = 220
+    static let controlHeight: CGFloat = 50
+    static let controlCornerRadius: CGFloat = 11
+}
+
+private struct ShortcutSettingsPage: View {
+    @ObservedObject var appState: AppState
+    @ObservedObject var hotkeyStore: HotkeyConfigurationStore
+
+    @State private var recordingHotkey: ConfigurableHotkey?
+    @State private var validationMessage: String?
+
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                FlotisPageHeader(
-                    title: UIStrings.generalSettings,
-                    subtitle: UIStrings.generalSettingsSubtitle
-                )
+            VStack(alignment: .leading, spacing: 18) {
+                FlotisPageHeader(title: UIStrings.shortcutSettings)
 
-                FlotisSettingsSection(
-                    UIStrings.voiceInput,
-                    systemImage: "waveform"
-                ) {
-                    VStack(spacing: 0) {
-                        settingsFeatureRow(
-                            title: UIStrings.voiceShortcutTitle,
-                            detail: UIStrings.voiceShortcutDescription,
-                            trailing: KeyboardShortcutDescriptor.toggleVoice.displayString,
-                            systemImage: "command"
-                        )
+                VStack(spacing: 0) {
+                    fixedVoiceShortcutRow
 
-                        Divider()
-                            .padding(.vertical, 14)
+                    Divider()
+                        .padding(.vertical, 6)
 
-                        settingsFeatureRow(
-                            title: UIStrings.floatingPanelTitle,
-                            detail: UIStrings.floatingPanelDragDescription,
-                            trailing: nil,
-                            systemImage: "rectangle.and.hand.point.up.left"
-                        )
+                    ForEach(ConfigurableHotkey.allCases) { hotkey in
+                        shortcutSettingRow(hotkey)
+
+                        if hotkey != .nextComparisonResult {
+                            Divider()
+                                .padding(.vertical, 6)
+                        }
+                    }
+
+                    Divider()
+                        .padding(.vertical, 12)
+
+                    HStack(alignment: .center, spacing: 16) {
+                        Text(UIStrings.comparisonShortcutAvailability)
+                            .font(FlotisType.caption(12, .regular))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Spacer(minLength: 12)
+
+                        Button(UIStrings.resetDefaults) {
+                            recordingHotkey = nil
+                            if hotkeyStore.resetToDefaults() {
+                                validationMessage = nil
+                            } else {
+                                validationMessage = hotkeyStore.lastError
+                            }
+                        }
+                        .controlSize(.large)
+                    }
+
+                    if let hotkeyStatusMessage {
+                        Text(hotkeyStatusMessage)
+                            .font(FlotisType.caption(12, .medium))
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
+                .padding(.horizontal, 22)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .flotisContentSurface(cornerRadius: 18)
             }
             .padding(.horizontal, 28)
             .padding(.top, 26)
@@ -263,42 +298,150 @@ private struct GeneralSettingsPage: View {
             .frame(maxWidth: 760, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .onDisappear {
+            recordingHotkey = nil
+            validationMessage = nil
+        }
     }
 
-    private func settingsFeatureRow(
-        title: String,
-        detail: String,
-        trailing: String?,
-        systemImage: String
-    ) -> some View {
-        HStack(alignment: .top, spacing: 13) {
-            Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 22, height: 22)
+    private var hotkeyStatusMessage: String? {
+        validationMessage ?? hotkeyStore.lastError ?? appState.hotkeyError
+    }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(FlotisType.body(13, .semibold))
-                Text(detail)
-                    .font(FlotisType.caption(12, .regular))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var fixedVoiceShortcutRow: some View {
+        HStack(alignment: .center, spacing: 16) {
+            Text(UIStrings.voiceShortcutTitle)
+                .font(FlotisType.body(14, .semibold))
 
-            Spacer(minLength: 12)
+            Spacer(minLength: 16)
 
-            if let trailing {
-                Text(trailing)
-                    .font(FlotisType.mono(11, .semibold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+            shortcutSurface(
+                KeyboardShortcutDescriptor.toggleVoice.displayString
+            )
+            .help(UIStrings.voiceShortcutDescription)
+            .accessibilityLabel(
+                "\(UIStrings.voiceShortcutTitle), \(KeyboardShortcutDescriptor.toggleVoice.displayString)"
+            )
+        }
+        .frame(minHeight: 68)
+    }
+
+    private func shortcutSettingRow(_ hotkey: ConfigurableHotkey) -> some View {
+        HStack(alignment: .center, spacing: 16) {
+            Text(hotkey.displayName)
+                .font(FlotisType.body(14, .semibold))
+
+            Spacer(minLength: 16)
+
+            if recordingHotkey == hotkey {
+                ShortcutRecorderView(
+                    onRecord: { descriptor in
+                        if let message = hotkeyStore.validationError(
+                            for: descriptor,
+                            hotkey: hotkey
+                        ) {
+                            validationMessage = message
+                            return
+                        }
+
+                        if hotkeyStore.setShortcut(descriptor, for: hotkey) {
+                            validationMessage = nil
+                            recordingHotkey = nil
+                        } else {
+                            validationMessage = hotkeyStore.lastError
+                        }
+                    },
+                    onCancel: {
+                        recordingHotkey = nil
+                        validationMessage = nil
+                    }
+                )
+                .frame(
+                    width: ShortcutSettingsLayout.controlWidth,
+                    height: ShortcutSettingsLayout.controlHeight
+                )
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
+                        style: .continuous
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(
+                        cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
+                        style: .continuous
+                    )
+                    .stroke(Color.accentColor, lineWidth: 1.5)
+                )
+            } else {
+                Button {
+                    validationMessage = nil
+                    recordingHotkey = hotkey
+                } label: {
+                    HStack(spacing: 12) {
+                        Text(hotkeyStore.configuration[hotkey].displayString)
+                            .font(FlotisType.mono(17, .semibold))
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .frame(
+                        width: ShortcutSettingsLayout.controlWidth,
+                        height: ShortcutSettingsLayout.controlHeight
+                    )
+                    .contentShape(Rectangle())
                     .background(
                         Color.secondary.opacity(0.1),
-                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        in: RoundedRectangle(
+                            cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
+                            style: .continuous
+                        )
                     )
+                }
+                .buttonStyle(.plain)
+                .help(UIStrings.clickToRecordShortcut)
+                .accessibilityLabel(
+                    "\(hotkey.displayName), \(hotkeyStore.configuration[hotkey].displayString)"
+                )
+
+                if hotkeyStore.configuration[hotkey] != hotkey.defaultDescriptor {
+                    Button {
+                        if hotkeyStore.resetShortcut(hotkey) {
+                            validationMessage = nil
+                        } else {
+                            validationMessage = hotkeyStore.lastError
+                        }
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(width: 40, height: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(UIStrings.resetThisShortcut)
+                    .accessibilityLabel(UIStrings.resetThisShortcut)
+                }
             }
         }
+        .frame(minHeight: 68)
+    }
+
+    private func shortcutSurface(_ shortcut: String) -> some View {
+        Text(shortcut)
+            .font(FlotisType.mono(17, .semibold))
+            .frame(
+                width: ShortcutSettingsLayout.controlWidth,
+                height: ShortcutSettingsLayout.controlHeight
+            )
+            .background(
+                Color.secondary.opacity(0.1),
+                in: RoundedRectangle(
+                    cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
+                    style: .continuous
+                )
+            )
     }
 }
 
@@ -345,7 +488,7 @@ struct SpeechSettingsOverviewView: View {
                                 .disabled(true)
 
                             ForEach(visibleProviders) { provider in
-                                Text(provider.displayNameForUI)
+                                Text("\(provider.displayNameForUI) · \(provider.model)")
                                     .tag(Optional(provider.id))
                                     .disabled(!providerStore.isProviderReady(provider))
                             }
@@ -688,7 +831,7 @@ struct CommandEditorView: View {
 
 private enum ProviderEditorMode: Equatable {
     case add
-    case edit(UUID)
+    case edit(String)
 }
 
 private enum ProviderNoticeKind {
@@ -712,11 +855,14 @@ private enum ConnectionTestViewState {
 
 struct SpeechProviderSettingsView: View {
     @ObservedObject var providerStore: SpeechProviderStore
+    @ObservedObject var comparisonStore: TranscriptionComparisonStore
     let isActive: Bool
 
-    @State private var selectedProviderID: UUID?
+    @State private var selectedProviderID: String?
     @State private var providerDraft: SpeechProviderConfig?
     @State private var editorMode: ProviderEditorMode?
+    @State private var modelListInput = ""
+    @State private var selectedModelID = ""
     @State private var apiKeyInput = ""
     @State private var notice: ProviderNotice?
     @State private var connectionTestState: ConnectionTestViewState = .idle
@@ -727,15 +873,49 @@ struct SpeechProviderSettingsView: View {
         providerStore.providers.filter(SpeechSettingsPresentation.includes)
     }
 
-    private var preferredVisibleProviderID: UUID? {
-        if visibleProviders.contains(where: { $0.id == providerStore.activeProviderID }) {
-            return providerStore.activeProviderID
+    private var visibleProviderGroups: [SpeechProviderGroup] {
+        providerStore.providerGroups.filter {
+            $0.adapterID == SpeechSettingsPresentation.visibleAdapterID
         }
-        return visibleProviders.first?.id
+    }
+
+    private var preferredVisibleProviderID: String? {
+        if let active = visibleProviders.first(where: {
+            $0.id == providerStore.activeProviderID
+        })?.configurationProviderID {
+            return active
+        }
+        return visibleProviderGroups.first?.id
+    }
+
+    private var hasUnsavedDraftChanges: Bool {
+        guard let providerDraft else { return false }
+        if editorMode == .add { return true }
+        guard let persistedSelectedProvider, let persistedSelectedGroup else { return true }
+        return providerDraft != persistedSelectedProvider
+            || parsedModelIDs != persistedSelectedGroup.modelIDs
+            || !apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var selectedComparisonConnectionCount: Int {
+        comparisonStore.selectedModelSelectors.count
+    }
+
+    private var parsedModelIDs: [String] {
+        var seen = Set<String>()
+        return modelListInput.components(separatedBy: .newlines).compactMap { line in
+            let modelID = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !modelID.isEmpty, seen.insert(modelID).inserted else { return nil }
+            return modelID
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !visibleProviderGroups.isEmpty || editorMode == .add {
+                connectionAndComparisonControls
+            }
+
             if let binding = providerDraftBinding {
                 if let notice {
                     providerNotice(
@@ -751,6 +931,8 @@ struct SpeechProviderSettingsView: View {
 
                 SpeechProviderEditorView(
                     provider: binding,
+                    modelListInput: $modelListInput,
+                    selectedModelID: $selectedModelID,
                     apiKeyInput: $apiKeyInput,
                     notice: $notice,
                     hasSavedAPIKey: hasSavedAPIKeyForDraft,
@@ -794,6 +976,7 @@ struct SpeechProviderSettingsView: View {
         .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
+            reconcileComparisonConnections()
             selectedProviderID = preferredVisibleProviderID
             loadProviderDraft()
         }
@@ -801,7 +984,7 @@ struct SpeechProviderSettingsView: View {
             guard let newProviderID else { return }
             if case .edit(let editingID) = editorMode,
                editingID == newProviderID,
-               providerDraft?.id == newProviderID {
+               providerDraft?.configurationProviderID == newProviderID {
                 return
             }
             apiKeyInput = ""
@@ -813,9 +996,131 @@ struct SpeechProviderSettingsView: View {
                 cancelConnectionTest(resetState: true)
             }
         }
+        .onChange(of: providerStore.providerGroups.map(\.id)) { _ in
+            reconcileComparisonConnections()
+        }
         .onDisappear {
             cancelConnectionTest(resetState: true)
         }
+    }
+
+    private var connectionAndComparisonControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Picker(
+                    UIStrings.editConnection,
+                    selection: Binding(
+                        get: { selectedProviderID },
+                        set: { selectedProviderID = $0 }
+                    )
+                ) {
+                    if editorMode == .add {
+                        Text(UIStrings.newConnection)
+                            .tag(Optional<String>.none)
+                    }
+                    ForEach(visibleProviderGroups) { group in
+                        Text(providerMenuLabel(group))
+                            .tag(Optional(group.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .disabled(hasUnsavedDraftChanges)
+
+                Button {
+                    beginAddingConnection()
+                } label: {
+                    Label(UIStrings.add, systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+                .disabled(hasUnsavedDraftChanges)
+                .help(UIStrings.addAnotherConnection)
+            }
+
+            Divider()
+
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Toggle(
+                    UIStrings.comparisonMode,
+                    isOn: Binding(
+                        get: { comparisonStore.isEnabled },
+                        set: { _ = comparisonStore.setEnabled($0) }
+                    )
+                )
+                .toggleStyle(.switch)
+                .disabled(
+                    !comparisonStore.isEnabled
+                        && selectedComparisonConnectionCount < 2
+                )
+
+                Spacer(minLength: 12)
+
+                Text(UIStrings.comparisonSelectedCount(selectedComparisonConnectionCount))
+                    .font(FlotisType.mono(10, .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(UIStrings.comparisonModeDescription)
+                .font(FlotisType.caption(11, .regular))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(visibleProviders) { provider in
+                        comparisonConnectionToggle(provider)
+                    }
+                }
+            }
+
+            Label(UIStrings.comparisonPrivacyWarning, systemImage: "exclamationmark.shield")
+                .font(FlotisType.caption(10, .regular))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let lastError = comparisonStore.lastError {
+                Text(lastError)
+                    .font(FlotisType.caption(11, .medium))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .flotisContentSurface(cornerRadius: 14)
+    }
+
+    private func comparisonConnectionToggle(
+        _ provider: SpeechProviderConfig
+    ) -> some View {
+        let selector = provider.configurationModelSelector ?? ""
+        let isSelected = comparisonStore.isSelected(selector)
+        let isReady = providerStore.isProviderReady(provider)
+        let selectionLimitReached = selectedComparisonConnectionCount
+            >= TranscriptionComparisonStore.maximumConnectionCount
+
+        return Toggle(
+            isOn: Binding(
+                get: { comparisonStore.isSelected(selector) },
+                set: { _ = comparisonStore.setModel(selector, selected: $0) }
+            )
+        ) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(provider.displayNameForUI)
+                    .font(FlotisType.body(11, .semibold))
+                    .lineLimit(1)
+                Text(isReady ? provider.model : UIStrings.connectionNotReady)
+                    .font(FlotisType.mono(9, .regular))
+                    .foregroundStyle(isReady ? Color.secondary : Color.orange)
+                    .lineLimit(1)
+            }
+        }
+        .toggleStyle(.checkbox)
+        .padding(.horizontal, 10)
+        .frame(height: 38)
+        .background(
+            Color.secondary.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+        )
+        .disabled((!isReady && !isSelected) || (!isSelected && selectionLimitReached))
     }
 
     private var providerDraftBinding: Binding<SpeechProviderConfig>? {
@@ -827,8 +1132,17 @@ struct SpeechProviderSettingsView: View {
     }
 
     private var persistedSelectedProvider: SpeechProviderConfig? {
+        guard let selectedProviderID,
+              let group = providerStore.providerGroup(id: selectedProviderID) else { return nil }
+        if group.modelIDs.contains(selectedModelID) {
+            return group.connection(modelID: selectedModelID)
+        }
+        return group.modelIDs.first.flatMap(group.connection)
+    }
+
+    private var persistedSelectedGroup: SpeechProviderGroup? {
         guard let selectedProviderID else { return nil }
-        return visibleProviders.first { $0.id == selectedProviderID }
+        return providerStore.providerGroup(id: selectedProviderID)
     }
 
     private var draftMatchesPersistedSecretBoundary: Bool {
@@ -871,14 +1185,25 @@ struct SpeechProviderSettingsView: View {
 
     private func loadProviderDraft() {
         cancelConnectionTest(resetState: true)
-        guard let persistedSelectedProvider else {
+        guard let selectedProviderID,
+              let group = providerStore.providerGroup(id: selectedProviderID),
+              !group.modelIDs.isEmpty else {
             providerDraft = nil
             editorMode = nil
+            modelListInput = ""
+            selectedModelID = ""
             apiKeyInput = ""
             return
         }
-        providerDraft = persistedSelectedProvider
-        editorMode = .edit(persistedSelectedProvider.id)
+        let activeSelector = FlotisModelSelector(rawValue: providerStore.activeModelSelector)
+        let preferredModelID = activeSelector?.providerID == selectedProviderID
+            && group.modelIDs.contains(activeSelector?.modelID ?? "")
+            ? activeSelector!.modelID
+            : group.modelIDs[0]
+        selectedModelID = preferredModelID
+        modelListInput = group.modelIDs.joined(separator: "\n")
+        providerDraft = group.connection(modelID: preferredModelID)
+        editorMode = .edit(selectedProviderID)
         apiKeyInput = ""
     }
 
@@ -887,14 +1212,31 @@ struct SpeechProviderSettingsView: View {
         var draft = providerStore.makeNewConnection(
             adapterID: SpeechSettingsPresentation.visibleAdapterID
         )
-        draft.name = UIStrings.newTranscriptionConnectionName
+        let baseName = UIStrings.newTranscriptionConnectionName
+        draft.name = visibleProviderGroups.isEmpty
+            ? baseName
+            : "\(baseName) \(visibleProviderGroups.count + 1)"
         draft.lastConnectionTest = nil
 
         selectedProviderID = nil
         providerDraft = draft
+        selectedModelID = draft.model
+        modelListInput = draft.model
         editorMode = .add
         apiKeyInput = ""
         notice = nil
+    }
+
+    private func reconcileComparisonConnections() {
+        comparisonStore.reconcileAvailableModelSelectors(
+            providerStore.availableModelSelectors
+        )
+    }
+
+    private func providerMenuLabel(_ group: SpeechProviderGroup) -> String {
+        let representative = group.modelIDs.first.flatMap(group.connection)
+        let destination = representative?.credentialDestinationIdentifier ?? UIStrings.localDevice
+        return "\(group.name) · \(group.modelIDs.count) \(UIStrings.modelsLowercase) · \(destination)"
     }
 
     private func cancelProviderDraft() {
@@ -906,7 +1248,13 @@ struct SpeechProviderSettingsView: View {
     }
 
     private func saveProviderDraft() {
-        guard let providerDraft else { return }
+        guard var providerDraft,
+              !parsedModelIDs.isEmpty,
+              parsedModelIDs.contains(selectedModelID) else {
+            notice = ProviderNotice(kind: .error, text: UIStrings.modelsRequired)
+            return
+        }
+        providerDraft.model = selectedModelID
         let candidate = providerDraft.normalizedForProtocol()
         if let error = candidate.configurationValidationError() {
             notice = ProviderNotice(kind: .error, text: error)
@@ -914,18 +1262,30 @@ struct SpeechProviderSettingsView: View {
         }
         let trimmedAPIKey = apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let apiKey = trimmedAPIKey.isEmpty ? nil : trimmedAPIKey
-        let didSave: Bool
+        let existingProviderID: String?
         switch editorMode {
         case .add:
-            didSave = providerStore.createConnection(candidate, savingAPIKey: apiKey) != nil
-        case .edit:
-            didSave = providerStore.updateProvider(candidate, savingAPIKey: apiKey)
+            existingProviderID = nil
+        case .edit(let providerID):
+            existingProviderID = providerID
         case nil:
             return
         }
 
-        guard didSave,
-              let persisted = providerStore.providers.first(where: { $0.id == candidate.id }) else {
+        guard let persistedProviderID = providerStore.saveProviderGroup(
+            existingProviderID: existingProviderID,
+            draft: candidate,
+            modelIDs: parsedModelIDs,
+            selectedModelID: selectedModelID,
+            savingAPIKey: apiKey
+        ),
+        let selector = FlotisModelSelector(
+            providerID: persistedProviderID,
+            modelID: selectedModelID
+        ),
+        let persisted = providerStore.providers.first(where: {
+            $0.configurationModelSelector == selector.rawValue
+        }) else {
             notice = ProviderNotice(
                 kind: .error,
                 text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
@@ -933,27 +1293,24 @@ struct SpeechProviderSettingsView: View {
             return
         }
 
-        selectedProviderID = persisted.id
+        selectedProviderID = persistedProviderID
         self.providerDraft = persisted
-        editorMode = .edit(persisted.id)
+        modelListInput = parsedModelIDs.joined(separator: "\n")
+        editorMode = .edit(persistedProviderID)
         apiKeyInput = ""
         cancelConnectionTest(resetState: true)
+        reconcileComparisonConnections()
         if persisted.protocolSchema.requiresAPIKey,
            !providerStore.hasAPIKey(for: persisted) {
             notice = ProviderNotice(kind: .warning, text: UIStrings.providerSavedNeedsAPIKey)
-        } else if !providerStore.setActiveProvider(id: persisted.id) {
-            notice = ProviderNotice(
-                kind: .error,
-                text: providerStore.lastError ?? UIStrings.providerConfigSaveFailed
-            )
         } else {
             notice = ProviderNotice(kind: .success, text: UIStrings.providerSaved)
         }
     }
 
     private func clearSelectedAPIKey() {
-        guard editorMode != .add, let selectedProviderID else { return }
-        guard providerStore.clearAPIKey(for: selectedProviderID) else {
+        guard editorMode != .add, let persistedSelectedProvider else { return }
+        guard providerStore.clearAPIKey(for: persistedSelectedProvider.id) else {
             notice = ProviderNotice(
                 kind: .error,
                 text: providerStore.lastError ?? UIStrings.apiKeyClearFailed
@@ -987,7 +1344,10 @@ struct SpeechProviderSettingsView: View {
 
         connectionTestTask = Task { @MainActor in
             do {
-                let record = try await TranscriptionConnectionTester.shared.test(
+                let tester = TranscriptionConnectionTester(
+                    secretLoader: { providerStore.load(for: $0) }
+                )
+                let record = try await tester.test(
                     connection: candidate,
                     apiKey: apiKey
                 )
@@ -1087,6 +1447,8 @@ struct SpeechProviderSettingsView: View {
 
 private struct SpeechProviderEditorView: View {
     @Binding var provider: SpeechProviderConfig
+    @Binding var modelListInput: String
+    @Binding var selectedModelID: String
     @Binding var apiKeyInput: String
     @Binding var notice: ProviderNotice?
     let hasSavedAPIKey: Bool
@@ -1111,13 +1473,35 @@ private struct SpeechProviderEditorView: View {
                         subtitle: UIStrings.connectionDetailsDescription,
                         systemImage: "point.3.connected.trianglepath.dotted"
                     ) {
+                        editorField(UIStrings.connectionName) {
+                            TextField(
+                                UIStrings.connectionName,
+                                text: connectionNameBinding
+                            )
+                        }
+
                         if provider.protocolSchema.supportsEditableModel {
-                            editorField(UIStrings.model) {
-                                TextField(
-                                    UIStrings.model,
-                                    text: modelBinding
-                                )
+                            editorField(UIStrings.models) {
+                                TextEditor(text: modelListBinding)
                                 .font(FlotisType.mono())
+                                .frame(minHeight: 72, maxHeight: 112)
+                                .padding(6)
+                                .background(
+                                    Color.secondary.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                )
+
+                                Text(UIStrings.modelsOnePerLine)
+                                    .font(FlotisType.caption(10, .regular))
+                                    .foregroundStyle(.secondary)
+
+                                Picker(UIStrings.currentModel, selection: selectedModelBinding) {
+                                    ForEach(parsedModelIDs, id: \.self) { modelID in
+                                        Text(modelID).tag(modelID)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .disabled(parsedModelIDs.isEmpty)
                             }
                         } else if let fixedModel = provider.protocolSchema.fixedModel,
                                   !fixedModel.isEmpty {
@@ -1240,6 +1624,21 @@ private struct SpeechProviderEditorView: View {
                                                 text: doubleBinding(\.temperature)
                                             )
                                             .font(FlotisType.mono())
+                                        }
+                                    }
+
+                                    if provider.adapterID == .openAIAudioTranscriptionsHTTPV1 {
+                                        editorField(UIStrings.requestEncoding) {
+                                            Picker(
+                                                UIStrings.requestEncoding,
+                                                selection: requestEncodingBinding
+                                            ) {
+                                                Text(UIStrings.requestEncodingMultipart)
+                                                    .tag(TranscriptionRequestEncoding.multipartFormData)
+                                                Text(UIStrings.requestEncodingJSONBase64)
+                                                    .tag(TranscriptionRequestEncoding.jsonBase64)
+                                            }
+                                            .pickerStyle(.menu)
                                         }
                                     }
                                 }
@@ -1374,11 +1773,47 @@ private struct SpeechProviderEditorView: View {
         )
     }
 
-    private var modelBinding: Binding<String> {
+    private var parsedModelIDs: [String] {
+        var seen = Set<String>()
+        return modelListInput.components(separatedBy: .newlines).compactMap { line in
+            let modelID = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !modelID.isEmpty, seen.insert(modelID).inserted else { return nil }
+            return modelID
+        }
+    }
+
+    private var modelListBinding: Binding<String> {
         Binding(
-            get: { provider.model },
+            get: { modelListInput },
             set: {
+                modelListInput = $0
+                if !parsedModelIDs.contains(selectedModelID) {
+                    selectedModelID = parsedModelIDs.first ?? ""
+                    if !selectedModelID.isEmpty {
+                        provider.model = selectedModelID
+                    }
+                }
+                manualConfigurationChanged()
+            }
+        )
+    }
+
+    private var selectedModelBinding: Binding<String> {
+        Binding(
+            get: { selectedModelID },
+            set: {
+                selectedModelID = $0
                 provider.model = $0
+                manualConfigurationChanged()
+            }
+        )
+    }
+
+    private var connectionNameBinding: Binding<String> {
+        Binding(
+            get: { provider.name },
+            set: {
+                provider.name = $0
                 manualConfigurationChanged()
             }
         )
@@ -1411,6 +1846,19 @@ private struct SpeechProviderEditorView: View {
                 let oldHost = provider.credentialDestinationIdentifier
                 provider.baseURL = newValue
                 resetCustomEndpointApprovalIfHostChanged(from: oldHost)
+                if isOpenRouterHost(provider.credentialDestinationIdentifier) {
+                    provider.requestEncoding = .jsonBase64
+                }
+                manualConfigurationChanged()
+            }
+        )
+    }
+
+    private var requestEncodingBinding: Binding<TranscriptionRequestEncoding> {
+        Binding(
+            get: { provider.requestEncoding },
+            set: {
+                provider.requestEncoding = $0
                 manualConfigurationChanged()
             }
         )
@@ -1449,6 +1897,7 @@ private struct SpeechProviderEditorView: View {
         provider.protocolSchema.supportsLanguage
             || provider.protocolSchema.supportsPrompt
             || provider.protocolSchema.supportsTemperature
+            || provider.adapterID == .openAIAudioTranscriptionsHTTPV1
     }
 
     private var isTestingConnection: Bool {
@@ -1546,6 +1995,11 @@ private struct SpeechProviderEditorView: View {
             provider.isCustomEndpointApproved = false
         }
     }
+
+    private func isOpenRouterHost(_ host: String?) -> Bool {
+        guard let host = host?.lowercased() else { return false }
+        return host == "openrouter.ai" || host.hasSuffix(".openrouter.ai")
+    }
 }
 
 struct ShortcutRecorderView: NSViewRepresentable {
@@ -1587,7 +2041,7 @@ final class ShortcutRecorderCaptureView: NSView {
         dirtyRect.fill()
         let text = UIStrings.shortcutCaptureHint
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .font: NSFont.systemFont(ofSize: 14, weight: .medium),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
         let size = text.size(withAttributes: attributes)

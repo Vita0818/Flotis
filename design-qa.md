@@ -1,71 +1,66 @@
-# Idle capsule proportion and Liquid Glass design QA
+# Intatis-style Provider / Models Settings design QA
 
-> Current override (2026-08-04, latest): the idle shell is now `108×54`, while both `30×30` hit areas and their 8 pt gap remain unchanged. The shortcut label is now 12 pt Semibold system Monospaced in the dynamic primary color. A signed native-glass runtime capture measured exactly `108×54`; neither control was cropped or crowded, the full `⌃⌥A` label remained accessible and visually clearer, and the preview was then quit without starting recording. The older geometry and typography measurements below are retained only as history.
+## 2026-08-07 shortcut-page hierarchy follow-up
 
-> Current override (2026-08-04): the 24 pt fixed-white three-section gear documented below was superseded by the user's new transparent black eight-tooth gear. The current control places a 16 pt black gear inside a 28 pt white circle, matching the adjacent waveform button and remaining readable on the white-background runtime capture. The earlier measurements below are retained only as history for the superseded artwork.
+- The user's installed-app screenshot showed two competing cards, repeated explanatory copy, and shortcut controls that were visually subordinate to the text. The implementation now treats this destination as a focused shortcut editor rather than a general product overview.
+- The sidebar brand area contains only `Flotis` and the version; its decorative application glyph is removed. The destination and page title are now Shortcuts / 快捷键 instead of General / 概览.
+- Fixed voice input and the three configurable shortcuts are consolidated into one card. The visible voice-flow paragraph, floating-capsule drag explanation, duplicate section heading, row icons, and per-row descriptions are removed.
+- Every shortcut surface is fixed at `220×50` with 17 pt Semibold Monospaced text; configurable surfaces are clickable across the whole rectangle, and the native recording state keeps the same size with a 14 pt prompt.
+- Main App Debug/Release builds, the InputMethod Debug build, 79 Main App tests, and 8 InputMethod tests passed. The signed `0.12 (3)` Release was installed at `/Applications/Flotis.app`; executable and compiled icon assets match the verified Release product.
+- Native Computer Use failed to start on both attempts, so this follow-up is not marked as a runtime pixel pass. The installed hierarchy, spacing, text scale, and hit-area feel remain for the user's direct visual check.
+
+## 2026-08-06 interaction follow-up
+
+- Settings disclosure headers now use a shared full-width button with a minimum 44 pt hit target; Provider rows use at least 48 pt, and each comparison route is a full-card button rather than a tiny checkbox target. Source inspection confirms the label, empty row space, and chevron/checkbox area all invoke the same action.
+- The compact capsule preserves its existing status icons and copy. Recording replaces only the trailing stop square with a monospaced elapsed timer; stopping/transcribing suppresses only the duplicate trailing disabled action. Multi-result review is `560×300`, uses a fixed two-column grid (four cards become 2×2), opens the first successful candidate immediately, and has no horizontal strip or extra “choose one” prompt.
+- Candidate navigation is available through temporary `⌥←` / `⌥→` registrations only while a multi-result review has at least two successful candidates. It skips failed candidates, wraps, preserves per-candidate edits, and leaves the existing voice shortcut responsible for copying the current result.
+- Targeted source/build tests cover elapsed-time lifecycle/formatting, the `560×300` contract, Option-only shortcut descriptors, first-success selection, failed-result skipping, wraparound, edit retention, and copying the current candidate.
+- A same-state runtime screenshot comparison was attempted through the required native Computer Use path, but the local service failed during startup twice. No substitute screenshot path was used and this iteration is therefore not marked visually passed; whole-row pointer behavior, 2×2 rendering, timer appearance, and physical shortcut registration still require a native manual pass.
 
 ## Comparison target
 
-- Baseline visual truth: `/tmp/FlotisSettingsButtonImplementation-final.jpg`
-- Supplied icon truth: `/Users/vita/Vitemis/Flotis/docs/assets/voice-waveform-button-reference.png` and `/Users/vita/Vitemis/Flotis/docs/assets/settings-gear-button-reference.png`
-- First glass implementation: `/tmp/FlotisLiquidGlassImplementation-pass1.png`
-- Final implementation: `/tmp/FlotisLiquidGlassImplementation-handoff.png` (pixel-identical to the `/tmp/FlotisLiquidGlassImplementation-final2.png` capture used by the comparison boards)
-- Full-view comparison: `/tmp/FlotisLiquidGlassComparison-final.png` (baseline left, final right)
-- Focused gear comparison: `/tmp/FlotisLiquidGlassGearComparison-final.png` (normalized source left, runtime crop right)
-- State: native macOS idle capsule, current system appearance, macOS 27.0
-- Baseline viewport: `120×56` pixels; final viewport: `116×54` pixels
-- Final control geometry: 28 pt waveform art and 24 pt gear art, each centered in its unchanged `30×30` hit area, with an 8 pt hit-area gap
-- Density normalization: the final capture was centered in a `120×56` board next to the baseline, then both were enlarged 8x with nearest-neighbor sampling. The supplied gear was downsampled to `24×24`, centered in a `30×30` field, and compared beside the runtime `30×30` crop at 10x.
-
-## Findings
-
-- No actionable P0, P1, or P2 mismatch remains.
-- The `116×54` shell is visibly tighter without crowding the shortcut or either control.
-- The 24 pt gear is now subordinate to the 28 pt recording control while preserving the supplied tooth count, three internal sections, and central hub.
-- The system glass surface is lighter and more dimensional than the previous opaque popover material. The final 18% content tint keeps the fixed-white gear and shortcut legible without hiding the native glass treatment.
-- The capsule remains compact enough to read as one control group; no image is cropped and no rectangular highlight or doubled outline is visible.
+- Source implementation: `/Users/vita/Vitemis/Intatis/Apps/IntatisMac/Sources/IntatisChatScreen.swift`, `IntatisSettingsPanel` provider/model section.
+- Source design tokens: `/Users/vita/Vitemis/Intatis/Apps/IntatisMac/Sources/IntatisDesign.swift`.
+- Source runtime capture, collapsed: `/private/tmp/Intatis-Providers-Reference-20260805.jpeg`, `1100×760`.
+- Source runtime capture, Models expanded: `/private/tmp/Intatis-Models-Reference-20260805.jpeg`, `1100×760`.
+- Flotis runtime capture, collapsed: `/private/tmp/Flotis-Intatis-Style-Models-Collapsed-Composited-20260805.png`, Retina `2200×1584` (`1100×792` outer frame, `1100×760` content).
+- Flotis runtime capture, Models expanded: `/private/tmp/Flotis-Intatis-Style-Models-Expanded-Composited-20260805.png`, Retina `2200×1584`.
+- Combined collapsed comparison: `/private/tmp/Intatis-Flotis-Models-Collapsed-Comparison-20260805.png`, `2200×760`, Intatis left / Flotis right.
+- Combined expanded comparison: `/private/tmp/Intatis-Flotis-Models-Expanded-Comparison-20260805.png`, `2200×760`, Intatis left / Flotis right.
+- State: native macOS Settings, Dark appearance. The scoped target is the provider/model portion; Flotis retains its own outer product sidebar and page header.
 
 ## Required fidelity surfaces
 
-- Fonts and typography: the existing 11 pt Monospaced shortcut, weight, line limit, and wording are unchanged. It remains centered and fully visible in the shorter shell.
-- Spacing and layout rhythm: idle changed only from `120×56`/10 pt to `116×54`/8 pt. The two `30×30` hit areas remain intact; all non-idle panel sizes remain unchanged.
-- Colors and visual tokens: the outer surface is native regular Liquid Glass on macOS 26+, with system-provided refraction/highlights and a restrained black contrast tint. The fallback retains the existing popover material. Semantic recording/error colors were not changed.
-- Image quality and asset fidelity: the waveform still uses the approved 28/56/84 px image set. The exact supplied gear source was regenerated at 24/48/72 px rather than runtime-downscaling the former 26 pt asset. The focused comparison confirms the source and runtime silhouettes match.
-- Copy and content: no app-specific text changed.
+- Primary card uses Intatis' two-column hierarchy at the 1100 pt content width: Providers and Add on the left; selected Provider detail on the right.
+- Provider detail order matches the reference: Provider name, API key, Active model, Connection disclosure, Models disclosure.
+- Models expanded state includes count, Add model, per-row Model ID, optional Display name, delete action, and Delete provider.
+- Test Provider and Save remain directly below the primary card. Cancel appears only for an unsaved draft; the last visible Provider cannot be deleted.
+- Card max width, 28 pt page padding, 22 pt card padding, selected-row outline, typography, disclosure spacing, field heights, button hierarchy, and Dark appearance system colors were compared in one combined image rather than from separate screenshots.
+- Flotis-only 2–4 route Comparison and Language/Prompt/Temperature remain below the primary card as separate disclosures so they do not distort the copied Provider/Models hierarchy.
 
-## Full-view evidence
+## Interaction and state evidence
 
-The combined board compares the same idle state. The final shell is 4 px narrower and 2 px shorter, the settings artwork is visibly smaller, and the material changes from the previous dense gray fill to a lighter native glass surface. The recording button, shortcut, corner continuity, and control hierarchy remain intact.
+- Collapsed and Models-expanded states both rendered in the isolated signed Debug app at the same content viewport as Intatis.
+- The current real catalog rendered multiple Provider rows and their model counts; the selected row, Active model menu, secure API key placeholder, Connection/Models disclosures, Add/Delete model controls, Test Provider, Save, Comparison, and advanced controls were all present.
+- The Intatis sample has one Provider with many models, while the current Flotis catalog has multiple independent Provider groups with one model each. This is a data difference, not a layout substitution. QA did not merge or rewrite user Provider groups merely to imitate sample data.
+- No Save, Delete provider, Clear API key, Test Provider, comparison change, recording, provider request, transcript, clipboard, or installation action was performed.
+- Computer Use captured the Intatis reference before its local service became unavailable. Flotis then used a temporary Debug-only self-capture path in an isolated bundle. That hook and its imports were removed after capture; no visual-QA switch remains in production source.
 
-## Focused-region evidence
+## Iteration findings
 
-The normalized gear board shows the 24 pt source on the left and the rendered `30×30` settings-button crop on the right. The outer teeth, internal three-way structure, central hub, transparency, and scale are preserved; runtime softness is limited to the 1x Computer Use JPEG capture.
+1. **P1 — actual window collapsed to 820 pt:** assigning the SwiftUI HostingController replaced the requested `1100×760` content size with the view's minimum `820×600`, so the first runtime capture lost the reference's two-column proportions. Fixed by setting `contentMinSize` after host assignment and then explicitly calling `setContentSize(1100×760)`. Final captures measure the intended 1100 pt content width.
+2. **P2 — reference copy and action hierarchy:** aligned the API key label and saved-key placeholder, moved key clearing into Connection, hid Cancel until a draft is dirty, disabled deletion of the last visible Provider, and aligned the action wording to Test Provider / Save.
+3. **P2 — model identity:** replaced the former multiline model list with independent Model ID + Display name rows and persisted the optional display name without changing the request Model ID or the shared Provider endpoint/key boundary.
+4. The final combined collapsed and expanded comparisons show no remaining P0/P1/P2 mismatch inside the requested Provider/Models scope.
 
-## Interaction evidence
+## Residual verification gaps
 
-- Computer Use exposed the controls as accessible `Start` and `Settings` buttons.
-- Clicking `Settings` opened the existing reusable Settings window; closing it returned to the idle capsule.
-- No preference, credential, Accessibility permission, provider request, transcript submission, clipboard write, or injection action was performed.
-- A coordinate-based drag attempt accidentally entered the Start hit area and briefly began recording. The temporary preview was terminated immediately without stopping into transcription or injection. The new surface's background drag remains a manual follow-up; the existing drag/resize policy tests and prior native drag verification remain green.
+- Light appearance, Reduce Transparency, Increase Contrast, macOS 13 fallback, the compact 820 pt layout, an empty Provider catalog, very long localized names, full keyboard navigation, VoiceOver order, and destructive confirmation dialogs were not separately captured.
+- Real OpenRouter credentials, network requests, billing, and one-Provider/many-model data entry were intentionally excluded from visual QA; store and request behavior remain covered by unit tests, while live service use still requires manual validation.
+- At the time of the 2026-08-05 Provider/Models capture, that isolated visual build had not been installed over `/Applications/Flotis.app`; the later verified `0.12 (3)` builds have since been installed.
 
-## Comparison history
+2026-08-05 Provider/Models fidelity result: passed
 
-1. The first native-glass capture was too pale for the fixed-white gear and shortcut. A black native tint plus an availability-scoped 18% content contrast layer was added; the final capture reduces average luma from 184.649 to 176.683 while preserving the glass appearance.
-2. The final full-view and focused comparisons show no remaining P0/P1/P2 layout, asset, color-token, typography, or copy mismatch.
+2026-08-06 interaction follow-up result: implementation/test pass; runtime visual verification pending because Computer Use could not start
 
-## Residual test gaps
-
-- Dark appearance, Reduce Transparency, Increase Contrast, and the macOS 13–25 fallback were not separately captured.
-- Empty-background dragging on the final `NSGlassEffectView` surface should be checked manually because coordinate automation cannot safely distinguish the narrow blank strip from the Start hit area.
-- Recording and non-idle state transitions were intentionally excluded from visual QA after the accidental Start hit.
-
-## Implementation checklist
-
-- [x] Refine idle proportions without changing non-idle sizes.
-- [x] Reduce and regenerate the supplied settings artwork at 24/48/72 px.
-- [x] Use native `NSGlassEffectView` on macOS 26+ and retain the existing material fallback.
-- [x] Preserve both hit areas, accessibility, actions, shortcut, and voice-state mappings.
-- [x] Compare the full idle capsule and the focused gear region.
-- [x] Verify Settings opens and closes from the refined control.
-
-final result: passed
+2026-08-07 shortcut-page follow-up result: implementation/build/install pass; runtime visual verification pending because Computer Use could not start

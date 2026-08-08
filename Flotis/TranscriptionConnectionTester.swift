@@ -15,7 +15,7 @@ final class TranscriptionConnectionTester {
     init(
         runtimeFactory: TranscriptionRuntimeFactory = .shared,
         secretLoader: @escaping SecretLoader = { reference in
-            LocalSecretStore.shared.load(for: reference)
+            SpeechProviderStore.shared.load(for: reference)
         },
         localCapabilityProbe: @escaping LocalCapabilityProbe = probeAppleConnectionCapability
     ) {

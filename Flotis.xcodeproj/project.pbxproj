@@ -13,6 +13,7 @@
 		11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */; };
 		1349C582187301D655A8523B /* CommandStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC40FD954EBB9D2B3FA9E5F9 /* CommandStore.swift */; };
 		1718A5A97B805BED69E18303 /* TranscriptionConnectionTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5B716D80E0378261099D87 /* TranscriptionConnectionTester.swift */; };
+		1A3741FE995BAC94ECAC3CAC /* TranscriptionComparisonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4F508EA038E58CEAF7142D /* TranscriptionComparisonTests.swift */; };
 		1D9276E6D2B5559B63A0D687 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */; };
 		21E8EDC9E6DBAD4EF5E46B53 /* FlotisInputMethodProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4702B102FF4B47344F64AB /* FlotisInputMethodProtocol.swift */; };
 		34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */; };
@@ -25,7 +26,9 @@
 		57102622D3CE1B0C5E90FDA9 /* ClipboardPasteInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */; };
 		58958616F2F70A7B493E9A94 /* LocalSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */; };
 		62C3B5080784C6FC4357C6FA /* HotkeyAndInjectionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */; };
+		640E7E457885CD5599ABA73D /* HotkeyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */; };
 		6527988C7E53A8309F3A0C71 /* VolcengineBigASRRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCAE70953AE9EB6C6B13C6F /* VolcengineBigASRRealtimeTranscriber.swift */; };
+		6A1DE2E7D700923D8BDF1610 /* IntatisStyleSpeechProviderSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF4A5052134FDE3F34B4622F /* IntatisStyleSpeechProviderSettingsView.swift */; };
 		6E95D7208A244D0BC2D7B188 /* AppleSpeechTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEEEDE8D1FF2D76DC0095B97 /* AppleSpeechTranscriber.swift */; };
 		71CF548B550202212782B0D7 /* FloatingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */; };
 		7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */; };
@@ -41,6 +44,7 @@
 		AC1D8DE2A2679D9BB527F0A3 /* Flotis.icon in Resources */ = {isa = PBXBuildFile; fileRef = F796B54F46FB10F061EB8FE1 /* Flotis.icon */; };
 		AD05ECEF680D1F2D2F185FFC /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */; };
 		B17F60CD12470C4CD07044D7 /* FlotisInputMethodServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEFFE09537D5AD7B0E5C09C /* FlotisInputMethodServiceTests.swift */; };
+		BAA0CE55B27C665FB85F2956 /* TranscriptionComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DAE49136E83BF489F5141D /* TranscriptionComparison.swift */; };
 		BB4E3BAE59A0540D50ABDFFC /* TranscriptionAdapterRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */; };
 		BB7973DF4EDBE3EF587A5235 /* FlotisInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079B58D5B6857E020AA0E879 /* FlotisInputController.swift */; };
 		BD56965A1FE89DA01033D99A /* VoiceInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */; };
@@ -51,6 +55,7 @@
 		D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */; };
 		E09AE47BE888EC3DEA9BF971 /* FlotisInputMethodIcon.tiff in Resources */ = {isa = PBXBuildFile; fileRef = F73CFB41A76D6A273B78ACBC /* FlotisInputMethodIcon.tiff */; };
 		EA7B3223509177B2DE9641D2 /* FloatingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */; };
+		EFFFA1FB81B70667EF71D286 /* FlotisConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8B06A7FFC0B8C2B6BD30E8 /* FlotisConfigurationStore.swift */; };
 		F6B325EA487963662FFDB53C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 90D659983E211310E6A92B75 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
@@ -72,12 +77,14 @@
 		24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
 		2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechProviderConfigurationTests.swift; sourceTree = "<group>"; };
 		2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
+		33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyConfiguration.swift; sourceTree = "<group>"; };
 		4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRuntimeTests.swift; sourceTree = "<group>"; };
 		45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRegistry.swift; sourceTree = "<group>"; };
 		47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		499CF9F16A907FAE75F19E1C /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
 		4B00ACC85DA2A64512248CF5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		4DCDEC0F0155FE9DADC0E3E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4F8B06A7FFC0B8C2B6BD30E8 /* FlotisConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisConfigurationStore.swift; sourceTree = "<group>"; };
 		51CB3145A6EF642E018D3B60 /* FlotisInputMethodService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisInputMethodService.swift; sourceTree = "<group>"; };
 		57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashScopeParaformerRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisDesign.swift; sourceTree = "<group>"; };
@@ -105,11 +112,14 @@
 		C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteInjector.swift; sourceTree = "<group>"; };
 		CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputMode.swift; sourceTree = "<group>"; };
 		CCEFFE09537D5AD7B0E5C09C /* FlotisInputMethodServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisInputMethodServiceTests.swift; sourceTree = "<group>"; };
+		CF4A5052134FDE3F34B4622F /* IntatisStyleSpeechProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntatisStyleSpeechProviderSettingsView.swift; sourceTree = "<group>"; };
 		D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelController.swift; sourceTree = "<group>"; };
+		DC4F508EA038E58CEAF7142D /* TranscriptionComparisonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionComparisonTests.swift; sourceTree = "<group>"; };
 		E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingAudioCapture.swift; sourceTree = "<group>"; };
 		ECBECDF0BB1DC73D4DECCEE8 /* UIStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIStrings.swift; sourceTree = "<group>"; };
 		EE19A11654280B40753B3CAF /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		EEEEDE8D1FF2D76DC0095B97 /* AppleSpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSpeechTranscriber.swift; sourceTree = "<group>"; };
+		F1DAE49136E83BF489F5141D /* TranscriptionComparison.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionComparison.swift; sourceTree = "<group>"; };
 		F201255CBA9778664C71C9E5 /* FlotisApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisApp.swift; sourceTree = "<group>"; };
 		F73CFB41A76D6A273B78ACBC /* FlotisInputMethodIcon.tiff */ = {isa = PBXFileReference; lastKnownFileType = image.tiff; path = FlotisInputMethodIcon.tiff; sourceTree = "<group>"; };
 		F796B54F46FB10F061EB8FE1 /* Flotis.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = Flotis.icon; sourceTree = "<group>"; };
@@ -136,6 +146,7 @@
 				2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */,
 				B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */,
 				4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */,
+				DC4F508EA038E58CEAF7142D /* TranscriptionComparisonTests.swift */,
 			);
 			path = FlotisTests;
 			sourceTree = "<group>";
@@ -154,10 +165,13 @@
 				D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */,
 				47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */,
 				F201255CBA9778664C71C9E5 /* FlotisApp.swift */,
+				4F8B06A7FFC0B8C2B6BD30E8 /* FlotisConfigurationStore.swift */,
 				5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */,
+				33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */,
 				EE19A11654280B40753B3CAF /* HotkeyManager.swift */,
 				4DCDEC0F0155FE9DADC0E3E3 /* Info.plist */,
 				B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */,
+				CF4A5052134FDE3F34B4622F /* IntatisStyleSpeechProviderSettingsView.swift */,
 				FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */,
 				BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */,
 				146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */,
@@ -165,6 +179,7 @@
 				24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */,
 				E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */,
 				45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */,
+				F1DAE49136E83BF489F5141D /* TranscriptionComparison.swift */,
 				BE5B716D80E0378261099D87 /* TranscriptionConnectionTester.swift */,
 				0D35C8553893E49C234B5792 /* TranscriptionProviderConfig.swift */,
 				7B3FE1F916017519575049B3 /* TranscriptionProviderStore.swift */,
@@ -383,6 +398,7 @@
 				7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */,
 				D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */,
 				11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */,
+				1A3741FE995BAC94ECAC3CAC /* TranscriptionComparisonTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,8 +416,11 @@
 				71CF548B550202212782B0D7 /* FloatingPanelController.swift in Sources */,
 				EA7B3223509177B2DE9641D2 /* FloatingPanelView.swift in Sources */,
 				7F53C851DB98DE68333BF928 /* FlotisApp.swift in Sources */,
+				EFFFA1FB81B70667EF71D286 /* FlotisConfigurationStore.swift in Sources */,
 				8DEB31F1A067D7E1047E15BD /* FlotisDesign.swift in Sources */,
+				640E7E457885CD5599ABA73D /* HotkeyConfiguration.swift in Sources */,
 				9956F2073C00DD6D05816073 /* HotkeyManager.swift in Sources */,
+				6A1DE2E7D700923D8BDF1610 /* IntatisStyleSpeechProviderSettingsView.swift in Sources */,
 				58958616F2F70A7B493E9A94 /* LocalSecretStore.swift in Sources */,
 				C53EF9FF56A7D0ACF1C5B77F /* OpenAICompatibleTranscriber.swift in Sources */,
 				34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */,
@@ -409,6 +428,7 @@
 				A1F2D6BF7605AAB7F2795951 /* SpeechTranscribing.swift in Sources */,
 				3C26D369AFEB44306C389A12 /* StreamingAudioCapture.swift in Sources */,
 				BB4E3BAE59A0540D50ABDFFC /* TranscriptionAdapterRegistry.swift in Sources */,
+				BAA0CE55B27C665FB85F2956 /* TranscriptionComparison.swift in Sources */,
 				1718A5A97B805BED69E18303 /* TranscriptionConnectionTester.swift in Sources */,
 				9B26D8F9B91863D11D5359CE /* TranscriptionProviderConfig.swift in Sources */,
 				357C097A630C05D50077BE8B /* TranscriptionProviderStore.swift in Sources */,
@@ -524,14 +544,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Flotis;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = Flotis/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Vita0818.FlotisMac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;
@@ -645,14 +665,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Flotis;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				INFOPLIST_FILE = Flotis/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 0.8.0;
+				MARKETING_VERSION = 0.12;
 				PRODUCT_BUNDLE_IDENTIFIER = com.Vita0818.FlotisMac;
 				SDKROOT = macosx;
 				SWIFT_VERSION = 5.0;

@@ -13,15 +13,28 @@ struct SystemTranscriptClipboardWriter: TranscriptClipboardWriting {
     }
 }
 
+private struct ActiveFileTranscriptionComparison {
+    let jobs: [FileTranscriptionComparisonJob]
+    let audio: RecordedFileRuntimeConfiguration
+    let maximumRecordingSeconds: Int?
+
+    func cancel() {
+        jobs.forEach { $0.cancel() }
+    }
+}
+
 @MainActor
 final class VoiceInputController {
     let appState: AppState
 
     private let providerStore: SpeechProviderStore
+    private let comparisonStore: TranscriptionComparisonStore
     private let runtimeFactory: TranscriptionRuntimeFactory
     private let secretStore: SecretStoring
     private let transcriptClipboardWriter: TranscriptClipboardWriting
+    private let comparisonRunner: FileTranscriptionComparisonRunner
     private var activeRuntime: TranscriptionRuntimePlan?
+    private var activeComparison: ActiveFileTranscriptionComparison?
     private var realtimeAudioCapture: StreamingAudioCapture?
     private var audioRecorder: AudioRecorder?
 
@@ -36,15 +49,19 @@ final class VoiceInputController {
     init(
         appState: AppState,
         providerStore: SpeechProviderStore = .shared,
+        comparisonStore: TranscriptionComparisonStore = .shared,
         runtimeFactory: TranscriptionRuntimeFactory = .shared,
-        secretStore: SecretStoring = LocalSecretStore.shared,
-        transcriptClipboardWriter: TranscriptClipboardWriting = SystemTranscriptClipboardWriter()
+        secretStore: SecretStoring? = nil,
+        transcriptClipboardWriter: TranscriptClipboardWriting = SystemTranscriptClipboardWriter(),
+        comparisonRunner: FileTranscriptionComparisonRunner = FileTranscriptionComparisonRunner()
     ) {
         self.appState = appState
         self.providerStore = providerStore
+        self.comparisonStore = comparisonStore
         self.runtimeFactory = runtimeFactory
-        self.secretStore = secretStore
+        self.secretStore = secretStore ?? providerStore
         self.transcriptClipboardWriter = transcriptClipboardWriter
+        self.comparisonRunner = comparisonRunner
     }
 
     func toggleRecording() {
@@ -67,11 +84,19 @@ final class VoiceInputController {
     func cancel() {
         invalidateSessionAndCancelResources()
         appState.voiceState = .idle
-        appState.transcriptPreview = ""
+        appState.resetTranscriptReview()
         appState.pasteError = nil
     }
 
     private func start() {
+        if comparisonStore.isEnabled {
+            startComparison()
+        } else {
+            startSingleConnection()
+        }
+    }
+
+    private func startSingleConnection() {
         let provider = providerStore.activeProvider
         if let validationError = runtimeValidationError(for: provider) {
             failWithoutActiveSession(validationError)
@@ -90,7 +115,7 @@ final class VoiceInputController {
                 fallbackLocaleIdentifier: appState.selectedSpeechLocale
             )
             let sessionID = beginSession(runtime: runtime)
-            appState.transcriptPreview = ""
+            appState.resetTranscriptReview()
             appState.pasteError = nil
 
             switch runtime {
@@ -114,6 +139,114 @@ final class VoiceInputController {
                 )
             }
         } catch {
+            failWithoutActiveSession(error.localizedDescription)
+        }
+    }
+
+    private func startComparison() {
+        let selectedConnections = comparisonStore.selectedConnections(
+            from: providerStore.providers
+        )
+        guard selectedConnections.count == comparisonStore.selectedModelSelectors.count,
+              (2...TranscriptionComparisonStore.maximumConnectionCount)
+                .contains(selectedConnections.count) else {
+            failWithoutActiveSession(UIStrings.comparisonNeedsTwoReadyConnections)
+            return
+        }
+
+        var jobs: [FileTranscriptionComparisonJob] = []
+        var commonAudio: RecordedFileRuntimeConfiguration?
+        var maximumRecordingSeconds: Int?
+
+        do {
+            for (order, connection) in selectedConnections.enumerated() {
+                if let validationError = runtimeValidationError(for: connection) {
+                    throw comparisonConfigurationError(
+                        connection: connection,
+                        message: validationError
+                    )
+                }
+
+                let requiresAPIKey = try runtimeFactory.requiresAPIKey(for: connection)
+                let resolvedAPIKey = requiresAPIKey ? apiKey(for: connection) : nil
+                if requiresAPIKey, resolvedAPIKey == nil {
+                    throw comparisonConfigurationError(
+                        connection: connection,
+                        message: TranscriptionAdapterRegistryError.missingAPIKey.localizedDescription
+                    )
+                }
+
+                let runtime = try runtimeFactory.makeRuntime(
+                    connection: connection,
+                    apiKey: resolvedAPIKey,
+                    fallbackLocaleIdentifier: appState.selectedSpeechLocale
+                )
+                guard case .recordedFile(let transcriber, let audio) = runtime else {
+                    runtime.cancel()
+                    throw comparisonConfigurationError(
+                        connection: connection,
+                        message: UIStrings.comparisonSupportsRecordedFileOnly
+                    )
+                }
+
+                if let commonAudio {
+                    guard commonAudio.format == audio.format,
+                          commonAudio.sampleRate == audio.sampleRate,
+                          commonAudio.channels == audio.channels else {
+                        transcriber.cancel()
+                        throw comparisonConfigurationError(
+                            connection: connection,
+                            message: UIStrings.comparisonAudioFormatsMustMatch
+                        )
+                    }
+                } else {
+                    commonAudio = audio
+                }
+
+                if let maximumDuration = audio.maximumRecordingDurationSeconds {
+                    let safeMaximum = max(1, maximumDuration - audio.stopLeadSeconds)
+                    maximumRecordingSeconds = min(
+                        maximumRecordingSeconds ?? safeMaximum,
+                        safeMaximum
+                    )
+                }
+
+                jobs.append(
+                    FileTranscriptionComparisonJob(
+                        order: order,
+                        connectionID: connection.id,
+                        connectionName: connection.displayNameForUI,
+                        model: connection.model,
+                        modelDisplayName: providerStore.modelDisplayName(for: connection),
+                        destination: connection.credentialDestinationIdentifier
+                            ?? UIStrings.localDevice,
+                        transcriber: transcriber,
+                        maximumUploadBytes: audio.maximumUploadBytes
+                    )
+                )
+            }
+
+            guard let commonAudio else {
+                throw NSError(
+                    domain: "VoiceInputController.Comparison",
+                    code: 1,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: UIStrings.comparisonNeedsTwoReadyConnections
+                    ]
+                )
+            }
+
+            let comparison = ActiveFileTranscriptionComparison(
+                jobs: jobs,
+                audio: commonAudio,
+                maximumRecordingSeconds: maximumRecordingSeconds
+            )
+            let sessionID = beginComparisonSession(comparison)
+            appState.resetTranscriptReview()
+            appState.pasteError = nil
+            startComparisonRecordedFile(comparison: comparison, sessionID: sessionID)
+        } catch {
+            jobs.forEach { $0.cancel() }
             failWithoutActiveSession(error.localizedDescription)
         }
     }
@@ -307,7 +440,54 @@ final class VoiceInputController {
         }
     }
 
+    private func startComparisonRecordedFile(
+        comparison: ActiveFileTranscriptionComparison,
+        sessionID: UInt64
+    ) {
+        isTransitioning = true
+        appState.voiceState = .requestingPermission
+        let recorder = AudioRecorder()
+        audioRecorder = recorder
+
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await recorder.startRecording(
+                    format: comparison.audio.format,
+                    sampleRate: comparison.audio.sampleRate,
+                    channels: comparison.audio.channels
+                )
+                guard self.isCurrent(sessionID) else {
+                    recorder.cancelRecording()
+                    return
+                }
+
+                self.operationTask = nil
+                self.appState.voiceState = .recording
+                self.isTransitioning = false
+
+                if let maximumRecordingSeconds = comparison.maximumRecordingSeconds {
+                    self.startRecordingCountdown(
+                        sessionID: sessionID,
+                        maximumSeconds: maximumRecordingSeconds
+                    )
+                } else {
+                    self.appState.transcriptPreview = UIStrings.comparisonListening
+                }
+            } catch is CancellationError {
+                recorder.cancelRecording()
+            } catch {
+                self.fail(error.localizedDescription, for: sessionID)
+            }
+        }
+    }
+
     private func stopAndPrepareReview() {
+        if activeComparison != nil {
+            stopComparisonAndPrepareReview(sessionID: sessionGeneration)
+            return
+        }
+
         guard let runtime = activeRuntime else {
             appState.voiceState = .idle
             return
@@ -319,6 +499,58 @@ final class VoiceInputController {
             stopStreamingAndPrepareReview(sessionID: sessionID)
         case .recordedFile:
             stopRecordedFileAndPrepareReview(sessionID: sessionID)
+        }
+    }
+
+    private func stopComparisonAndPrepareReview(sessionID: UInt64) {
+        guard isCurrent(sessionID),
+              let comparison = activeComparison,
+              let recorder = audioRecorder else {
+            fail(UIStrings.comparisonRecordingDidNotStart, for: sessionID)
+            return
+        }
+
+        isTransitioning = true
+        recordingLimitTask?.cancel()
+        recordingLimitTask = nil
+        appState.voiceState = .transcribing
+        appState.transcriptPreview = UIStrings.comparisonTranscribing
+
+        guard let fileURL = recorder.stopRecording() else {
+            fail(UIStrings.recordingFileUnavailable, for: sessionID)
+            return
+        }
+        audioRecorder = nil
+
+        operationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+
+            do {
+                let candidates = try await self.comparisonRunner.run(
+                    fileURL: fileURL,
+                    jobs: comparison.jobs
+                )
+                guard self.isCurrent(sessionID) else { return }
+
+                let successfulCandidates = candidates.filter(\.isSuccessful)
+                guard !successfulCandidates.isEmpty else {
+                    self.fail(UIStrings.allComparisonConnectionsFailed, for: sessionID)
+                    return
+                }
+
+                self.releaseCompletedSessionResources()
+                self.appState.installComparisonCandidates(candidates)
+                self.appState.voiceState = .reviewing
+                self.appState.pasteError = nil
+                self.isTransitioning = false
+            } catch is CancellationError {
+                // Explicit cancel or a newer session owns the UI now.
+            } catch {
+                self.fail(error.localizedDescription, for: sessionID)
+            }
         }
     }
 
@@ -468,10 +700,26 @@ final class VoiceInputController {
             return
         }
 
+        appState.clearComparisonReview()
         appState.transcriptPreview = text
         appState.voiceState = .reviewing
         appState.pasteError = nil
         isTransitioning = false
+    }
+
+    func selectTranscriptCandidate(id: UUID) {
+        guard appState.voiceState == .reviewing else { return }
+        _ = appState.selectTranscriptCandidate(id: id)
+    }
+
+    func selectPreviousTranscriptCandidate() {
+        guard appState.voiceState == .reviewing else { return }
+        _ = appState.navigateTranscriptCandidate(.previous)
+    }
+
+    func selectNextTranscriptCandidate() {
+        guard appState.voiceState == .reviewing else { return }
+        _ = appState.navigateTranscriptCandidate(.next)
     }
 
     private func copyReviewedTranscriptAndReset() {
@@ -489,7 +737,7 @@ final class VoiceInputController {
 
         invalidateSessionAndCancelResources()
         appState.voiceState = .idle
-        appState.transcriptPreview = ""
+        appState.resetTranscriptReview()
         appState.pasteError = nil
     }
 
@@ -540,6 +788,15 @@ final class VoiceInputController {
         return sessionGeneration
     }
 
+    private func beginComparisonSession(
+        _ comparison: ActiveFileTranscriptionComparison
+    ) -> UInt64 {
+        invalidateSessionAndCancelResources()
+        activeComparison = comparison
+        isTransitioning = false
+        return sessionGeneration
+    }
+
     private func isCurrent(_ sessionID: UInt64) -> Bool {
         sessionGeneration == sessionID
     }
@@ -551,6 +808,7 @@ final class VoiceInputController {
         realtimeAudioWriterTask?.cancel()
         recordingLimitTask?.cancel()
         activeRuntime?.cancel()
+        activeComparison?.cancel()
         realtimeAudioCapture?.cancel()
         audioRecorder?.cancelRecording()
 
@@ -559,6 +817,7 @@ final class VoiceInputController {
         realtimeAudioWriterTask = nil
         recordingLimitTask = nil
         activeRuntime = nil
+        activeComparison = nil
         realtimeAudioCapture = nil
         audioRecorder = nil
         isTransitioning = false
@@ -573,6 +832,7 @@ final class VoiceInputController {
         realtimeAudioWriterTask = nil
         recordingLimitTask = nil
         activeRuntime = nil
+        activeComparison = nil
         realtimeAudioCapture = nil
         audioRecorder = nil
         isTransitioning = false
@@ -580,13 +840,34 @@ final class VoiceInputController {
 
     private func fail(_ message: String, for sessionID: UInt64) {
         guard isCurrent(sessionID) else { return }
+        let wasComparison = activeComparison != nil
         invalidateSessionAndCancelResources()
+        if wasComparison {
+            appState.resetTranscriptReview()
+        }
         appState.voiceState = .failed(message)
     }
 
     private func failWithoutActiveSession(_ message: String) {
         invalidateSessionAndCancelResources()
+        appState.resetTranscriptReview()
         appState.voiceState = .failed(message)
+    }
+
+    private func comparisonConfigurationError(
+        connection: SpeechProviderConfig,
+        message: String
+    ) -> NSError {
+        NSError(
+            domain: "VoiceInputController.Comparison",
+            code: 2,
+            userInfo: [
+                NSLocalizedDescriptionKey: UIStrings.comparisonConnectionError(
+                    connectionName: connection.displayNameForUI,
+                    message: message
+                )
+            ]
+        )
     }
 
     private func showShortStatus(_ message: String) {

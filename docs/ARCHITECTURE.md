@@ -1,10 +1,10 @@
 # ARCHITECTURE
 
-最近自查日期：2026-08-04
+最近自查日期：2026-08-07
 
 ## 总体架构
 
-Flotis V0.8 是一个 `LSUIElement` macOS app。用户通过 Carbon 全局热键控制非激活悬浮语音胶囊；最终转写先进入可编辑审阅态，第三次热键或审阅确认按钮把原样编辑文本复制到系统剪贴板，复制成功后重置会话、回到 `idle`，并让审阅框缩回原位置的小胶囊而不隐藏 panel。当前产品链路不捕获目标 app、不请求 Accessibility，也不发送 `CGEvent`/`⌘V`。
+Flotis V0.12 是一个 `LSUIElement` macOS app。用户通过 Carbon 全局热键控制非激活悬浮语音胶囊；默认由当前 model route 单独转写，也可选择 2–4 个 recorded-file model route 开启第一版多模型对比，包括同一 Provider 下的多个模型。最终转写先进入可编辑审阅态；对比模式按配置顺序自动打开第一个成功候选，允许点击或用仅在该状态临时注册的可配置前后导航快捷键（默认 `⌥←` / `⌥→`）在成功项间循环查看，但不会做质量评分或自动判断“最佳”。第三次固定 voice hotkey 或审阅确认按钮把当前项的原样编辑文本复制到系统剪贴板，复制成功后重置会话、回到 `idle`，并让审阅框缩回原位置的小胶囊而不隐藏 panel。当前产品链路不捕获目标 app、不请求 Accessibility，也不发送 `CGEvent`/`⌘V`。
 
 ```text
 HotkeyManager / FloatingPanelView
@@ -12,16 +12,19 @@ HotkeyManager / FloatingPanelView
             ▼
 VoiceInputController
             │
-            └── Runtime plan
-                 ├── ownedCapture
-                 ├── pcmStream
-                 └── recordedFile
+            ├── single model-route runtime plan
+            │    ├── ownedCapture
+            │    ├── pcmStream
+            │    └── recordedFile
+            │
+            └── comparison: one recorded file
+                 └── 2–4 recorded-file runtimes concurrently
                           │
-      TranscriptionAdapterRegistry
+           TranscriptionAdapterRegistry
                           │
-               adapter runtime
+          one result / ordered candidates
                           ▼
-                 editable review
+          explicit choice + editable review
                           │ confirm
                           ▼
              SystemTranscriptClipboardWriter
@@ -30,7 +33,7 @@ VoiceInputController
           clear session + visible idle capsule
 ```
 
-`AppDelegate` 装配 `AppState`、`SpeechProviderStore`、`VoiceInputController`、`FloatingPanelController`、可复用的 `FlotisSettingsWindowController` 与 `HotkeyManager`。voice action 直接改变语音状态；reviewing 复制成功后 controller 回到 `idle`，现有 panel 尺寸监听把审阅框缩回小胶囊，窗口层不再接收 close outcome。胶囊齿轮直接调用持有的可缩放 `820×600`（最小 `760×540`）设置窗口，不依赖字符串 selector，也不再挂接会推动父 panel 的 sheet。Settings 左侧栏的一键退出使用 `NSApplication.shared.terminate(nil)`，因此应用退出仍统一进入 `applicationWillTerminate`，先停止热键并取消当前语音会话。旧 `.injecting` 终止保护、`ClipboardPasteInjector`、`AccessibilityPermission`、`CommandStore`/`PromptCommand` 源码仍保留作兼容，但当前产品入口不会调用旧注入链路或命令链路。
+`AppDelegate` 装配 `AppState`、`SpeechProviderStore`、`TranscriptionComparisonStore`、`VoiceInputController`、`FloatingPanelController`、可复用的 `FlotisSettingsWindowController` 与 `HotkeyManager`。启动时 comparison store 会用完整 model selector 集合移除已不存在的选择；voice action 直接改变语音状态。reviewing 复制成功后 controller 回到 `idle`，现有 panel 尺寸监听把审阅框缩回小胶囊，窗口层不再接收 close outcome。胶囊齿轮直接调用持有的设置窗口，不依赖字符串 selector，也不再挂接会推动父 panel 的 sheet。窗口在 HostingController 装配后设置 `contentMinSize=820×600`，再显式执行 `setContentSize(1100×760)`，确保 Intatis 式 Provider/Models 双栏不会被 SwiftUI 最小尺寸收窄。Settings 左侧栏的一键退出使用 `NSApplication.shared.terminate(nil)`，因此应用退出仍统一进入 `applicationWillTerminate`，先停止热键并取消当前语音会话。旧 `.injecting` 终止保护、`ClipboardPasteInjector`、`AccessibilityPermission`、`CommandStore`/`PromptCommand` 源码仍保留作兼容，但当前产品入口不会调用旧注入链路或命令链路。
 
 ## 隔离的 InputMethodKit 接口
 
@@ -65,7 +68,7 @@ future authenticated local transport (尚未实现)
 - **Liquid Glass 与兼容路径**：在编译器支持且运行于 macOS 26+ 时，panel 外壳直接使用 AppKit `NSGlassEffectView(style: .regular)`，保留系统默认自适应 tint 与背景采样；结构化 SwiftUI 交互表面仍可使用 `glassEffect`，按钮使用 `.glass` / `.glassProminent`。不得在整个 panel 上再叠固定黑色 tint 或不透明/半透明底板；图稿可读性由图稿自身与系统语义色负责。macOS 13–25 的 panel 回退到 `.popover` material，其他内容/按钮回退到 `regularMaterial` 与原生 `.bordered` / `.borderedProminent`，因此 deployment target 仍为 macOS 13。
 - **字体与图标**：中文页面大标题和标题使用系统默认字体，英文品牌与标题使用 Serif；正文使用系统默认字体，快捷键和技术信息使用 Monospaced。idle 开始录音和设置按钮使用用户提供的 raster image set；其余语音状态与功能图标继续使用 SF Symbols。
 - **应用图标**：根目录 `Flotis.icon` 是主 App 的 Icon Composer source of truth，并以 target resource 交给 `actool`；build setting 使用名称 `Flotis`。因此产物由 Xcode 生成系统多尺寸 `Flotis.icns` 和 `Assets.car`，Info.plist 的 icon name/file 也来自编译结果。胶囊内的录音/设置 raster image set 与应用图标互不替代，输入法仍使用自己的 TIFF 输入源图标。
-- **共享组合**：胶囊与 Settings 沿用同一套 palette、字体、圆角和系统控件。idle 胶囊为 `108×54`，只显示 28 pt 白圆六条黑声波录音图、28 pt 白圆承载的 16 pt 黑色八齿齿轮设置图与下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键符号，双按钮 hit area 仍为 `30×30`、间距为 8 pt。黑齿轮保证亮背景识别，白圆保证暗背景识别；该局部双亮度处理不向整个 glass 添加固定 tint。普通工作态为 `188×56`，错误/提示态为 `280×56`，reviewing 为 `420×160`。idle 之外的非审阅态固定 56 pt 高；尺寸请求只保留最后一次，panel 首次位于屏幕底部中央，之后允许整窗背景拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 仍把实际 frame 钳制到可见屏幕，但程序缩放产生的临时位移不会回写逻辑锚点，因此取消审阅或复制成功缩回时恢复展开前位置，只有用户主动拖动才采用新锚点。Settings 使用固定侧栏和右侧独立滚动页面，避免内容高度改变窗口 chrome；当前可达页面不展示 AX 状态，因为复制并返回路径不需要该权限。
+- **共享组合**：胶囊与 Settings 沿用同一套 palette、字体、圆角和系统控件。idle 胶囊为 `108×54`，只显示 28 pt 白圆六条黑声波录音图、28 pt 白圆承载的 16 pt 黑色八齿齿轮设置图与下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键符号，双按钮 hit area 仍为 `30×30`、间距为 8 pt。黑齿轮保证亮背景识别，白圆保证暗背景识别；该局部双亮度处理不向整个 glass 添加固定 tint。录音态保留原有状态图标与文案，右侧以单调递增的 `mm:ss` 替代 stop 方块；stopping/transcribing 保留原有省略号状态图标与原有文案，只隐藏右侧重复的禁用 action。普通工作态为 `188×56`，错误/提示态为 `280×56`，单结果 reviewing 为 `420×160`，对比 reviewing 为 `560×300`。对比页顶部用固定双列网格表达 2–4 个成功/失败候选与耗时，四项为 2×2；开始会话时从 canonical model entry 快照可选 Display name，有名称的候选只显示该名称，没有名称的候选以 Model ID 为主要文字、Provider 名称为次要文字，endpoint 不进入可见卡片。首个成功项直接在原生编辑器打开，不显示额外选择提示，也不需要横向滚动。idle 之外的非审阅态固定 56 pt 高；尺寸请求只保留最后一次，panel 首次位于屏幕底部中央，之后允许整窗背景拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 仍把实际 frame 钳制到可见屏幕，但程序缩放产生的临时位移不会回写逻辑锚点，因此取消审阅或复制成功缩回时恢复展开前位置，只有用户主动拖动才采用新锚点。Settings 使用固定侧栏和右侧独立滚动页面，避免内容高度改变窗口 chrome；当前可达页面不展示 AX 状态，因为复制并返回路径不需要该权限。
 
 ## 界面语言与本地化
 
@@ -74,33 +77,38 @@ future authenticated local transport (尚未实现)
 - 胶囊、Settings、热键注册、音频捕获、连接测试和各 adapter 的 App 自定义错误都通过同一双语入口生成；英文标题继续进入 Serif 字体路径，中文标题继续使用系统默认字体。
 - 日期显示显式使用当前 App 中/英文 locale，避免其他系统 locale 把英文界面中的日期格式化成第三种语言。
 - `project.yml` 以英文为 development language 和权限说明基值；`InfoPlist.xcstrings` 为麦克风与 Speech Recognition 权限提示提供英文、简中资源。
-- UI 语言不参与 `TranscriptionConnection.language`、模型、endpoint、协议事件或 schema 编码。现有用户 connection 名称和历史测试摘要不做持久化迁移；仅对仍匹配内建默认名称的稳定 UUID 做显示层本地化。
+- UI 语言不参与 provider language、模型、endpoint、协议事件或 schema 编码。现有用户 provider 名称和历史测试摘要不做持久化迁移；legacy 内建名称仅在兼容显示层处理。
 - 服务端返回的原始错误和 Apple/AVFoundation 的系统错误保留真实内容；App 自己添加的 wrapper/fallback 保证中英双语。
 
-## Connection、Adapter 与 Preset
+## Provider Group、Model Route、Adapter 与 Preset
 
 配置和运行时分成三层：
 
 ```text
-用户 connection 实例 ──adapterID──▶ 版本化 adapter ──▶ 通用 runtime plan
+provider（共享 endpoint/key/options）
+          │ models 字典展开
+          ▼
+model route / TranscriptionConnection ──adapterID──▶ 版本化 adapter ──▶ 通用 runtime plan
           ▲
           └──── preset 只复制建议字段，不参与运行时判别
 ```
 
-- `TranscriptionConnection` 是 canonical v3 数据，包含 ID、用户名称、adapter ID、endpoint、model、authentication reference、audio、options 与最近测试记录。同一 adapter 可有多个 endpoint/model/key 相互隔离的实例。
+- `FlotisProviderConfiguration` 是 schema v2 canonical provider 数据：一个对象保存一次 name、adapter、共享 endpoint/key/options，并用 `models` 字典拥有多个模型。
+- `TranscriptionConnection` 是从 `<provider-id>/<model-id>` 确定性派生的运行时 route 快照，包含稳定内部 UUID、adapter、共享配置与该模型的测试记录；它不是 schema v2 中可独立复制 endpoint/key 的顶层实体。
 - `TranscriptionAdapterID` 有六个稳定 raw value；`TranscriptionAdapterRegistry` 是 adapter descriptor 与 runtime factory 的唯一注册点，拒绝重复 ID。
 - `VoiceInputController` 只处理 `ownedCapture`、`pcmStream`、`recordedFile` 三类执行计划，不读取厂商名，也不按 adapter/wire protocol switch。
 - `TranscriptionProviderPreset` 是独立 catalog。选择预设只为当前 draft 填入默认字段，不改变 connection identity，也不成为 runtime discriminator。
-- Settings 另有独立的 Presentation visibility 层：当前 allowlist 只包含 OpenAI Compatible HTTP。它只过滤 SwiftUI 展示，不参与 connection 编码、active 选择的持久化、adapter registry 或 runtime 判别。
+- Settings 另有独立的 adapter Presentation visibility 层：当前 allowlist 只包含 OpenAI Compatible HTTP。可见层允许多个 provider，并允许每个 provider 编辑多个模型、当前 route 与对比选择；过滤不参与 canonical provider 编码、active selector、adapter registry 或 runtime 判别，也不删除隐藏 provider。
 
-## V0.8 热键链路与旧命令兼容
+## V0.12 热键链路与旧命令兼容
 
 1. `HotkeyManager` 安装 Carbon `kEventHotKeyPressed` 与 `kEventHotKeyReleased` handler；press gate 保证一次物理按下只分派一次，release 后才允许下一次。
-2. V0.8 App 只传入空 command 列表，因此只注册 panel `100`（`⌘⌥⇧0`）和 voice `200`（`⌃⌥A`，Carbon virtual key `0`，Control+Option）。底层从 `1000` 开始的命令 ID 映射仍为旧数据兼容实现，但当前不可达。
+2. V0.12 App 传入空 command 列表，常驻注册 panel ID `100` 和 voice ID `200`。voice descriptor 固定为 `⌃⌥A`（Carbon virtual key `0`，Control+Option）；panel descriptor 从 canonical `shortcuts.toggle_panel` 读取，默认 `⌘⌥⇧0`。仅当对比 reviewing 中至少有两个成功候选时，增量注册 previous ID `300` 与 next ID `400`，descriptor 分别来自 `shortcuts.previous_comparison_result` / `next_comparison_result`（默认 `⌥←` / `⌥→`）；离开该状态立即注销，避免普通使用时长期抢占用户配置的按键。底层从 `1000` 开始的命令 ID 映射仍为旧数据兼容实现，但当前不可达。
 3. 注册使用 Carbon `kEventHotKeyExclusive` 并保持差异同步；生成的 Info.plist 以 `LSMultipleInstancesProhibited=true` 阻止两个 Flotis 进程同时竞争。失败消息保持在胶囊，并每 2 秒重试；event handler 安装失败时不会注册孤立 hotkey。
 4. `VoiceInputState.hotkeyAction` 是纯策略映射：idle/failed→start，recording/streaming→stop，reviewing→copyAndReturn，requesting/connecting→cancel，stopping/transcribing/injecting→none。
-5. 固定语音热键在 panel 隐藏时会确保胶囊可见；reviewing 的第三次动作同步写入系统剪贴板。写入成功直接清空会话并回 `idle`，panel 保持可见、由尺寸监听缩回小胶囊；写入失败保留 reviewing 文本并显示可重试错误。该路径不等待物理组合键释放，因为它不发送键盘事件。
-6. 旧 `commands.json` 不被 V0.8 主入口加载、修改或删除；恢复命令产品能力必须另行做显式产品与迁移决策。
+5. `HotkeyConfigurationStore` 从同一 `config.json` 的可选 `shortcuts` 分区加载三项 descriptor；旧 schema v2 缺少该分区时采用默认值并在安全 read-modify-write 中补齐。设置录制后先拒绝无修饰键、三项重复或占用 voice descriptor，再原子持久化；`AppDelegate` 订阅配置变化并调用 manager 的差异同步，未改变的注册不重建。Carbon 冲突仍由既有错误发布与 2 秒重试处理。
+6. 固定语音热键在 panel 隐藏时会确保胶囊可见；reviewing 的第三次动作同步写入系统剪贴板。对比 reviewing 已自动持有首个成功项，可配置的前后导航快捷键切换当前成功项后，第三次 voice hotkey 与单结果路径一致地复制当前编辑文本。写入成功直接清空会话并回 `idle`，panel 保持可见、由尺寸监听缩回小胶囊；写入失败保留 reviewing 文本并显示可重试错误。该路径不等待物理组合键释放，因为它不发送键盘事件。
+7. 旧 `commands.json` 不被 V0.12 主入口加载、修改或删除；恢复命令产品能力必须另行做显式产品与迁移决策。
 
 ## 语音会话状态机
 
@@ -110,6 +118,7 @@ future authenticated local transport (尚未实现)
 idle → requestingPermission → connecting → recording/streaming
      → stopping → transcribing → reviewing → clipboard copy → idle capsule visible
                                 │       │
+                                │       ├─ comparison: require explicit candidate choice
                                 │       └─ copy failure: keep review
                                 └──────────────→ failed
 ```
@@ -118,11 +127,22 @@ idle → requestingPermission → connecting → recording/streaming
 
 - 每次 `beginSession` / cancel / fail 都推进 `sessionGeneration`。所有异步 callback/task 回主线程前必须匹配 generation，旧会话不能清理或覆盖新会话。
 - controller 保存 operation task、realtime writer task、recording limit task、streaming/file transcriber、capture/recorder；取消会统一终止这些资源。
-- connection 配置与 API key 在会话开始时快照到 adapter runtime。录音期间切换/删除 connection 或清除本地 secret 不会让已开始会话在 stop 时重新查错配置。
+- model route 配置与 provider API key 在会话开始时快照到 adapter runtime。录音期间切换/删除 provider/model 或清除 key，不会让已开始会话在 stop 时重新读取可变配置。
 - requesting/connecting 状态向 UI 暴露 Cancel；stopping/transcribing 正在完成终态处理时忽略额外热键，避免误清空即将进入审阅的文本。provider 只在 Settings 中切换。
 - adapter 完成后先释放 capture/transcriber/runtime，再将 trim 后的最终文本写入 `transcriptPreview` 并进入 reviewing；reviewing 不持有录音或网络资源。
-- reviewing 使用原生 `NSTextView`，可编辑、鼠标选择、右键或 `⌘C` 复制；工具栏另有复制全部、取消和“复制并返回”。确认动作复制 `transcriptPreview` 的原样内容（仅用 trim 判断是否为空，不改写实际写入文本）；失败保持 reviewing 与编辑文本，成功才推进 generation、清空文本、回 idle，并在保持 panel 可见的同时缩回原位置小胶囊。
+- 单结果 reviewing 直接把最终文本交给原生 `NSTextView`。对比 reviewing 安装有序 `TranscriptCandidate` 列表时自动选择配置顺序中的首个成功项；`AppState` 把当前候选文本映射到编辑器，点击或用户配置的 previous/next 快捷键（默认 `⌥←` / `⌥→`）切换时跳过失败项、循环导航，并分别保留各自编辑内容，失败候选不可选择。工具栏保留复制全部、取消和“复制并返回”。确认动作复制当前 selection/`transcriptPreview` 的原样内容（仅用 trim 判断是否为空，不改写实际写入文本）；失败保持 reviewing 与编辑文本，成功才推进 generation、清空候选和文本、回 idle，并在保持 panel 可见的同时缩回原位置小胶囊。
 - Apple Speech 收到真正 final 时会自动走 graceful stop/review，不会把 UI 留在 recording，也不会自动复制或关闭。
+
+## 多模型 recorded-file 对比
+
+第一版对比刻意复用已有 recorded-file runtime，不尝试把实时 WebSocket 或 Apple owned capture 强行合并到同一麦克风流：
+
+1. `TranscriptionComparisonStore` 从 canonical `config.json` 的 `comparison.models` 与 `comparison.enabled` 读取有序完整 selector；去重后最多 4 个，少于 2 个时不能开启。它只分区更新 comparison，底层在同一文件锁内保留 provider 配置。顶层 `enabled_providers` 表示 catalog 中启用的 Provider，不承担对比列表职责。
+2. Settings 当前只让已保存且 `SpeechProviderStore.isProviderReady` 的 OpenAI Compatible model route 参与选择，并明确提示同一录音会发送给每个 route、每个请求都可能单独计费。同一 provider 的 route 共享 `provider.<id>.options` 中的 endpoint/key；comparison 只引用 `<provider-id>/<model-id>`，不复制 provider 数据。
+3. 开始会话时 controller 按 selector 顺序从完整 provider store 解析 2–4 个 route，逐个做配置/key 校验并创建 runtime 快照。所有 runtime 必须是 `.recordedFile`，且录音 format、sample rate、channels 完全相同；任何预检失败都在录音前终止并取消已创建 runtime。
+4. 一个 `AudioRecorder` 只创建一份 `Flotis-Audio-*` 文件。最大录制时长取所有 selected runtime 的最严格安全上限；停止后 `FileTranscriptionComparisonRunner` 用 task group 把同一个 file URL 并发交给全部 transcriber，每项单独执行 upload-size 预检、耗时记录、空结果检查与错误捕获。
+5. runner 在全部任务完成后按原 selector 顺序返回候选。单项失败成为失败卡，不取消其他项；至少一个成功才进入 reviewing，全部失败则会话进入全局 failed。完成、失败、取消与 session 失效路径都取消 transcriber 并清理共享录音文件。
+6. 候选只保存在当前 `AppState` 内存中，既不写入 `config.json`、UserDefaults 或日志。Realtime/Apple/DashScope/Volcengine 的共享捕获与“自动评判最佳结果”均不是当前能力。
 
 ## 实时音频管线
 
@@ -162,10 +182,10 @@ controller 将 chunk 写入容量为 512 的有界 `AsyncStream`，由单一 wri
 
 ### OpenAI HTTP transcription
 
-- Settings 可见主表单只显示 Endpoint（同一标签下内部仍保持 `baseURL + path` 两个输入）、API Key 与 Model；Connection Name 和多 connection 管理当前隐藏但底层值不删除。Language、Prompt、Temperature 是折叠的可选高级字段；成功保存后该 OpenAI Compatible connection 自动设为当前项。
-- WAV/M4A 兼容选择、16 kHz 单声道音频参数与 JSON response mode 继续由已有 connection/schema 管理，不在精简主表单中展示；保存旧 M4A connection 时不得静默改写为 WAV。
-- 通用 BYOK 默认生成 PCM16、16 kHz、单声道 `Flotis-Audio-*.wav`；从 v2 迁移或显式选择的兼容 connection 仍可使用 `.m4a`。`AudioRecorder` 检查 `prepareToRecord()`、`record()` 与最终文件存在/非空。
-- multipart body 先流式写入 `Flotis-Multipart-*` 临时文件，再由 `URLSession` 上传；不把整个音频与 multipart 双份常驻内存。
+- Settings 可见 editor 按 Intatis 的 Provider/Models 结构组织：左栏管理多个 Provider 并显示各自模型数；右栏显示 Provider name、共享 API key、Active model，Connection disclosure 管理 Base URL/Path/Request Encoding/凭据目标，Models disclosure 以独立 Model ID + 可选 Display name 行管理同一 Provider 的多个模型。Connection、Models、Comparison 与 Advanced 由共享的全宽 disclosure button 承载，最小 hit target 为 44 pt；Provider 行至少 48 pt，每个可对比 route 的整张 44 pt 卡片都是按钮。Test Provider / Save 位于主卡下方；成功保存后所选 route 成为当前单模型路径。每个已保存且就绪的 model route 都可在下方独立 Comparison disclosure 中勾选，因而同 Provider 两个模型可以直接对比；Language、Prompt、Temperature 仍位于主卡之后的高级字段。
+- WAV/M4A 兼容选择、16 kHz 单声道音频参数与 response mode 继续由 provider/schema 管理；保存旧 M4A 配置时不得静默改写为 WAV。
+- 通用 BYOK 默认生成 PCM16、16 kHz、单声道 `Flotis-Audio-*.wav`；从 legacy v2 迁移或显式选择的兼容 route 仍可使用 `.m4a`。`AudioRecorder` 检查 `prepareToRecord()`、`record()` 与最终文件存在/非空。
+- `multipart-form-data` 先流式写入 `Flotis-Multipart-*` 临时文件，再由 `URLSession` 上传，不把整个音频与 multipart 双份常驻内存。OpenRouter 使用 `json-base64`：body 为 JSON，包含 Base64 `input_audio`、完整模型 ID及可选 language/temperature；配置 host 为 `openrouter.ai` 且未显式覆盖时自动选择该编码。
 - 仅接受 HTTPS/Bearer；Authorization-bearing upload 不跟随 redirect，transcriber 可取消。
 - 响应必须是 2xx、`application/json` 且顶层存在字符串 `text`；不猜测 `data.text` 等未声明结构。默认不发送 prompt/temperature。
 
@@ -188,18 +208,19 @@ controller 将 chunk 写入容量为 512 的有界 `AsyncStream`，由单一 wri
 - 支持的 language/prompt/temperature/Volc two-pass 字段；
 - 录音时长和上传字节限制。
 
-当前 Settings 以固定侧栏分为“通用 / 转写”：通用页展示“录音 → 停止 → 复制并返回”的固定语音快捷键和胶囊拖动说明，不再展示与当前流程无关的 AX 权限；转写页只会为 OpenAI Compatible HTTP 实例化 editor，并按连接、凭据、高级参数与测试分卡。协议、preset、connection name 与多 connection 管理不可见；没有现有 OpenAI connection 时只显示明确空态，创建内存 draft 后 Cancel 不落盘。底层六套 schema 与多 connection 数据仍用于迁移、normalize、校验、连接测试和 runtime；可见性不是新的 runtime discriminator。URL 校验继续拒绝非 HTTPS、userinfo、query、fragment、反斜杠和歧义 path。自定义 host 仍需用户显式确认，UI 仍显示凭据的精确目标 host。
+当前 Settings 以固定侧栏分为“快捷键 / 转写”，左上品牌区只显示 `Flotis` 与版本，不再显示应用图标。“快捷键”页只保留一张内容卡，按行显示固定 voice `⌃⌥A`、panel 显隐及前后对比导航，不再展示重复的语音流程、胶囊拖动说明或第二层 section 标题；组合键 surface 为 `220×50`、17 pt Monospaced，可配置项的整块 surface 进入同尺寸原生录制态，支持逐项/全部恢复并显示校验、持久化或 Carbon 注册错误。当前可达 Settings 不展示与主流程无关的 AX 权限。转写页只会为 OpenAI Compatible HTTP 实例化 editor。主 Provider/Models 卡复刻 Intatis 的信息层级：左侧 Provider 列表/Add，右侧 Provider name、API key、Active model、Connection/Models disclosure，Models 中按行提供 Model ID、Display name 与删除动作，卡片下方是 Test Provider / Save。Flotis 特有的 2–4 route Comparison 与 Language/Prompt/Temperature 位于主卡之后的独立 disclosure，不把 route 选择或高级参数混进 Provider 共享字段。preset 与其他 adapter 选择不可见。没有现有 OpenAI provider 时只显示明确空态，创建内存 draft 后 Cancel 不落盘。底层六套 schema 与多 provider/model route 数据仍用于迁移、normalize、校验、连接测试和 runtime；可见性不是新的 runtime discriminator。URL 校验继续拒绝非 HTTPS、userinfo、query、fragment、反斜杠和歧义 path。自定义 host 仍需用户显式确认，UI 仍显示凭据的精确目标 host。
 
-adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBoundaryIdentifier`：store 生成新 `apiKeyReference`，先保存新配置/可选新 key，成功后再删除旧 secret，防止旧服务凭据被发送到新目标。清理失败时事务回滚。
+adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBoundaryIdentifier`：store 生成新 `apiKeyReference`，并在同一次 `config.json` 原子事务里替换 provider 配置、写入可选新 key、移除旧 reference 对应的内存映射，防止旧服务凭据被发送到新目标。文件提交失败时 provider catalog 与 key 一起回滚。
 
-## Connection 持久化与恢复
+## Canonical 配置持久化与恢复
 
-- 主数据为 `TranscriptionConnectionStoreSnapshot` v3：`schemaVersion = 3`、`presetCatalogVersion`、connections、active ID；UserDefaults 主键为 `flotis.transcriptionConnections.v3`。
-- Settings 从完整 `providers` 计算可见数组，但绝不把过滤结果写回 store。隐藏 connection、隐藏 active ID 及其 `apiKeyReference` 不会因打开、编辑或关闭 Settings 而删除或改写。
-- `flotis.speechProviders.v2`、其 v2 last-known-good 与 `flotis.speechProviders.v1` 只作为只读迁移输入。迁移保留 UUID、用户名称、插入顺序、有效 active ID、自定义 endpoint/model/options，以及安全边界未变的 `apiKeyReference`，不会覆写旧 bytes。
-- v3 decode/normalize 后保存 v3 last-known-good。坏数据另存 backup + metadata，不会用默认值覆写原 authoritative bytes；全新安装只创建 Apple connection。
-- active connection 必须配置有效；需要 key 的 connection 还必须能从 `LocalSecretStore` 读到非空 key，否则不能激活或从 picker 选择。
-- create/update/delete/clear credential 均为事务操作；持久化或旧 secret 清理失败时恢复原 snapshot，并清理本次新建 secret。
+- 唯一主数据为 `~/Library/Application Support/Flotis/config.json` schema v2。布局参考 Intatis：顶层 `$schema` 与 `schema_version` 标识格式，`model` 保存 `<provider-id>/<model-id>` active selector，`provider_order` 保留 UI 顺序，`enabled_providers` 保存启用 Provider，`comparison.models` 保存有序对比 selector，可选 `shortcuts` 保存三项可配置全局快捷键，`provider` 以语义化 ID 为字典键。固定 voice descriptor 不进入 `shortcuts`。
+- selector 只在第一个 `/` 分割，Provider ID 不含 `/`，Model ID 可包含 `/`；因此 `openrouter/openai/gpt-4o-transcribe` 能无损表示 OpenRouter 模型。
+- 每个 provider 对象保存 `name`、版本化 `adapter`、多 model 的 `models` 字典、共享 `options`（`baseURL`、`path`、`apiKey`、reference、language、authentication、audio、transcription）及 credential revision；每个 model 可保存可选 `name`（Settings 的 Display name）和独立安全测试摘要。录音、候选 transcript、响应正文和完整失败响应不进入文件。
+- Settings 从完整 provider groups/routes 计算可见数组，但绝不把过滤结果写回 store。隐藏 provider、隐藏 active selector 及其 key 不会因打开、编辑或关闭 Settings 而删除或改写。
+- canonical schema v1 会在原文件安全校验后原子升级为 v2 并移除 Apple 条目。旧 `flotis.transcriptionConnections.v3`/LKG、`flotis.speechProviders.v2`/LKG、`flotis.speechProviders.v1`、`flotis.transcriptionComparison.v1` 与 `secrets.json` 只在 canonical 文件不存在时作为一次性只读迁移输入；文件建立后不再读取旧源。
+- canonical JSON 损坏、schema 未知、符号链接、非普通文件、异常大或非当前用户所有时拒绝覆盖。全新安装创建空 provider catalog；Apple on-device 只作内部 fallback且不持久化。active selector 必须指向存在且有效的 route，需要 key 的 route 还必须从其 provider 的 `options.apiKey` 取得非空值，否则不能激活。
+- create/update/delete/clear credential 与 provider/comparison/shortcuts 分区更新均通过 `FlotisConfigurationStore` 的同锁 read-modify-write 提交；一个分区更新不能覆盖另两个分区。失败恢复原内存状态；models/provider 变化时 comparison store 移除不存在的 selector，剩余少于 2 个会自动关闭。
 
 ## Test Connection
 
@@ -207,24 +228,24 @@ adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBo
 
 - Apple 路径只做 locale、recognizer availability 与设备端能力检查，不请求麦克风。
 - HTTP/file 与 Realtime 路径使用程序生成的 0.8 秒无隐私 PCM/WAV 或 M4A 合成音；不读取用户录音或历史转写。
-- HTTP 验证实际 multipart、状态码、Content-Type 与顶层 `text` 结构；Realtime 验证 start、append、manual commit 和协议终态。合成音不是语音质量样本，因此合法空 `text` 也可证明 transport/响应结构可用。
+- HTTP 根据 route 验证实际 multipart 或 OpenRouter JSON+Base64、状态码、Content-Type 与顶层 `text` 结构；Realtime 验证 start、append、manual commit 和协议终态。合成音不是语音质量样本，因此合法空 `text` 也可证明 transport/响应结构可用。
 - 成功只保存时间、adapter version、固定安全摘要与配置 fingerprint，不保存 transcript。失败摘要限制长度，并先按本次内存中的完整 API key 精确脱敏，再做通用凭据模式脱敏。
 - fingerprint 覆盖 endpoint/model/options 与 credential revision，但不含用户显示名称；相关配置或凭据变化会自动使旧测试记录失效。
 
-## 应用自管 Secret Store 边界
+## 单文件配置与凭据边界
 
-- `LocalSecretStore` 是唯一生产凭据后端，路径固定为 `~/Library/Application Support/Flotis/secrets.json`。版本化 JSON envelope 使用 `schemaVersion = 1`，`secrets` 字典以 provider 的 `apiKeyReference` 为键；reference 从不参与文件路径拼接。
-- Flotis 目录强制为 `0700`，`secrets.json` 与 `.secrets.lock` 为 `0600`。读写先打开不跟随符号链接的目录描述符；同一进程由共享 `NSLock` 串行化，多进程通过 `.secrets.lock` 的 POSIX advisory write lock 覆盖完整 read-modify-write。锁竞争使用单调时钟短间隔重试并在 500 ms 后失败，不会因另一个暂停或卡死的进程永久等待。数据写入同目录 `0600` 随机临时文件并 `fsync`，再用 `renameat` 原子替换并同步目录。
-- 输入会 trim，空值、超长 reference/secret、超过 256 条记录或超过 1 MiB 的 payload 拒绝保存。读取只接受普通文件、当前 schema、合法 JSON 与合法内容；符号链接、目录、其他文件类型、损坏或异常大的文件均返回失败，保存不得覆盖损坏数据。
-- 删除 connection、切换到无需 key 的 adapter、改变 secret boundary 或 UI Clear 都会清理对应本地记录；最后一条记录删除后移除 `secrets.json`。文件系统删除不承诺物理介质上的安全擦除。
-- Flotis 不再导入 `Security`、调用 `SecItem*`，也不读取、迁移或删除旧系统钥匙串条目。旧 connection 的 `apiKeyReference` 继续有效，但升级用户必须在新构建中重新输入一次 API key；旧条目只能由用户自行处理。
-- 该文件不做独立加密，安全性依赖 macOS 登录用户权限和可选的 FileVault；同一登录用户权限下的进程仍可能读取，不得把 `0600` 描述成钥匙串级保护。
+- `FlotisConfigurationStore` 是唯一生产配置/凭据后端，路径固定为 `~/Library/Application Support/Flotis/config.json`。API key 明文位于对应 `provider.<id>.options.apiKey`，由该 Provider 全部模型共享；`apiKeyReference` 只供运行时 route/key 快照匹配，不参与文件路径拼接，也不再指向第二个 JSON。
+- Flotis 目录强制为 `0700`，`config.json` 与 `.config.lock` 为 `0600`。读写先打开不跟随符号链接的目录描述符；同一进程由共享 `NSLock` 串行化，多进程通过 `.config.lock` 的 POSIX advisory write lock 覆盖完整 read-modify-write。锁竞争使用单调时钟短间隔重试并在 500 ms 后失败。数据写入同目录 `0600` 随机临时文件并 `fsync`，再用 `renameat` 原子替换并同步目录。
+- 文件最大 4 MiB、provider 最多 64 个；读取只接受当前 schema、结构一致的 provider order/字典、普通文件、当前用户所有和合法 JSON。符号链接、目录、其他文件类型、损坏或异常大的文件均返回失败，保存不得覆盖坏文件。
+- 删除 provider、切换到无需 key 的 adapter、改变 secret boundary 或 UI Clear 会在同一文档事务中清理对应 `options.apiKey`；只删除一个 model 不复制或移动共享 key。文件系统原子替换不承诺物理介质上的安全擦除。
+- `LocalSecretStore` 与 `secrets.json` 仅为旧版本一次性迁移读取保留；canonical 文件存在后生产运行时不再访问它。Flotis 仍不导入 `Security`、调用 `SecItem*`，也不读取、迁移或删除旧系统钥匙串条目。
+- `config.json` 不做独立加密，安全性依赖 macOS 登录用户权限和可选的 FileVault；同一登录用户权限下的进程仍可能读取，不得把 `0600` 描述成钥匙串级保护。
 
 ## 当前剪贴板确认与旧注入兼容
 
 当前产品路径：
 
-1. reviewing 的确认动作先用 trim 结果拒绝纯空白，但实际写入 `SystemTranscriptClipboardWriter` 的仍是用户编辑后的原始字符串，不裁剪首尾内容。
+1. reviewing 的确认动作先用 trim 结果拒绝纯空白；对比模式自动选择首个成功项，并只允许导航到成功项。实际写入 `SystemTranscriptClipboardWriter` 的仍是当前候选经用户编辑后的原始字符串，不裁剪首尾内容。
 2. writer 只把文字写入系统剪贴板；不恢复旧剪贴板，因为复制结果本身就是用户要保留的输出。写入失败时保持 reviewing、原文字和 panel 可见，并显示可重试错误。
 3. 写入成功后 controller 推进 session generation、清空 review 并回到 idle；panel 不关闭，现有状态尺寸监听用 `FloatingPanelPositionAnchor` 把审阅框缩回原位置小胶囊。整个过程不查询 AX、不激活其他 app、不创建或发送键盘事件。
 
@@ -238,12 +259,13 @@ adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBo
 6. 只可用 `CGEvent.postToPid` 向已核验 PID 定向发送 `⌘V`；外部 clipboard 更新必须保留，旧 snapshot 仅在 `changeCount` 未变化时恢复。
 7. 类型化结果继续区分 AX、目标、焦点、快捷键、剪贴板、过期、事件创建与恢复失败；success 不等于目标控件已消费事件。
 
-V0.8 胶囊为 borderless panel，不提供红色关闭按钮；panel toggle 仍以真实 `window.isVisible` 为准。voice hotkey 在 panel 隐藏时会恢复可见性；reviewing 第三次热键复制成功后保持 panel 可见并缩回 idle 小胶囊，下一次 hotkey 直接开始新录音。只有独立 panel toggle 或应用退出会隐藏/关闭该表面。
+V0.12 胶囊为 borderless panel，不提供红色关闭按钮；panel toggle 仍以真实 `window.isVisible` 为准。voice hotkey 在 panel 隐藏时会恢复可见性；reviewing 第三次热键复制成功后保持 panel 可见并缩回 idle 小胶囊，下一次 hotkey 直接开始新录音。只有独立 panel toggle 或应用退出会隐藏/关闭该表面。
 
 ## 线程与安全约束
 
 - UI 与 controller 状态在 MainActor。
 - WebSocket sender 串行；协议解析/connection/transcript 状态使用 actor 或锁隔离。
 - 网络仅允许 HTTPS/WSS；HTTP 与 WebSocket session 共用 no-redirect delegate，携带凭据的请求不跟随重定向。
-- API key 不进入 UserDefaults、connection snapshot、文档或日志；明文只存在当前会话内存与应用自管 `secrets.json`，connection 配置只保存引用。
+- API key 不进入 UserDefaults、项目文档或日志；明文只存在当前会话内存与私有权限 `config.json` 的 `options.apiKey`。
+- 对比配置只保存完整 model selector 与开关；共享录音、候选转写、逐项错误和耗时只属于当前会话内存/临时文件生命周期，不进入持久化或日志。
 - temp cleanup 仅匹配 Flotis 自有前缀、普通文件且超过 24 小时，避免清理无关文件。

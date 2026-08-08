@@ -42,6 +42,13 @@ enum TranscriptionResponseMode: String, Codable, Equatable {
     case serverSentEvents = "sse"
 }
 
+enum TranscriptionRequestEncoding: String, Codable, CaseIterable, Identifiable {
+    case multipartFormData = "multipart-form-data"
+    case jsonBase64 = "json-base64"
+
+    var id: String { rawValue }
+}
+
 enum TranscriptionAdapterID: String, Codable, CaseIterable, Identifiable {
     case appleOnDevice = "apple-on-device"
     case openAIAudioTranscriptionsHTTPV1 = "openai-audio-transcriptions-http-v1"
@@ -159,7 +166,7 @@ extension TranscriptionAdapterID {
                 responseMode: .json,
                 maximumRecordingDurationSeconds: nil,
                 maximumUploadBytes: nil,
-                trustedHostSuffixes: ["api.openai.com"]
+                trustedHostSuffixes: ["api.openai.com", "openrouter.ai"]
             )
         case .openAIRealtimeTranscriptionGA:
             return SpeechProviderProtocolSchema(
@@ -379,6 +386,7 @@ struct TranscriptionConnectionOptions: Codable, Equatable {
     var prompt: String? = nil
     var temperature: Double? = nil
     var responseMode: TranscriptionResponseMode? = nil
+    var requestEncoding: TranscriptionRequestEncoding? = nil
     var resourceID: String? = nil
     var modelName: String? = nil
     var twoPassRecognition: Bool? = nil
@@ -387,6 +395,7 @@ struct TranscriptionConnectionOptions: Codable, Equatable {
         prompt == nil
             && temperature == nil
             && responseMode == nil
+            && requestEncoding == nil
             && resourceID == nil
             && modelName == nil
             && twoPassRecognition == nil
@@ -396,6 +405,7 @@ struct TranscriptionConnectionOptions: Codable, Equatable {
         case prompt
         case temperature
         case responseMode
+        case requestEncoding
         case resourceID
         case modelName
         case twoPassRecognition
@@ -406,6 +416,7 @@ struct TranscriptionConnectionOptions: Codable, Equatable {
         try container.encodeIfPresent(prompt, forKey: .prompt)
         try container.encodeIfPresent(temperature, forKey: .temperature)
         try container.encodeIfPresent(responseMode, forKey: .responseMode)
+        try container.encodeIfPresent(requestEncoding, forKey: .requestEncoding)
         try container.encodeIfPresent(resourceID, forKey: .resourceID)
         try container.encodeIfPresent(modelName, forKey: .modelName)
         try container.encodeIfPresent(twoPassRecognition, forKey: .twoPassRecognition)
@@ -461,6 +472,7 @@ struct TranscriptionConnectionTestRecord: Codable, Equatable {
 
 struct TranscriptionConnection: Identifiable, Equatable, Codable {
     var id: UUID
+    var configurationProviderID: String?
     var name: String
     var adapterID: TranscriptionAdapterID
     var endpoint: TranscriptionEndpoint?
@@ -474,6 +486,7 @@ struct TranscriptionConnection: Identifiable, Equatable, Codable {
 
     init(
         id: UUID,
+        configurationProviderID: String? = nil,
         name: String,
         adapterID: TranscriptionAdapterID,
         endpoint: TranscriptionEndpoint? = nil,
@@ -486,6 +499,7 @@ struct TranscriptionConnection: Identifiable, Equatable, Codable {
         lastConnectionTest: TranscriptionConnectionTestRecord? = nil
     ) {
         self.id = id
+        self.configurationProviderID = trimmedOptional(configurationProviderID)
         self.name = name
         self.adapterID = adapterID
         self.endpoint = endpoint
@@ -518,6 +532,7 @@ struct TranscriptionConnection: Identifiable, Equatable, Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
+        configurationProviderID = nil
         name = try container.decode(String.self, forKey: .name)
         adapterID = try container.decode(TranscriptionAdapterID.self, forKey: .adapterID)
         endpoint = try container.decodeIfPresent(TranscriptionEndpoint.self, forKey: .endpoint)
@@ -730,6 +745,14 @@ extension TranscriptionConnection {
         set { storedModel = trimmedOptional(newValue) }
     }
 
+    var configurationModelSelector: String? {
+        guard let providerID = trimmedOptional(configurationProviderID),
+              let modelID = trimmedOptional(model) else {
+            return nil
+        }
+        return "\(providerID)/\(modelID)"
+    }
+
     var apiKeyReference: String? {
         get { authentication.apiKeyReference }
         set { authentication.apiKeyReference = trimmedOptional(newValue) }
@@ -784,6 +807,11 @@ extension TranscriptionConnection {
     var temperature: Double? {
         get { options.temperature }
         set { options.temperature = newValue }
+    }
+
+    var requestEncoding: TranscriptionRequestEncoding {
+        get { options.requestEncoding ?? .multipartFormData }
+        set { options.requestEncoding = newValue }
     }
 
     var enableServerVAD: Bool {
@@ -890,7 +918,8 @@ extension TranscriptionConnection {
             let credentialRevision: Int
         }
 
-        let endpointForFingerprint = endpoint.map {
+        let normalized = normalizedForProtocol()
+        let endpointForFingerprint = normalized.endpoint.map {
             TranscriptionEndpoint(
                 baseURL: $0.baseURL,
                 path: $0.path,
@@ -898,14 +927,14 @@ extension TranscriptionConnection {
             )
         }
         let payload = Payload(
-            adapterID: adapterID,
+            adapterID: normalized.adapterID,
             endpoint: endpointForFingerprint,
-            model: trimmedOptional(storedModel),
-            language: trimmedOptional(language),
-            authenticationType: authentication.type,
-            audio: audio,
-            options: options,
-            credentialRevision: credentialRevision
+            model: trimmedOptional(normalized.storedModel),
+            language: trimmedOptional(normalized.language),
+            authenticationType: normalized.authentication.type,
+            audio: normalized.audio,
+            options: normalized.options,
+            credentialRevision: normalized.credentialRevision
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -1015,6 +1044,15 @@ extension TranscriptionConnection {
         updated.options.prompt = schema.supportsPrompt ? trimmedOptional(options.prompt) : nil
         updated.options.temperature = schema.supportsTemperature ? options.temperature : nil
         updated.options.responseMode = schema.responseMode
+        if adapterID == .openAIAudioTranscriptionsHTTPV1 {
+            let host = updated.credentialDestinationIdentifier?.lowercased()
+            let isOpenRouter = host == "openrouter.ai"
+                || host?.hasSuffix(".openrouter.ai") == true
+            updated.options.requestEncoding = options.requestEncoding
+                ?? (isOpenRouter ? .jsonBase64 : .multipartFormData)
+        } else {
+            updated.options.requestEncoding = nil
+        }
 
         if schema.supportsVolcengineTwoPass {
             updated.options.resourceID = trimmedOptional(options.resourceID)

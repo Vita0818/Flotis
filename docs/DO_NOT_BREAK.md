@@ -1,6 +1,6 @@
 # DO_NOT_BREAK
 
-最近自查日期：2026-08-04
+最近自查日期：2026-08-06
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -18,9 +18,9 @@
 ## 界面语言边界
 
 - App 语言只由第一首选语言决定：明确简体中文时使用简中，繁体中文、英文及其他语言使用英文。不得退化为只判断 `zh` 前缀，也不得扫描后续偏好语言后改选简中。
-- UI 语言与 `TranscriptionConnection.language` / `selectedSpeechLocale` 分离；后者是转写语言，不能随界面语言自动改写。
+- UI 语言与 provider route 的 language / `selectedSpeechLocale` 分离；后者是转写语言，不能随界面语言自动改写。
 - 英文是 `project.yml` 的 development language 和权限用法描述 fallback；`InfoPlist.xcstrings` 必须继续包含英文与 `zh-Hans` 权限文案并进入 resources build phase。
-- 不得为了切换界面语言批量改写已有 connection 名称、最近测试摘要或旧 `commands.json`。内建名称只能在确认稳定 UUID 且名称仍匹配已知默认值时做显示层映射。
+- 不得为了切换界面语言批量改写已有 provider 名称、模型测试摘要或旧 `commands.json`。legacy 内建名称只能在确认稳定 UUID 且名称仍匹配已知默认值时做显示层映射。
 - adapter raw value、UUID、UserDefaults key、`apiKeyReference`、endpoint/model/header/event 名称和协议 payload 都不是 UI 文案，禁止本地化。
 
 ## 用户数据格式
@@ -28,49 +28,64 @@
 ### 命令
 
 - 路径：`~/Library/Application Support/Flotis/commands.json`。
-- V0.8 主入口不得加载、改写或删除旧命令文件，也不得注册 command ID `1000+` 热键；旧源码暂留兼容。未来删除或迁移必须由明确版本化方案驱动。
+- V0.12 主入口不得加载、改写或删除旧命令文件，也不得注册 command ID `1000+` 热键；旧源码暂留兼容。未来删除或迁移必须由明确版本化方案驱动。
 - 格式：`[PromptCommand]` JSON；写入必须继续使用 atomic option。
 - 8 个默认命令 UUID `1111…`–`8888…` 与默认 `⌘⌥⇧1..8` 属于兼容边界；若需迁移必须显式版本化，不能静默重编号。
 - 标题/正文/排序改变不能触发全量热键重注册；仅 enabled/shortcut 改变发出 hotkey configuration change。
 
-### Connection snapshot
+### Canonical config
 
-- 主键：`flotis.transcriptionConnections.v3`。
-- v3 shape：`TranscriptionConnectionStoreSnapshot { schemaVersion, presetCatalogVersion, connections, activeConnectionID }`；canonical connection 使用嵌套 endpoint/authentication/audio/options/test record，不能重新编码 legacy `kind` 或 `wireProtocol`。
-- 恢复键：`flotis.transcriptionConnections.v3.lastKnownGood`、`flotis.transcriptionConnections.corruptBackup`、`flotis.transcriptionConnections.corruptBackupMetadata`。
-- 旧键 `flotis.speechProviders.v2`、`flotis.speechProviders.v2.lastKnownGood` 与 `flotis.speechProviders.v1` 只能作为只读 migration input。迁移成功或失败都不得覆写旧 authoritative bytes；decode 失败不得用默认数据覆盖坏 bytes。
-- 全新安装只创建 Apple connection；独立 preset catalog 不能被自动实例化成六条用户 connection。
+- 唯一路径：`~/Library/Application Support/Flotis/config.json`；当前 schema version 为 `2`，`$schema` 标识固定为 `https://flotis.app/config/v2`。
+- 顶层 shape 必须保持 Intatis 式 `$schema`、`schema_version`、`model`、`provider_order`、`enabled_providers`、`comparison.models`、可选 `shortcuts`、`provider`。`model` 与对比项为 `<provider-id>/<model-id>`；只能在第一个 `/` 分割，Provider ID 禁止 `/`，Model ID 允许包含 `/`。`provider_order` 与 `enabled_providers` 当前都必须与 provider 字典键集合精确对应。
+- 每个 `provider.<id>` 必须保存一次 `name`、`adapter`、共享 `options`、多项 `models` 与 credential revision；endpoint 和 API key 必须只位于共享 `options`，不得为每个模型复制，也不得重新拆成另一个运行时 JSON 真源。每个模型只可附带自己的显示名/安全测试摘要。
+- canonical schema v1 是可识别的原地迁移输入：必须在安全校验与同一文件锁下原子升级到 v2，移除 Apple 条目并尽量保留网络 Provider/模型/endpoint/key/选择。旧键 `flotis.transcriptionConnections.v3`/LKG、`flotis.speechProviders.v2`/LKG、`flotis.speechProviders.v1`、`flotis.transcriptionComparison.v1` 与旧 `secrets.json` 只能在 canonical 文件不存在时作为一次性只读 migration input；canonical v2 一旦存在不得再从旧源补写或覆盖。
+- 全新安装创建空 provider catalog；`apple-on-device` 不得写入 schema v2 的 `provider`、`provider_order`、`enabled_providers` 或 `comparison.models`。Apple on-device 仅可作为空 catalog 的内部 fallback；独立 preset catalog 不能被自动实例化成用户 Provider。
 - 六个 legacy UUID 必须保持稳定：A Apple、B OpenAI Realtime、C OpenAI HTTP、D DashScope、E Volcengine、F GLM。迁移还必须保留自定义实例、用户名称、顺序、有效 active ID 与安全边界未变的 `apiKeyReference`。
 - `TranscriptionAdapterID` 的六个 raw value 是持久化兼容边界：`apple-on-device`、`openai-audio-transcriptions-http-v1`、`openai-realtime-transcription-ga`、`dashscope-paraformer-ws-v1`、`volcengine-bigasr-ws-v3`、`glm-asr-http-sse-v4`。改名必须显式迁移和版本化。
-- preset catalog 与 connection/runtime 分离。preset 只能填充 draft 字段，不能改变 connection identity、成为 runtime discriminator 或覆盖用户自定义连接。
+- preset catalog 与 provider/runtime 分离。preset 只能填充 draft 字段，不能改变 provider identity、成为 runtime discriminator 或覆盖用户自定义配置。
 - `TranscriptionAdapterRegistry` 是 adapter→runtime 的唯一注册点；`VoiceInputController` 只能按 `ownedCapture` / `pcmStream` / `recordedFile` 分派，不得重新加入 vendor、adapter 或 legacy wire-protocol switch。
-- 当前 Settings 只展示 OpenAI Compatible 是 Presentation 策略，不是数据迁移。禁止把可见数组写回 snapshot，或因打开/关闭 Settings 而删除隐藏 connection、改写隐藏 active ID、清理其本地 secret reference、裁剪 preset/registry。
+- 当前 Settings 只展示 OpenAI Compatible 是 Presentation 策略，不是数据迁移。禁止把可见数组写回 canonical document，或因打开/关闭 Settings 而删除隐藏 provider/model、改写隐藏 active selector、清理其 key/reference、裁剪 preset/registry。
+
+### 多模型对比偏好
+
+- 对比偏好必须只占 canonical 顶层 `comparison.enabled` 与 `comparison.models`；`enabled_providers` 表示启用的 Provider catalog，不是对比列表。旧 `flotis.transcriptionComparison.v1` 只作首次迁移输入。不得塞入 route 副本、endpoint、API key/reference、录音路径、候选 transcript、错误详情或耗时。
+- `comparison.models` 必须保存完整且存在的 selector，去重并保持用户选择顺序，最多 4 个；启用时至少 2 个。provider/model 被删除后应在 reconcile 时移除对应 selector，少于 2 个必须安全关闭。
+- 未知 schema 或坏 canonical JSON 必须在内存中回退为关闭并拒绝保存，不得用空默认值覆盖原 authoritative bytes。comparison store 只能在同一文件锁的 read-modify-write 中改 comparison，不能覆盖 provider/active/key。
+- 候选和用户对候选的编辑只属于当前 `AppState` 会话；取消、复制成功、新会话或失败清理时必须释放，不得默认跨重启保存或写日志。
+
+### 可配置全局快捷键
+
+- panel 显隐、上一个对比结果、下一个对比结果只允许存于 canonical 顶层 `shortcuts.toggle_panel`、`previous_comparison_result`、`next_comparison_result`；不得另建 UserDefaults 或第二个运行时 JSON 真源。固定 voice descriptor `⌃⌥A` 不进入 `shortcuts`，本轮需求未授权修改它。
+- 旧 schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison 或 API key。
+- 三项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键、彼此不同，并且都不能等于固定 voice descriptor；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
+- descriptor 变化只允许差异注销/注册对应 Carbon ID；voice 和未变化项不能被无条件全量重建。previous/next 无论配置为何，都只能在对比 reviewing 且至少两个成功候选时临时注册，离开后立即注销。
+- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留固定 voice 与三项可配置组合的一张卡，不得重新加入语音流程、胶囊拖动说明或重复 section。组合键 surface 不得小于当前 `220×50` / 17 pt，三项可配置组合必须整块可点并在同尺寸录制态获得键盘焦点。
 
 ### API key / 应用自管本地存储
 
-- UserDefaults/connection snapshot 只能保存 `apiKeyReference`，绝不能保存 key 明文；明文只允许存在当前会话内存与 `~/Library/Application Support/Flotis/secrets.json`。
-- `LocalSecretStore` 是唯一生产凭据后端。Flotis app 源码不得导入 `Security`、调用 `SecItem*`，不得读取、迁移或删除旧系统钥匙串条目。
-- `secrets.json` 必须保持版本化 envelope（当前 `schemaVersion = 1`）和 `apiKeyReference → secret` 映射；reference 只能作为 JSON 字典键，禁止拼接为文件路径。
-- `~/Library/Application Support/Flotis` 必须保持 `0700`，`secrets.json` 与 `.secrets.lock` 必须保持 `0600`。读写必须使用不跟随符号链接的目录 fd 与 `openat`；进程内使用共享锁，多进程使用 `.secrets.lock` 的 advisory write lock 覆盖完整 read-modify-write，且跨进程竞争必须有限等待、不可永久阻塞 UI。写入必须使用同目录私有临时文件、`fsync`、`renameat` 原子替换与目录同步。
-- 必须拒绝符号链接、非普通文件、损坏/未知 schema、异常大的文件、空白或超限的 reference/secret；遇到损坏数据时禁止静默按空 store 覆写。
+- API key 明文不得进入 UserDefaults、日志或项目文档；只允许存在当前会话内存与 canonical `provider.<id>.options.apiKey`。同一 Provider 的模型必须共享这一份 key；运行时 `apiKeyReference` 只能作为 provider/key 的内存匹配 ID，禁止拼接为文件路径。
+- `FlotisConfigurationStore` 是唯一生产凭据后端；`LocalSecretStore` 只保留为旧 `secrets.json` 迁移读取器。Flotis app 源码不得导入 `Security`、调用 `SecItem*`，不得读取、迁移或删除旧系统钥匙串条目。
+- `~/Library/Application Support/Flotis` 必须保持 `0700`，`config.json` 与 `.config.lock` 必须保持 `0600`。读写必须使用不跟随符号链接的目录 fd 与 `openat`；进程内使用共享锁，多进程使用 `.config.lock` 的 advisory write lock 覆盖完整 read-modify-write，且竞争必须有限等待、不可永久阻塞 UI。写入必须使用同目录私有临时文件、`fsync`、`renameat` 原子替换与目录同步。
+- 必须拒绝符号链接、非普通文件、非当前用户所有、损坏/未知 schema、结构不一致或超过 4 MiB 的 canonical 文件，以及空白或超限 key；遇到损坏数据时禁止静默按 fresh document 覆写。
 - 空白 key 必须 trim 后拒绝。UI 必须保留 Clear 能力。
-- adapter、scheme、host、effective port 或 auth type 改变即跨越 secret boundary；不得复用旧 key reference。配置成功持久化后才能删除旧 secret；清理失败必须回滚配置和本次新 secret。
-- 删除 connection、改为 Apple 或显式 Clear 时应清理当前可达 key；失败必须向 UI 报错并保持原 connection/snapshot 可用。
+- adapter、scheme、host、effective port 或 auth type 改变即跨越 secret boundary；不得复用旧 key reference。新 provider 配置、可选新 key 与旧 key 清理必须由同一次 canonical 原子事务提交；失败必须一起回滚。
+- 删除整个 provider 或显式 Clear 时应在同一文档事务清理当前可达 key；只删除一个 model 不得影响仍属于该 Provider 的共享 key。失败必须向 UI 报错并保持原 provider/config 可用。
 - Connection Test 的成功/失败记录只能保存固定成功摘要或受限脱敏错误；服务端原样回显任意形态的本次 API key 时，必须先按完整值精确脱敏，不能只依赖 `sk-*` 等 provider-specific pattern。
 - 保存、替换或清除 credential 必须推进 `credentialRevision`，使旧 Test Connection fingerprint 失效；显示名称变化不应使测试失效。
 - 本地文件不具备独立加密能力，只依赖 macOS 当前用户权限与可选 FileVault；文案不得暗示其具备钥匙串级隔离。删除也不得宣称完成物理介质安全擦除。
 
 ## Provider schema 与 endpoint
 
-- Settings 展示 allowlist 当前只能包含 `openai-audio-transcriptions-http-v1`；新增入口必须直接创建该 adapter 的内存 draft，不能隐式持久化默认 connection。其他五个 adapter 仍须保留 schema、preset、迁移、测试与 runtime 能力。
-- 当前隐藏 Connection Name 与多 connection 侧栏只属于 Presentation 收敛；不得删除、合并或覆盖底层其他 connection。可见 OpenAI Compatible 草稿成功保存并具备 key 后必须设为当前 connection，避免界面只剩一套配置但运行时仍静默使用隐藏 provider。
-- OpenAI Compatible 的精简 UI 仍必须保留自定义 host 明示确认、凭据目标 host、Clear API Key、Test Connection 与 Save/Cancel；这些安全/事务能力不能作为“高级选项”隐藏。
+- Settings 展示 allowlist 当前只能包含 `openai-audio-transcriptions-http-v1`；新增入口必须直接创建该 adapter 的内存 provider draft，不能隐式持久化默认 Provider。其他五个 adapter 仍须保留 schema、preset、迁移、测试与 runtime 能力。
+- 当前可见层允许新增、命名和切换多个 OpenAI Compatible provider；一个 provider 必须能编辑多个 model，并可从 ready route 中选择 2–4 个参与对比，包括同 Provider 的不同模型。Intatis 式主卡必须继续以左侧 Provider 列表、右侧 Provider name/API key/Active model、Connection/Models disclosure、逐模型 Model ID/可选 Display name 和卡下 Test Provider/Save 组织；Connection/Models/Comparison/Advanced 的 header 整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡至少 44 pt 可切换，不能退化为只命中小 chevron/checkbox。Picker/route 选择必须引用完整 selector，不得把可见数组写回 catalog，或在切换 editor 时隐式覆盖/删除其他 provider/model。保存后把显式选择的模型设为当前 route。
+- Flotis 特有的 Comparison 与 Language/Prompt/Temperature 必须位于 Intatis 式 Provider/Models 主卡之后，不能塞进 Provider 共享字段或把一个 Provider 的 sibling model 重新拆成重复 endpoint/key。OpenAI Compatible UI 仍必须保留自定义 host 明示确认、凭据目标 host、Clear API Key、Test Provider 与 Save/Cancel；Clear/host/encoding 可随 Connection disclosure 收纳，但不能从可达设置路径消失或绕过安全确认。
+- 对比 UI 必须明确提示：同一录音会发送给每个 selected route，并可能分别产生一次请求费用。未保存/无 key/配置无效的 route 不得新选入；已经失效的已选项必须在开始录音前再次严格预检，不能以 UI readiness 代替 runtime 校验。
 - Realtime 只能用 `wss`，HTTP 只能用 `https`。
 - URL 不允许 user/password、query、fragment；path 必须 `/` 开头，禁止 `//`、`://`、`?`、`#` 和反斜杠等歧义形式。
 - 非 schema trusted host 只能在用户显式批准后保存；UI 必须展示 API key/音频会发送到的 host。
 - Authorization-bearing HTTP upload 不跟随 redirect。
 - adapter schema 声明为固定的模型/音频字段不能重新暴露成任意文本输入；`StreamingAudioCapture` 只接受 16/24 kHz、mono PCM16。不支持字段必须在 normalization/编码时省略，不能持久化空占位。
-- Connection/Command editor 保持 draft + Save/Cancel；Add 也只能先创建内存 draft。半输入 URL、未保存 adapter 切换或未配置 key 不得成为 active runtime 配置。
+- Provider/Command editor 保持 draft + Save/Cancel；Add 也只能先创建内存 draft。半输入 URL、空 model 列表、未保存 adapter 切换或未配置 key 不得成为 active runtime 配置。
 
 ## 协议禁区
 
@@ -99,9 +114,10 @@
 
 ### OpenAI HTTP
 
-- 默认 endpoint `/v1/audio/transcriptions`、默认模型 `gpt-4o-mini-transcribe`，新通用 BYOK connection 默认 WAV PCM16 16 kHz mono；v2 迁移或显式配置的 `.m4a` 仍须按其 MIME 正确上传。
-- Endpoint 在 canonical schema 中继续分为 `baseURL + path`；UI 精简不得通过合并字段绕过 scheme/host/port/path 校验或 secret boundary。Language、prompt、temperature 可折叠，音频与 JSON response mode 可隐藏但必须保留旧值和 normalize contract。
-- multipart 上传应继续通过临时文件/streamed request，不能重新用 `Data(contentsOf:)` 加完整 in-memory body。
+- 默认 endpoint `/v1/audio/transcriptions`、默认模型 `gpt-4o-mini-transcribe`，新通用 BYOK provider 默认 WAV PCM16 16 kHz mono；legacy v2 迁移或显式配置的 `.m4a` 仍须按其 MIME 正确上传。
+- Endpoint 在 canonical schema 中继续分为 `baseURL + path`；UI 精简不得通过合并字段绕过 scheme/host/port/path 校验或 secret boundary。Language、request encoding、prompt、temperature 可折叠，音频与 JSON response mode 可隐藏但必须保留旧值和 normalize contract。
+- `multipart-form-data` 上传应继续通过临时文件/streamed request，不能重新用 `Data(contentsOf:)` 加完整 in-memory multipart body。
+- OpenRouter (`openrouter.ai`) 使用 `json-base64` 请求：最终 URL 为 `https://openrouter.ai/api/v1/audio/transcriptions`，JSON 必须包含 Base64 `input_audio.data`、与文件匹配的 `input_audio.format` 和未经截断的完整 model ID；可选加入 language/temperature，不得发送未声明的 prompt。未显式配置 encoding 的 OpenRouter route 必须自动归一化为 `json-base64`，其他 OpenAI-compatible host 默认 multipart，用户显式覆盖必须保留。
 - file transcriber 必须支持 cancel。
 - 只接受 2xx、`application/json` 和顶层字符串 `text`；不能猜测 `data.text` 或任意嵌套字段。prompt/temperature 为 nil 时不得发送。
 
@@ -122,12 +138,16 @@
 ## 语音生命周期与并发
 
 - `VoiceInputController` 的 session generation/identity guard 不得绕过。任何异步 callback 在修改 UI、清理资源或提交最终文本前都必须验证当前 session。
-- V0.8 最终转写必须先进入 `reviewing`，不得恢复 provider 完成即自动提交。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
+- V0.12 最终转写必须先进入 `reviewing`，不得恢复 provider 完成即自动提交。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
 - reviewing 文本必须保持原生可选择/可复制能力，至少支持鼠标选区、`⌘C` 和显式复制全部；不能用窗口背景拖动或不可命中的装饰 overlay 吞掉文本交互。
 - reviewing 的当前热键动作必须是 `copyAndReturn`：用 trim 结果判断空白，但必须原样复制用户编辑文本；写入失败必须保留 reviewing/文本并保持 panel 可见，成功后才允许推进 generation、清空文本、回 idle，并让审阅框按逻辑位置锚点缩回小胶囊。成功路径不得隐藏或关闭 panel。当前产品路径不得调用 `ClipboardPasteInjector`、请求 AX 或发送 `CGEvent`/`⌘V`。
 - requesting/connecting 可由热键取消；stopping/transcribing 已进入终态处理时，额外热键必须忽略而不是清空本次会话。
 - operation task、audio writer、limit task、streaming/file transcriber、capture/recorder 都必须可取消；App 退出也必须调用 cancel。
-- connection 和 key 在会话开始时快照到 adapter runtime。stop 阶段不得重新依赖一个可能已被 UI 删除/切换的 connection 或本地 secret 记录。
+- model route 和 provider key 在会话开始时快照到 adapter runtime。stop 阶段不得重新依赖一个可能已被 UI 删除/切换的 route 或可变配置记录。
+- 对比第一版只允许 2–4 个 `.recordedFile` runtime；当前 Settings 只选择 OpenAI Compatible HTTP。开始录音前必须为每项完成配置/key/runtime 快照，拒绝非 file runtime，并要求 format/sample rate/channels 完全一致；预检失败必须取消此前已创建的 runtime，不能先录音再发现不兼容。
+- 一次对比会话必须只有一个 `AudioRecorder` 和一个共享录音文件。所有 selected transcriber 必须收到同一 file URL；最大录制时长采用各 runtime 的最严格安全上限，每项仍独立执行 upload-size 预检。不得为了并发比较重复采集麦克风或为每个 provider 生成内容不同的录音。
+- fan-out 必须并发、结果按用户配置顺序恢复，并隔离单项失败；一项错误/空结果/超限不得取消其他成功项。至少一个成功时同时展示成功与失败候选；全部失败才进入全局 failed。取消、退出、session 失效和正常完成都必须取消全部 transcriber 并清理共享文件。
+- 对比 reviewing 必须按配置/展示顺序自动打开第一个成功候选，但不得把它描述为最快、评分最高或自动判定的“最佳”结果。点击或用户配置的 previous/next 快捷键（默认 `⌥←` / `⌥→`）只能切换成功候选，必须跳过失败项并在两端循环；切换时保留每个候选的当前编辑文本。`copyAndReturn` 始终复制当前候选，成功复制或取消要同时清空候选和 selection。
 - 当前复制并返回路径不得捕获、激活或猜测目标 app；复制结果只留在系统剪贴板，由用户自行决定粘贴位置。若未来重新启用旧注入器，目标捕获和核验仍必须遵守下节兼容边界。
 - realtime chunk 必须进入有界串行 writer；overflow 应失败并提示，stop 必须先 drain 再 terminal commit/finish。
 - `StreamingAudioCapture.stop()` 必须保持当前 generation/converter 有效，直到 tap callback group、conversion queue 与 converter end-of-stream 尾帧全部 drain；只有 `cancel()` 可以先失效 generation 丢弃待处理 chunk。
@@ -137,7 +157,7 @@
 ## 热键、当前复制与旧注入安全边界
 
 - `VoiceInputState.reviewing.hotkeyAction` 必须保持 `copyAndReturn`；idle/failed→start、recording/streaming→stop、requesting/connecting→cancel、stopping/transcribing/injecting→none 的其余映射不得回归。
-- 固定 voice hotkey 当前必须保持 `⌃⌥A`（Carbon virtual key `0`，Control+Option），panel hotkey 保持 `⌘⌥⇧0`。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
+- 固定 voice hotkey 当前必须保持 `⌃⌥A`（Carbon virtual key `0`，Control+Option）。panel descriptor 由用户配置、默认 `⌘⌥⇧0`；previous/next descriptor 也由用户配置、默认 `⌥←` / `⌥→`，但只能在对比 reviewing 且至少两个成功候选时临时注册，离开后必须注销；不得在 idle、单结果 reviewing 或后台普通使用中长期抢占任何用户配置的导航按键。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
 - 当前复制写入成功后必须直接清空会话并回 idle，不得恢复 `.closePanel` outcome 或窗口关闭回调。失败或纯空白必须保持 panel 与 review 可恢复；复制后的文字必须留在剪贴板，不能用旧注入器的 snapshot restore 覆盖。
 - `ClipboardPasteInjector` 当前只作为不可达兼容实现保留；没有用户新的明确产品决策，不得重新接入 AppDelegate、`VoiceInputController` 或审阅按钮。
 
@@ -151,9 +171,11 @@
 - 点击胶囊编辑导致 Flotis 获得键盘焦点时，只能使用当前语音 session 开始时捕获并重新核验的非 Flotis target；显式胶囊输入可重激活该目标，从不同第三方 app 触发全局热键则必须 abort。不得直接向任意 frontmost app 或未核验 PID 发事件。
 - 旧命令的可打印全局快捷键必须包含 Command + 至少一个额外修饰键；固定 toggle、重复项与 `⌘V` 等危险组合必须拒绝。`⌃⌥A` 是主入口直接注册的固定 voice toggle 产品例外，不经过旧命令的 `shortcutSafetyError`，不得据此放宽用户命令快捷键的安全校验。
 - hotkey handler 必须同时监听 press/release 并以 gate 抑制 auto-repeat；注册必须保持 `kEventHotKeyExclusive`。handler 安装失败时不得继续注册；单项失败状态必须可见并自动重试，event signature 必须核验。
-- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败则继续显示 reviewing panel。
+- panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败时则继续显示 reviewing panel。对比结果只要至少一项成功就必须已有自动 selection；不得重新引入等待人工首次选择的空 selection 状态。
 - panel 必须允许用户从非交互背景拖动；尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。原生审阅文本视图必须继续声明不以鼠标按下移动窗口，避免整窗拖动抢占文本拖选。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
-- idle 的当前 Presentation contract 为 `108×54` 外壳、28 pt 白圆六条黑声波开始录音图、28 pt 白圆/16 pt 黑色八齿齿轮设置图，以及下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键；不得借视觉替换改变两个既有 `30×30` 点击区域、8 pt 间距、Start/Settings 无障碍标签与帮助、action、快捷键或语音状态映射，也不得为图标或文字对比度重新给整个原生 glass 加固定 tint。stop/cancel/retry/copy-and-return 等非 idle 状态图标继续按现有逻辑显示。若再次替换图稿，对应 `docs/assets/*-reference.png` 与 `Assets.xcassets/VoiceWaveformButton.imageset` / `SettingsGearButton.imageset` 的 1x/2x/3x 派生资源必须同步核对。
+- Settings 的窗口内容默认尺寸必须保持 `1100×760`、最小内容尺寸保持 `820×600`；HostingController 赋值后必须显式应用 `contentMinSize` 和 `setContentSize`，不能再次让 SwiftUI fitting size 把实际内容宽度缩成 820 pt、破坏 Provider/Models 双栏。若后续调整尺寸，必须同时用折叠和 Models 展开状态做与 Intatis 参考同屏的运行态视觉回归。
+- idle 的当前 Presentation contract 为 `108×54` 外壳、28 pt 白圆六条黑声波开始录音图、28 pt 白圆/16 pt 黑色八齿齿轮设置图，以及下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键；不得借视觉替换改变两个既有 `30×30` 点击区域、8 pt 间距、Start/Settings 无障碍标签与帮助、action、快捷键或语音状态映射，也不得为图标或文字对比度重新给整个原生 glass 加固定 tint。录音态不得重新放回右侧 stop 方块，必须保留原有状态图标与文案并显示从本次捕获开始计时的 `mm:ss`；stopping/transcribing 必须保留原有省略号状态图标与原有文案，只隐藏右侧重复的禁用 action。cancel/retry/copy-and-return 等其他非 idle 状态图标继续按现有逻辑显示。若再次替换图稿，对应 `docs/assets/*-reference.png` 与 `Assets.xcassets/VoiceWaveformButton.imageset` / `SettingsGearButton.imageset` 的 1x/2x/3x 派生资源必须同步核对。
+- 单结果 reviewing 的 Presentation contract 保持 `420×160`；对比 reviewing 为 `560×300`，必须用固定双列网格容纳 2–4 个候选，四项为 2×2，不能退化为需要横向滚动的一行。首个成功项直接打开原生编辑器，不显示额外的“先选择”提示；既有复制/取消/复制并返回动作保留。候选有非空 Model Display name 时可见卡片只能显示该名称；没有时必须以 Model ID 为主要文字、Provider 名称为次要文字，不能显示 endpoint。失败状态不能只靠颜色表达，长 Display name/model/provider 必须截断，panel 不能超过当前 `600×300` 上限。
 - macOS 26+ 的胶囊外壳必须继续由原生 `NSGlassEffectView(style: .regular)` 承载并保留系统自适应 tint；不得给整个 glass 设置固定黑色 `tintColor`，也不得在 SwiftUI hosting root 后方铺全表面黑色/不透明/半透明填充来模拟对比度，否则会压掉原生 Liquid Glass 的高光、折射与背景适配。语义强调只能局部、按控件使用；macOS 13–25 的 material fallback 仍须保留。
 - 当前 Settings 不应展示 AX 状态或授权入口，胶囊 reviewing 也不应因缺 AX 展开提示；当前流程只需报告系统剪贴板写入失败。旧 AX 文案/类型可随兼容实现保留，但不得成为可达主流程。
 - Settings 的一键退出必须走 `NSApplication.terminate` → `applicationWillTerminate`，不得用 `exit`/kill 绕过热键与语音资源清理；`.injecting` 期间不仅要禁用页头按钮，`applicationShouldTerminate` 还必须统一拒绝菜单、`⌘Q` 等其他终止请求，避免剪贴板尚未完成安全恢复。
@@ -169,7 +191,8 @@
 
 ## 临时文件
 
-- 录音/连接测试前缀：`Flotis-Audio-`，扩展名按 recorded-file connection/runtime 为 `.m4a` 或 `.wav`；连接测试生成物同样必须在成功、失败和取消路径清理。
+- 录音/连接测试前缀：`Flotis-Audio-`，扩展名按 recorded-file route/runtime 为 `.m4a` 或 `.wav`；连接测试生成物同样必须在成功、失败和取消路径清理。
+- 对比会话复用同一个 `Flotis-Audio-*` 文件；不得为每个 provider 复制一份，也不得把临时路径或音频内容写入 canonical comparison 字段。runner 完成、全部失败、部分失败、取消和 generation 过期都必须清理。
 - multipart 前缀：`Flotis-Multipart-`。
 - 清理只能删除 app 自有前缀、普通文件且修改时间超过 24 小时的项；禁止扫描删除任意 `/tmp` 文件。
 - 每条成功、失败、取消路径都应尽快清理本会话临时文件。
@@ -178,7 +201,7 @@
 
 - 必须复用真实 adapter/runtime contract，不得退化成只 ping URL 或只请求模型列表。
 - 测试音频必须由应用生成或内置且不含用户隐私；不得读取麦克风、历史录音或用户转写文本。本实现使用短合成音，因此成功只证明连接、音频传输和响应结构，不证明识别质量，也不得强制 transcript 非空。
-- HTTP 测试必须覆盖 multipart 与响应结构；Realtime 测试必须走 start→append→commit/stop→terminal。HTTP 成功不能推导 Realtime 兼容。
+- HTTP 测试必须覆盖 multipart、OpenRouter JSON+Base64 与响应结构；Realtime 测试必须走 start→append→commit/stop→terminal。HTTP 成功不能推导 Realtime 兼容。
 - 测试记录 fingerprint 必须覆盖 endpoint/model/options/credential revision 和 adapter version；显示名称变化不应失效，配置或凭据变化必须失效。
 - 所有成功、失败、取消路径都必须 cancel runtime 并删除测试临时文件；不得持久化完整响应、Authorization、transcript 或 API key。
 
@@ -188,12 +211,12 @@
 
 ```sh
 xcodegen generate
-xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisDerivedData CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisDerivedData CODE_SIGNING_ALLOWED=NO test
-xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethod -configuration Debug -derivedDataPath /tmp/FlotisInputMethodDerivedData CODE_SIGNING_ALLOWED=NO build
-xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethodTests -configuration Debug -derivedDataPath /tmp/FlotisInputMethodTestsDerivedData CODE_SIGNING_ALLOWED=NO test
+xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisBuildDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Flotis.xcodeproj -scheme Flotis -configuration Debug -derivedDataPath /tmp/FlotisTestDerivedData CODE_SIGNING_ALLOWED=NO test
+xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethod -configuration Debug -derivedDataPath /tmp/FlotisInputMethodBuildDerivedData CODE_SIGNING_ALLOWED=NO build
+xcodebuild -project Flotis.xcodeproj -scheme FlotisInputMethodTests -configuration Debug -derivedDataPath /tmp/FlotisInputMethodTestDerivedData CODE_SIGNING_ALLOWED=NO test
 git diff --check
 git status --short
 ```
 
-协议、AX/CGEvent、本地 secret store、audio engine 或 InputMethodKit 变更还需按 `docs/TESTING.md` 做对应文件系统/真机矩阵；自动化构建/单测不能替代真实权限、输入法客户端或供应商联调。
+协议、AX/CGEvent、canonical config/凭据存储、audio engine 或 InputMethodKit 变更还需按 `docs/TESTING.md` 做对应文件系统/真机矩阵；自动化构建/单测不能替代真实权限、输入法客户端或供应商联调。

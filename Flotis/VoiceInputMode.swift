@@ -38,6 +38,15 @@ enum VoiceHotkeyAction: Equatable {
 }
 
 extension VoiceInputState {
+    var isCapturingAudio: Bool {
+        switch self {
+        case .recording, .streaming:
+            return true
+        default:
+            return false
+        }
+    }
+
     var hotkeyAction: VoiceHotkeyAction {
         switch self {
         case .idle, .failed:

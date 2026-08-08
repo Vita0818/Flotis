@@ -238,6 +238,67 @@ private struct MultipartBodyFile {
     }
 }
 
+private struct JSONBase64BodyFile {
+    private struct Payload: Encodable {
+        struct InputAudio: Encodable {
+            let data: String
+            let format: String
+        }
+
+        let inputAudio: InputAudio
+        let model: String
+        let language: String?
+        let temperature: Double?
+
+        private enum CodingKeys: String, CodingKey {
+            case inputAudio = "input_audio"
+            case model
+            case language
+            case temperature
+        }
+    }
+
+    let url: URL
+    let byteCount: Int
+
+    static func create(
+        config: SpeechProviderConfig,
+        fileURL: URL
+    ) throws -> JSONBase64BodyFile {
+        FlotisTemporaryFiles.removeStaleFiles(withPrefix: FlotisTemporaryFiles.multipartPrefix)
+        let bodyURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            FlotisTemporaryFiles.multipartPrefix + UUID().uuidString + ".jsonbody"
+        )
+        let audioData = try Data(contentsOf: fileURL, options: .mappedIfSafe)
+        let payload = Payload(
+            inputAudio: Payload.InputAudio(
+                data: audioData.base64EncodedString(),
+                format: fileURL.pathExtension.lowercased()
+            ),
+            model: config.model,
+            language: config.language?.isEmpty == false ? config.language : nil,
+            temperature: config.temperature
+        )
+        let data = try JSONEncoder().encode(payload)
+        guard !data.isEmpty,
+              FileManager.default.createFile(
+                  atPath: bodyURL.path,
+                  contents: data,
+                  attributes: [.posixPermissions: NSNumber(value: 0o600)]
+              ) else {
+            throw makeHTTPError(
+                domain: "JSONBase64BodyFile",
+                code: 1,
+                message: UIStrings.localized(
+                    english: "Could not create the temporary JSON transcription upload file.",
+                    simplifiedChinese: "无法创建 JSON 转写上传临时文件。"
+                )
+            )
+        }
+        return JSONBase64BodyFile(url: bodyURL, byteCount: data.count)
+    }
+}
+
 private enum HTTPTranscriptionSupport {
     static func endpointURL(
         baseURL: String,
@@ -426,37 +487,50 @@ final class OpenAIHTTPTranscriber: FileSpeechTranscribing {
         )
         guard activeTransport.isActive(token: token) else { throw CancellationError() }
 
-        var fields = [(name: "model", value: config.model)]
-        if let language = config.language, !language.isEmpty {
-            fields.append(("language", language))
+        let bodyURL: URL
+        let bodyByteCount: Int
+        let contentType: String
+        switch config.requestEncoding {
+        case .multipartFormData:
+            var fields = [(name: "model", value: config.model)]
+            if let language = config.language, !language.isEmpty {
+                fields.append(("language", language))
+            }
+            if let prompt = config.prompt, !prompt.isEmpty {
+                fields.append(("prompt", prompt))
+            }
+            if let temperature = config.temperature {
+                fields.append(("temperature", "\(temperature)"))
+            }
+            fields.append(("response_format", "json"))
+            let body = try MultipartBodyFile.create(
+                fields: fields,
+                fileURL: fileURL,
+                mimeType: HTTPTranscriptionSupport.mimeType(for: fileURL)
+            )
+            bodyURL = body.url
+            bodyByteCount = body.byteCount
+            contentType = "multipart/form-data; boundary=\(body.boundary)"
+        case .jsonBase64:
+            let body = try JSONBase64BodyFile.create(config: config, fileURL: fileURL)
+            bodyURL = body.url
+            bodyByteCount = body.byteCount
+            contentType = "application/json"
         }
-        if let prompt = config.prompt, !prompt.isEmpty {
-            fields.append(("prompt", prompt))
-        }
-        if let temperature = config.temperature {
-            fields.append(("temperature", "\(temperature)"))
-        }
-        fields.append(("response_format", "json"))
-
-        let body = try MultipartBodyFile.create(
-            fields: fields,
-            fileURL: fileURL,
-            mimeType: HTTPTranscriptionSupport.mimeType(for: fileURL)
-        )
-        defer { try? FileManager.default.removeItem(at: body.url) }
+        defer { try? FileManager.default.removeItem(at: bodyURL) }
         guard activeTransport.isActive(token: token) else { throw CancellationError() }
 
         var request = URLRequest(url: endpointURL)
         request.httpMethod = "POST"
         request.timeoutInterval = 120
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("multipart/form-data; boundary=\(body.boundary)", forHTTPHeaderField: "Content-Type")
-        request.setValue("\(body.byteCount)", forHTTPHeaderField: "Content-Length")
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("\(bodyByteCount)", forHTTPHeaderField: "Content-Length")
 
         try Task.checkCancellation()
         do {
             return try await withTaskCancellationHandler(operation: {
-                let (data, response) = try await transport.upload(for: request, fromFile: body.url)
+                let (data, response) = try await transport.upload(for: request, fromFile: bodyURL)
                 try Task.checkCancellation()
                 let httpResponse = try validatedHTTPResponse(
                     response,

@@ -23,8 +23,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.Vita0818.FlotisMac
-        MARKETING_VERSION: 0.8.0
-        CURRENT_PROJECT_VERSION: 1
+        MARKETING_VERSION: 0.12
+        CURRENT_PROJECT_VERSION: 3
         ASSETCATALOG_COMPILER_APPICON_NAME: Flotis
         SWIFT_VERSION: "5.0"
   FlotisTests:

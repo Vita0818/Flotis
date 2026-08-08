@@ -24,11 +24,15 @@ final class HotkeyManager {
     var onCommandHotkeyPressed: ((UUID) -> Void)?
     var onTogglePanel: (() -> Void)?
     var onToggleVoice: (() -> Void)?
+    var onPreviousComparisonResult: (() -> Void)?
+    var onNextComparisonResult: (() -> Void)?
     var onRegistrationError: ((String?) -> Void)?
 
     private enum FixedHotKeyID {
         static let togglePanel: UInt32 = 100
         static let toggleVoice: UInt32 = 200
+        static let previousComparisonResult: UInt32 = 300
+        static let nextComparisonResult: UInt32 = 400
         static let firstCommand: UInt32 = 1000
     }
 
@@ -53,13 +57,21 @@ final class HotkeyManager {
     private var nextCommandHotKeyID = FixedHotKeyID.firstCommand
     private var lastPublishedError: String?
     private var isStarted = false
+    private var comparisonNavigationEnabled = false
+    private var currentCommands: [PromptCommand] = []
+    private var currentHotkeyConfiguration = FlotisHotkeyConfiguration.defaults
     private var pressGate = HotKeyPressGate()
 
     private init() {}
 
-    func start(commands: [PromptCommand]) {
+    func start(
+        commands: [PromptCommand],
+        hotkeyConfiguration: FlotisHotkeyConfiguration = .defaults
+    ) {
         performOnMainThread {
             self.isStarted = true
+            self.currentCommands = commands
+            self.currentHotkeyConfiguration = hotkeyConfiguration
             self.updateDesiredHotKeys(commands: commands)
             self.synchronizeRegistrations()
         }
@@ -68,10 +80,34 @@ final class HotkeyManager {
     func updateCommands(_ commands: [PromptCommand]) {
         performOnMainThread {
             guard self.isStarted else {
-                self.start(commands: commands)
+                self.start(
+                    commands: commands,
+                    hotkeyConfiguration: self.currentHotkeyConfiguration
+                )
                 return
             }
+            self.currentCommands = commands
             self.updateDesiredHotKeys(commands: commands)
+            self.synchronizeRegistrations()
+        }
+    }
+
+    func setComparisonNavigationEnabled(_ enabled: Bool) {
+        performOnMainThread {
+            guard self.comparisonNavigationEnabled != enabled else { return }
+            self.comparisonNavigationEnabled = enabled
+            guard self.isStarted else { return }
+            self.updateDesiredHotKeys(commands: self.currentCommands)
+            self.synchronizeRegistrations()
+        }
+    }
+
+    func updateHotkeyConfiguration(_ configuration: FlotisHotkeyConfiguration) {
+        performOnMainThread {
+            guard configuration.isValid else { return }
+            self.currentHotkeyConfiguration = configuration
+            guard self.isStarted else { return }
+            self.updateDesiredHotKeys(commands: self.currentCommands)
             self.synchronizeRegistrations()
         }
     }
@@ -93,6 +129,9 @@ final class HotkeyManager {
             self.desiredHotKeysByID.removeAll()
             self.hotKeyIDsByCommandID.removeAll()
             self.nextCommandHotKeyID = FixedHotKeyID.firstCommand
+            self.comparisonNavigationEnabled = false
+            self.currentCommands = []
+            self.currentHotkeyConfiguration = .defaults
             self.pressGate.reset()
 
             if let eventHandlerRef = self.eventHandlerRef {
@@ -115,7 +154,7 @@ final class HotkeyManager {
     private func updateDesiredHotKeys(commands: [PromptCommand]) {
         var desiredHotKeys: [UInt32: DesiredHotKey] = [
             FixedHotKeyID.togglePanel: DesiredHotKey(
-                descriptor: .togglePanel,
+                descriptor: currentHotkeyConfiguration.togglePanel,
                 commandID: nil,
                 displayName: UIStrings.showHideFloatingPanel
             ),
@@ -125,6 +164,18 @@ final class HotkeyManager {
                 displayName: UIStrings.voiceInput
             )
         ]
+        if comparisonNavigationEnabled {
+            desiredHotKeys[FixedHotKeyID.previousComparisonResult] = DesiredHotKey(
+                descriptor: currentHotkeyConfiguration.previousComparisonResult,
+                commandID: nil,
+                displayName: UIStrings.previousComparisonResult
+            )
+            desiredHotKeys[FixedHotKeyID.nextComparisonResult] = DesiredHotKey(
+                descriptor: currentHotkeyConfiguration.nextComparisonResult,
+                commandID: nil,
+                displayName: UIStrings.nextComparisonResult
+            )
+        }
         var configurationFailures: [String] = []
         let currentCommandIDs = Set(commands.map(\.id))
 
@@ -376,6 +427,16 @@ final class HotkeyManager {
 
         if id == FixedHotKeyID.toggleVoice {
             onToggleVoice?()
+            return
+        }
+
+        if id == FixedHotKeyID.previousComparisonResult {
+            onPreviousComparisonResult?()
+            return
+        }
+
+        if id == FixedHotKeyID.nextComparisonResult {
+            onNextComparisonResult?()
             return
         }
 

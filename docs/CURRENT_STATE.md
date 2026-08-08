@@ -1,21 +1,21 @@
 # CURRENT_STATE
 
-最近一次自查日期：2026-08-04
+最近一次自查日期：2026-08-07
 
 ## 当前真实状态总览
 
-- Flotis V0.8 是 macOS 悬浮语音输入胶囊；`project.yml` 当前声明主 App `MARKETING_VERSION=0.8.0`、build `1`，隔离输入法 `MARKETING_VERSION=0.1.0`、build `3`。仓库当前没有 Git tag，历史中的 `v0.1`–`v0.7` 是提交信息而非 tag。
-- XcodeGen 工程现在包含 `Flotis`、`FlotisInputMethod` 两个 application target，以及 `FlotisTests`、`FlotisInputMethodTests` 两个 unit-test target。主 app 仍有 27 个 Swift 源文件与 5 个测试源文件；隔离输入法有 4 个 Swift 源文件与 1 个测试源文件；无第三方依赖。
+- Flotis V0.12 是 macOS 悬浮语音输入胶囊；`project.yml` 当前声明主 App `MARKETING_VERSION=0.12`、build `3`，隔离输入法 `MARKETING_VERSION=0.1.0`、build `3`。仓库当前没有 Git tag，历史中的 `v0.1`–`v0.7` 是提交信息而非 tag。
+- XcodeGen 工程现在包含 `Flotis`、`FlotisInputMethod` 两个 application target，以及 `FlotisTests`、`FlotisInputMethodTests` 两个 unit-test target。主 app 有 31 个 Swift 源文件与 6 个测试源文件；隔离输入法有 4 个 Swift 源文件与 1 个测试源文件；无第三方依赖。
 - app 为 `LSUIElement=YES`，无 Dock 图标；`LSMultipleInstancesProhibited=YES` 防止两个 Flotis 进程争抢全局热键；deployment target 为 macOS 13.0。
-- 六个版本化转写 adapter 仍完整注册：Apple on-device、OpenAI-compatible HTTP、OpenAI Realtime GA、DashScope Paraformer、Volcengine BigASR、GLM ASR HTTP/SSE。当前 Settings 展示层只开放 OpenAI Compatible；其余 connection、adapter、preset、迁移与 runtime 能力仅暂时隐藏，没有被删除。全新安装仍只创建 Apple connection。
-- V0.8 主链路为同一语音热键依次执行“开始录音 → 停止并等待转写 → 审阅/编辑 → 复制并返回小胶囊”。第三次热键和审阅确认按钮都只写系统剪贴板；成功后清空会话、回到 `idle`，审阅框按已保存的位置锚点缩回小胶囊且 panel 保持可见，失败则保留文字/审阅态供重试。当前不捕获目标 app、不请求 AX、不发送 `CGEvent`/`⌘V`；旧 `ClipboardPasteInjector` 与 `AccessibilityPermission` 仅作为不可达兼容源码保留。命令网格、命令设置 tab 和命令热键也仍退出运行入口，旧 `commands.json` 未删除。
-- connection 配置 v3、应用自管凭据隔离、v1/v2 只读迁移、OpenAI Compatible 新增/编辑 UI、Test Connection 和可取消语音会话保持不变。
+- 六个版本化转写 adapter 仍完整注册：Apple on-device、OpenAI-compatible HTTP、OpenAI Realtime GA、DashScope Paraformer、Volcengine BigASR、GLM ASR HTTP/SSE。当前 Settings 的 adapter 展示层只开放 OpenAI Compatible；可新增/切换 provider，并在一个 provider 内配置共享 endpoint/API key 和多个模型。其余 adapter、preset、迁移与 runtime 能力仍暂时隐藏，没有被删除。全新 schema v2 配置是空 provider catalog，绝不写入 Apple；Apple on-device 只作为空 catalog 时的内部 fallback。
+- V0.12 默认主链路仍由同一固定语音热键依次执行“开始录音 → 停止并等待转写 → 审阅/编辑 → 复制并返回小胶囊”。可选的多模型对比允许选择 2–4 个就绪的 OpenAI Compatible recorded-file model route，包括同一 provider 下的多个模型：只生成一份录音文件，同时请求各 route，单项失败隔离；至少一项成功后按配置顺序自动打开第一个成功候选，用户可点击候选或用仅在对比审阅期间临时注册的可配置前后导航快捷键（默认 `⌥←` / `⌥→`）在成功项间循环查看，第三次固定 voice hotkey 复制当前正在查看/编辑的结果。这里的“第一个”只是稳定默认项，不代表质量评分或自动判定最佳。第三次热键和审阅确认按钮都只写系统剪贴板；成功后清空会话、回到 `idle`，审阅框按已保存的位置锚点缩回小胶囊且 panel 保持可见。当前不捕获目标 app、不请求 AX、不发送 `CGEvent`/`⌘V`；旧 `ClipboardPasteInjector` 与 `AccessibilityPermission` 仅作为不可达兼容源码保留。命令网格、命令设置 tab 和命令热键也仍退出运行入口，旧 `commands.json` 未删除。
+- `~/Library/Application Support/Flotis/config.json` 现在是 Provider、active model、2–4 项对比选择、三项可配置全局快捷键和 API key 的唯一运行时配置真源。schema v2 参考 Intatis，以顶层 `$schema` / `model` / `provider_order` / `enabled_providers` / `comparison.models` / `shortcuts` / `provider` 串联全部配置；`provider.<id>.options` 只保存一次 endpoint 与 key，`provider.<id>.models` 可列多个模型及各自的可选显示名称。`shortcuts` 保存 panel 显隐、上一个结果、下一个结果三个 descriptor，不保存固定的 `⌃⌥A` voice hotkey。selector 只在第一个 `/` 分割，所以 `openrouter/openai/...` 能保留完整 OpenRouter model ID。旧 canonical v1、connection v3、对比 UserDefaults 和 `secrets.json` 只作迁移输入，迁移后不再参与运行时读写；不保存录音或转写结果。
 - App 界面语言自动读取第一首选系统语言：明确的简体中文标识使用简中，繁体中文、英文及其他语言统一回退英文；不提供手动语言开关，也不改变 provider 的转写语言。
 - 2026-07-26 已对 OpenAI Compatible Settings 最终源码运行 `xcodegen generate`、完整 Debug build 和 unit tests：最终构建成功，49 tests、0 failures；此前旧版工作台曾在 macOS 26.5 Light appearance 打开检查，但本轮精简表面尚未运行态目视。
 - 2026-07-27 已完成胶囊紧凑与边缘精修：AppKit 成为唯一外壳裁切 owner，SwiftUI 改为向内描边；`xcodegen generate`、独立 Debug build 和 49 个 unit tests 均成功，并在 macOS 26.5.2 运行态对比了 AX 警告状态。
 - 2026-07-28 待机胶囊最终微调为 `120×56`：只显示录音、设置两个按钮及下方灰色语音快捷键符号，不再显示品牌名或启动说明；相较上一版 `128×56` 只收窄 8 pt，高度、按钮尺寸、10 pt 按钮间距和 11 pt 系统次级灰快捷键均保持不变，避免再次变大或牺牲可读性。该比例已通过 XcodeGen、独立 Debug build 与 49 个 unit tests；按用户要求没有启动 App 或打开 Settings，因此最终观感留给用户在常用构建中确认。缺少 AX 权限不会在尚未执行注入时主动撑大胶囊，权限状态仍在 Settings 醒目展示，实际注入失败后仍会展开明确提示和系统设置入口。录音、处理、审阅和其他错误态继续保留必要状态信息。Settings 共用页头新增醒目的双语一键退出按钮，使用 AppKit 标准 terminate 路径。
 - 2026-07-28 针对浅色模式的尖角矩形高光和双边毛躁再次收敛外壳：`NSVisualEffectView.maskImage` 现在用可拉伸圆角 alpha mask 同时约束 material 与窗口服务器阴影，CALayer mask 只负责裁切 hosted subviews；窗口显示和静态尺寸切换后会重新计算阴影。SwiftUI 已移除整圈 1 pt separator 描边，避免它与 material/原生阴影叠成明显双边。尺寸、圆角值、按钮和所有语音状态未改。XcodeGen、独立 Debug build 与 49 个 unit tests 通过；没有启动 App 或打开 Settings，因此浅色模式最终像素观感仍待用户在常用构建中确认。
-- 2026-07-30 已移除全部系统钥匙串运行时依赖：删除 `KeychainSecretStore`、`import Security` 与所有 `SecItem*` 调用，生产链路统一改用 `LocalSecretStore`。API key 明文只写入 `~/Library/Application Support/Flotis/secrets.json`，以版本化 JSON、目录 fd、`openat(..., O_NOFOLLOW)`、同目录 `fsync + renameat` 原子替换、进程内共享锁与 `.secrets.lock` 跨进程写锁、目录 `0700` / 文件 `0600` 管理；跨进程锁只在单调时钟下重试最多 500 ms，避免另一进程卡死时永久冻结 UI。符号链接、非普通文件、非当前用户所有、损坏或超过 1 MiB 的文件会被拒绝且不会覆盖。connection v3 继续只保存 `apiKeyReference`，因此 schema 与六个 adapter 不变。Flotis 不读取、迁移或删除旧钥匙串条目，已有用户需在新构建中重新输入一次 API key；正在运行的旧构建必须退出后，新实现才会生效。XcodeGen、独立 Debug build 与 53 tests 全部通过，最终 dylib 无 Security.framework 直接链接或 `SecItem*` 未定义符号；本轮未启动 App 或接触真实凭据。
+- 2026-07-30 已移除全部系统钥匙串运行时依赖：删除 `KeychainSecretStore`、`import Security` 与所有 `SecItem*` 调用。当时的过渡实现把 API key 改存到私有权限 `secrets.json`，并用目录 fd、`openat(..., O_NOFOLLOW)`、同目录 `fsync + renameat`、进程内共享锁与有界 `.secrets.lock` 跨进程锁保护；该阶段的 XcodeGen、Debug build 与 53 tests 通过，产物无 Security.framework 直接链接或 `SecItem*` 未定义符号。这是历史记录；2026-08-05 已由下文的单文件 `config.json` 真源取代，`LocalSecretStore` 现仅作旧文件迁移读取器。Flotis 仍不读取、迁移或删除旧钥匙串条目。
 - 2026-07-30 已完成胶囊交互稳定性收敛：待机仍为 `120×56`，普通工作态改为 `188×56`，错误/提示态统一 `280×56`，审阅态改为 `420×160`，状态文案不再额外增加高度。尺寸请求会合并为最后一次，并始终基于启动时屏幕的固定底边锚点计算；显示面板和屏幕参数变化时会重新核对锚点，全窗口背景不再可拖动。齿轮直接打开 AppDelegate 持有且复用的独立 `760×560` 设置窗口，不再依赖字符串 selector 或胶囊 sheet；可见配置只剩 Model、Endpoint、API Key 和必要动作，connection name/多连接管理隐藏，保存后自动设为当前 OpenAI Compatible connection。审阅框改为原生 `NSTextView`，支持选择、编辑、右键与 `⌘C`，并增加无文字标签的复制全部按钮。Carbon 热键改为独占注册并监听 press/release，按住不再重复穿越状态；stopping/transcribing 中的额外按键改为忽略；注入前等待 `⌘⌥⇧R` 的修饰键和主键 R 全部释放，并要求 Flotis 自身 key window 已让出键盘焦点。XcodeGen、独立 Debug build 与 57 tests、0 failures 通过；未启动 App，运行态视觉、焦点和跨 Space 行为仍需新构建真机确认。
 - 2026-08-01 已修复用户反馈的四项交互问题：胶囊恢复整窗背景拖动，状态尺寸变化保持拖动后的水平中心与底边并钳制到当前可见屏幕；AX 入口区分非提示式状态检查与用户发起的提示式授权请求，`run.sh` 不再删除 DerivedData 或重置 Accessibility TCC，并改用稳定临时 DerivedData；语音会话在开始录音前捕获目标 app，审阅/重试沿用同一已核验 PID，注入返回明确失败类型并用 PID 定向发送 `⌘V`；Settings 重构为可缩放 `820×600`（最小 `760×540`）窗口，以“通用 / 转写”侧栏和职责卡片整理权限、快捷键、连接、凭据、高级参数与连接测试。已在 Light appearance 运行态检查胶囊拖动及两页 Settings，修正过右侧滚动导致页头/侧栏被推入标题栏的问题；最终 `xcodegen generate`、Debug build 与 61 tests、0 failures 通过。未授予系统 AX 权限、未采集麦克风、未读取或保存真实 API key，也未向真实目标文本框发送 `CGEvent`，因此真实端到端注入仍需用户授权后复测。
 - 2026-08-01 按用户“先不要改现在的”要求新增了完全隔离的 `FlotisInputMethod` InputMethodKit 接口：独立 `IMKServer`/`IMKInputController` target 可向当前 IMK 文本客户端直接 commit；普通按键透传。version `1` 请求包含随机 session UUID，并拒绝错误版本、空白、超过 1 MiB 或旧焦点请求；service 不持久化/记录文本且只弱持有当前 endpoint。新 target Debug build 成功，8 tests、0 failures；原 `Flotis` scheme 回归仍为 61 tests、0 failures。没有修改本轮开始时已有的 `Flotis/` 业务源码，没有安装/启动输入法、切换输入源或接入现有语音链路，因此系统发现、真实客户端兼容和跨进程传输仍未验证。
@@ -31,15 +31,24 @@
 - 2026-08-04 用户又用新的 `1061×1061` 透明黑色八齿齿轮替换了固定白色复杂齿轮。原图已更新到 `docs/assets/settings-gear-button-reference.png`，`SettingsGearButton.imageset` 改为 16/32/48 px；idle 设置按钮在 SwiftUI 中以 28 pt 白圆承载 16 pt 黑齿轮，与旁边 28 pt 白圆黑声波按钮形成同一视觉语法。此前为旧白齿轮试验的深色轮廓/衬底未保留，整块原生 glass 也没有重新加 tint。真实白底运行态截图确认两枚图标都清晰，Settings 窗口打开/关闭正常；XcodeGen、两个 application Debug build、主 App 65 tests 与输入法 8 tests 均通过。
 - 2026-08-04 按用户最新比例要求，idle 胶囊只在横向由 `116×54` 再收为 `108×54`，高度、两个 `30×30` 点击区域、8 pt 间距、图稿、action 与无障碍标签均未改变；下方快捷键由 11 pt Medium 系统 Monospaced/动态次级灰改为 12 pt Semibold 系统 Monospaced/动态主文字色。签名隔离预览的真实窗口截图精确为 `108×54`，两枚按钮未裁切或拥挤，`⌃⌥A` 更清楚，AX tree 仍暴露 Start、Settings 与完整快捷键说明；预览后已正常退出，未触发录音或修改设置。`xcodegen generate`、两个 application Debug build、主 App 65 tests 与输入法 8 tests 全部通过。
 - 2026-08-04 根目录新增的 `Flotis.icon` 已作为主 App 的原生 Icon Composer 资源接入：XcodeGen 将它生成为 `wrapper.icon` resource，主 target 固定 `ASSETCATALOG_COMPILER_APPICON_NAME=Flotis`。Debug/Release 产物均生成 `Flotis.icns` 与 `Assets.car`，最终 Info.plist 自动包含 `CFBundleIconFile/CFBundleIconName=Flotis`；编译后的系统图标为白色圆角底、灰色对话框与声波。ad-hoc Release `0.8.0 (1)` 已通过 `codesign --verify --deep --strict`，完整安装到 `/Applications/Flotis.app`、注册 Launch Services 并成功启动；安装副本的可执行文件和 `Flotis.icns` 与 Release 产物逐字节一致。主 App 65 tests、输入法 8 tests 与两个 Debug application build 全部通过；独立输入法安装副本未改动。
+- 2026-08-05 第一版多模型对比曾按“每个 connection 一个模型”的结构实现：`VoiceInputController` 已具备共享一份录音、2–4 项并发、候选顺序恢复、失败隔离和显式人工选择；当时的对比审阅 panel 为 `560×250`。共享录音与并发执行机制保留，但 schema v2 随后用 provider/model route 取代扁平 connection，2026-08-06 又用自动首项、方向键导航和 `560×300` 双列布局取代当时的首次人工选择交互。
+- 2026-08-05 单文件配置的第一轮曾落为按 UUID connection 索引的 schema v1。它完成了 `.config.lock` 内 read-modify-write、`0600` 临时文件、`fsync`、`renameat` 原子替换、目录 `0700`、配置/锁 `0600` 和损坏/符号链接/非普通文件拒绝。该 v1 仅为历史迁移输入；下条 schema v2 已取代其数据模型。
+- 2026-08-05 当前修正为 Intatis 风格 schema v2：一个 provider 只保存一次 endpoint/API key/options，并拥有 1–64 个 model entry；顶层 active 与 comparison 都引用完整 `<provider-id>/<model-id>` selector，model ID 可以包含 `/`。Apple 条目从 canonical config、Settings provider 列表和迁移结果中移除。OpenRouter route 新增官方 JSON+Base64 音频请求编码，Base URL 为 `https://openrouter.ai/api`、Path 为 `/v1/audio/transcriptions`；普通 OpenAI-compatible 仍可用 multipart。Settings 可编辑多行模型、当前模型、request encoding，并允许直接勾选同一 Provider 下不同模型进行对比。旧 canonical v1 会原子升级到 v2，旧 UserDefaults/`secrets.json` 仍只读迁移一次。当前 ad-hoc Release `0.8.0 (2)` 已重新安装并启动于 `/Applications/Flotis.app`；真实配置已确认 schema `2`、文件权限 `0600`、Apple adapter 条目为 `0`，替换前 app 保存在 `/private/tmp/Flotis-before-schema-v2-install-20260805-221200.app`。
+- 2026-08-05 Settings 的 Provider/Models 主界面进一步按 Intatis 对应源码和真实截图重构：设置内容默认 `1100×760`、最小 `820×600`；左栏列 Provider 与模型数，右栏为 Provider name、共享 API key、Active model，并以 Connection / Models 两个 disclosure 管理 endpoint 与多模型。Models 展开后每个模型分别编辑 Model ID 和可选 Display name，可在同一 Provider 内新增/删除模型；Test Provider 与 Save 位于主卡下方。Flotis 特有的 2–4 route Comparison 与高级转写参数保留在主卡下方的独立 disclosure。Dark appearance 下的折叠/展开真实运行态均已与 Intatis 参考图同屏对比；过程中发现 HostingController 会把请求的 1100 pt 内容宽度缩到最小值，现已通过设置 `contentMinSize` 后显式 `setContentSize(1100×760)` 修复。最终主 App 75 tests、输入法 8 tests 均为 0 failures；本次未保存用户设置、未读取或发出真实 key/provider 请求，也未替换 `/Applications/Flotis.app`。
+- 2026-08-06 根据实际使用反馈完成交互收敛：Settings 的 Connection、Models、Comparison、Advanced 标题改为整行至少 44 pt 可点，Provider 行至少 48 pt，可对比 route 的整张卡片可切换，不再要求命中小箭头或 checkbox。录音态保留原有状态图标与文案，只移除右侧 stop 方块并显示从开始录音起单调递增的 `mm:ss`；stopping/transcribing 保留原有省略号状态图标和原有文案，只隐藏右侧重复的禁用 action。对比审阅改为 `560×300` 固定双列网格，四项为 2×2，不再横向滚动或显示“先选择”提示；首个成功项自动打开，`⌥←` / `⌥→` 跳过失败项并循环切换，现有 voice hotkey 复制当前项。每个候选在开始会话时同时快照 Model Display name：存在时卡片只显示该名称；不存在时以 Model ID 为主要文字、Provider 名称为次要文字，不再展示 endpoint。`xcodegen generate`、两个 application Debug build、完整主 App 77 tests 与输入法 8 tests 均通过。源码、策略测试和文档已同步；本轮原生截图服务启动失败，因此新交互的最终像素与物理快捷键仍列为人工验证项。
+- 2026-08-06 主 App 版本提升为 `0.12 (3)`，输入法版本保持 `0.1.0 (3)`。ad-hoc Release 通过严格签名校验，主 App 77 tests、输入法 8 tests 与输入法 Debug build 全部通过；安装副本的可执行文件和 `Flotis.icns` 与 Release 产物逐字节一致。当前版本已安装并启动于 `/Applications/Flotis.app`，旧 `0.8.0 (2)` 可从 `/private/tmp/Flotis-before-v0.12-install-20260806-1453.app` 恢复；安装未读取或改写 Provider/API key，也未覆盖用户 Input Methods 目录。
+- 2026-08-07 panel 显隐与两个对比导航快捷键改为用户可配置：设置中新增三行原生快捷键录制、逐项恢复和全部恢复；新配置立即原子写入 canonical `shortcuts`，并让 `HotkeyManager` 增量注销旧 descriptor、注册新 descriptor。默认仍为 panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`；固定 voice `⌃⌥A` 未开放修改。校验拒绝无修饰键、三项重复或占用 voice descriptor；previous/next 仍只在对比 reviewing 至少有两个成功项时临时注册。`xcodegen generate`、两个 application Debug build、完整主 App 79 tests、输入法 8 tests 与新增后的 `HotkeyAndInjectionPolicyTests` 23 tests 均通过。首轮 Release `/private/tmp/FlotisHotkeyReleaseInstall-20260807/Build/Products/Release/Flotis.app` 曾安装并启动，替换前副本保存在 `/private/tmp/Flotis-before-configurable-hotkeys-install-20260807-2150.app`。
+- 2026-08-07 用户根据已安装界面截图要求进一步精简 Settings：侧栏左上移除应用图标，只保留 `Flotis` 与版本；“General/概览”改名为“Shortcuts/快捷键”；该页删除重复的 voice 流程、胶囊拖动说明和第二层 section 标题，只用一张卡展示固定 voice 与三项可配置组合。所有组合键 surface 扩至 `220×50`，使用 17 pt Semibold Monospaced；可配置项整块可点，录制态同尺寸，提示文字增至 14 pt。最终 `xcodegen generate`、主 App/输入法 Debug build、主 App 79 tests 和输入法 8 tests 均通过；ad-hoc Release `/private/tmp/FlotisShortcutUI-ReleaseInstall-20260807/Build/Products/Release/Flotis.app` 已严格验签并替换、注册、启动于 `/Applications/Flotis.app`，安装可执行文件、`Flotis.icns` 与 `Assets.car` 均和 Release 逐字节一致，被替换的上一版保存在 `/private/tmp/Flotis-before-shortcut-ui-install-20260807-2211.app`。原生 Computer Use 服务连续两次启动失败，因此没有把当前像素结果标为自动视觉通过，仍需用户在已启动应用中目视确认；未读取或修改真实 Provider/API key，未录音、请求服务或触碰输入法安装副本。
 - 此前用户曾用真实 OpenAI-compatible connection 完成录音、转写并进入 reviewing，且在旧 AX 注入版本中点击胶囊“输入”成功；该历史结果不代表 2026-08-04 当前复制并返回流程已做真机端到端验证。
 
 ## 已有能力
 
 | 能力 | 入口 / 关键类型 | 自动化覆盖 | 当前验证 |
 |---|---|---|---|
-| V0.8 悬浮语音胶囊 | `FloatingPanelController` / `FloatingPanelView` / `FlotisDesign` | Debug build + 65 tests；无 UI/snapshot test | macOS 26+ 原生自适应 `.regular` Glass 的运行态外观已检查；四档静态尺寸、背景拖动、逻辑位置锚点及钳位后缩回恢复已构建并有策略测试；`⌃⌥A` 描述符已受测，物理三次热键/系统剪贴板/缩回和真实拖动取消仍待真机验证 |
+| V0.12 悬浮语音胶囊 | `FloatingPanelController` / `FloatingPanelView` / `FlotisDesign` | 当前源码 Debug/Release build；79 tests、0 failures；无 UI/snapshot test | 当前精简快捷键页的 `0.12 (3)` 已安装并启动；单结果 `420×160` 与对比 `560×300` 尺寸受策略测试保护，物理热键、真实转写与完整视觉矩阵仍待人工验证 |
 | 隔离输入法提交接口 | `FlotisInputMethod` / `FlotisInputController` / `FlotisInputMethodService` | Release build + 严格签名校验 + 8 session/提交策略 tests | build `3` 已 ad-hoc 签名并安装，后台启动冒烟稳定；当前登录会话尚未发现输入源，需重新登录后做真实 IMK client 矩阵；未连接主 App |
-| OpenAI Compatible Settings | `FlotisSettingsWindowController` / `SettingsView` / `SpeechProviderSettingsView` | 构建覆盖；provider/secret 行为由配置单测覆盖 | 通用/转写两页、固定侧栏页头、右侧滚动与窗口缩放已做 Light 运行态目视 |
+| OpenAI Compatible Settings | `FlotisSettingsWindowController` / `SettingsView` / `IntatisStyleSpeechProviderSettingsView` | 构建覆盖；provider/model/key/display name 与对比偏好行为由配置/对比单测覆盖 | Intatis 参考与 Flotis 实现的 Provider/Models 折叠、展开状态已在 Dark appearance 同屏目视；同 Provider 多模型行、Connection、Test Provider/Save 与实际 `1100×760` 内容尺寸通过 |
+| 多模型 recorded-file 对比 | `TranscriptionComparisonStore` / `FileTranscriptionComparisonRunner` / `TranscriptCandidate` | 5 个 selector 偏好、失败隔离、同文件、自动首项、循环导航、编辑保持与当前项复制策略 tests | 候选会话内携带可选 Display name；卡片优先只显示该名称，无名称时显示主 Model ID + 次 Provider；同 Provider 多模型的 mock 并发通过，真实 2–4 个 route 与物理快捷键待验 |
 | 简中 / 英文自动适配 | `AppLanguage` / `UIStrings` / `InfoPlist.xcstrings` | 首选语言矩阵、双语选择与权限资源编译 | 构建/单测通过；双语运行态排版待目视 |
 | Carbon 全局热键 | `HotkeyManager` / `VoiceHotkeyAction` | 独占注册、press/release 门控、start/stop/copyAndReturn 与成功/失败策略单测 | 开始/停止/进入 reviewing 曾真机触发；第三次复制并返回待当前构建真机复测 |
 | 旧命令数据兼容 | `CommandStore` / `commands.json` | 旧策略单测 | 不再展示或注册命令热键 |
@@ -48,12 +57,12 @@
 | OpenAI Realtime GA 转写 | `OpenAIRealtimeTranscriber` | 多 item 乱序、partial/final 组装及 scripted session/append/commit/terminal | 真实 key 待验 |
 | DashScope Realtime | `DashScopeParaformerRealtimeTranscriber` | 重复句与文本边界单测 | 真实 key 待验 |
 | Volcengine BigASR Realtime | `VolcengineBigASRRealtimeTranscriber` | schema、registry/runtime plan 单测 | 真实 key 待验 |
-| OpenAI-compatible HTTP multipart | `OpenAIHTTPTranscriber` | 自定义 endpoint/model、WAV/M4A multipart、严格响应、取消边界 | OpenRouter 真实 happy path 已进入 reviewing；失败与边界矩阵待验 |
+| OpenAI-compatible HTTP | `OpenAIHTTPTranscriber` | OpenAI multipart、自定义 endpoint/model、WAV/M4A、OpenRouter JSON+Base64、严格响应、取消边界 | OpenRouter JSON 请求结构由 fake transport 验证；真实 schema v2 OpenRouter happy path 待联调 |
 | GLM HTTP SSE | `GLMASRHTTPTranscriber` | Content-Type、JSON event、delta/done/`[DONE]` 与错误脱敏 | mock 通过；真实 key 待验 |
-| 统一 connection / adapter registry | `TranscriptionConnection` / `TranscriptionAdapterRegistry` | 6 个唯一 adapter 与 3 类通用 runtime plan | 通过 |
-| Connection Test | `TranscriptionConnectionTester` | 合成音频、HTTP 与 Realtime mock、空文本合法、任意形态 Key 回显脱敏 | 通过 |
+| 统一 model route / adapter registry | `TranscriptionConnection` / `TranscriptionAdapterRegistry` | 6 个唯一 adapter、provider/model 到稳定 route 的派生与 3 类通用 runtime plan | 通过 |
+| Connection Test | `TranscriptionConnectionTester` | 合成音频、HTTP 与 Realtime mock、空文本合法、任意形态 Key 回显脱敏 | OpenRouter/WAV/Realtime mock 通过；M4A fixture 在当前主机被 CoreAudio 环境错误阻止 |
 | Provider v1/v2→v3 迁移 | `SpeechProviderSnapshotMigration` / `SpeechProviderStore` | 六类、自定义实例、排序、active、引用、v2 LKG | 通过 |
-| 应用自管 API key 存储 | `LocalSecretStore` | 跨实例并发/持久化、替换/删除、`0700`/`0600`、损坏文件与符号链接拒绝；既有 reference 轮换/回滚测试 | 配置套件与当前完整 65 tests 均通过；真实用户路径待新构建首次保存 |
+| 单文件 Provider / API key / comparison 配置 | `FlotisConfigurationStore` / `SpeechProviderStore` / `TranscriptionComparisonStore` | schema v2、同 Provider 多模型/共享 key、首 `/` selector、空 catalog 不写 Apple、旧源迁移、分区事务、reference 轮换/回滚、`0700`/`0600`、损坏文件拒绝 | 定向配置/对比/OpenRouter 请求测试覆盖；`LocalSecretStore` 仅保留为旧 `secrets.json` 迁移读取器 |
 
 ## 已解决的 2026-07-10 审计问题
 
@@ -64,8 +73,8 @@
 - Realtime stop 改为等待协议终态/ack；OpenAI 按 `item_id` / `content_index` / previous item 关系组装，Dash 等待 `task-finished`，Volc 等待终端事件/包。
 - `StreamingAudioCapture.stop()` 会先移除 tap/停 engine，保持 generation 有效地排空所有 in-flight conversion，并以 end-of-stream flush `AVAudioConverter` 尾帧；`cancel()` 才立即失效 generation 并丢弃待处理音频。
 - 运行时改为 `TranscriptionAdapterID → TranscriptionAdapterRegistry → ownedCapture/pcmStream/recordedFile`；`VoiceInputController` 不再按厂商或 wire protocol 分支。协议专属参数、HTTPS/WSS 校验、可信 host 提示、凭据边界和草稿 Save/Cancel 保持不变。
-- UserDefaults 主数据升级为 canonical v3 connection；v2/v1 只作为只读迁移输入，保留 UUID、名称、排序、active ID 与安全边界不变的 `apiKeyReference`，并继续使用 last-known-good、坏数据备份和事务回滚。
-- Settings 的展示 allowlist 当前仅包含 `openai-audio-transcriptions-http-v1`；Add 直接创建该 adapter 的内存草稿，列表与概览不会加载隐藏 adapter。底层同 adapter 多 connection、六 adapter schema/preset、迁移与 runtime 保持不变。
+- `config.json` schema v2 是唯一 canonical 配置；provider 共享 options/key 并拥有多个 model，active/comparison 保存完整 selector，Apple 不持久化。canonical v1 与旧 UserDefaults v3/v2/v1、comparison v1、`secrets.json` 只作迁移输入。canonical 损坏时拒绝覆盖，事务失败同时回滚 provider catalog 与内存 key。
+- Settings 的 adapter 展示 allowlist 当前仅包含 `openai-audio-transcriptions-http-v1`；Add 直接创建该 adapter 的内存 provider 草稿，其他 adapter 不进入可见 picker。可见层使用 Intatis 式左侧 Provider 列表和右侧 Provider name / API key / Active model / Connection / Models 结构，支持同 provider 多模型及可选显示名称、2–4 route 对比与 multipart/JSON+Base64 encoding；完整六 adapter schema/preset、迁移与 runtime 保持不变。
 - Test Connection 使用程序内生成的无隐私短音频验证实际 transport、音频上传与响应结构；合成音不要求产生非空转写。错误摘要有长度上限并按本次实际 Key 精确脱敏，不保存响应正文或转写内容。
 - 最终复核补齐了 secret 清理失败回滚、坏 v3/v2 的对应 LKG 恢复与 legacy v1 fallback、Volc resource ID 的 schema/runtime 同源校验，并移除了 Volc 无效 language 配置。
 
@@ -75,13 +84,13 @@
 - Settings 使用动态 window canvas、`regularMaterial + 1 pt separator` 内容卡；中文页面标题采用系统默认字体，英文品牌与标题采用 Serif，正文采用系统默认字体，技术字段采用 Monospaced，并继续使用 SF Symbols。macOS 26+ 的交互控件使用原生 Liquid Glass，macOS 13–15 回退到系统 Material 与 bordered controls。
 - `UIStrings.swift` 集中提供简中与英文文案；`AppLanguage` 只检查第一首选语言，识别 `zh-Hans` / `zh-CN` / `zh-SG` / `zh-MY` 为简中，繁中及其余语言使用英文。应用内日期也固定使用所选中/英文 locale，权限提示由 `InfoPlist.xcstrings` 提供英文与简中版本。
 - 主窗口仍是屏幕底部居中的无标题小胶囊；外壳为 20 pt continuous corner。macOS 26+ 使用原生 `NSGlassEffectView(style: .regular)` 的系统自适应材质，不再设置整面黑色 `tintColor`，SwiftUI hosting content 也不再铺全表面深色背景，因此系统高光、折射与背景采样不会被自定义填充压平；macOS 27+ 的 glass 会响应交互。macOS 13–25 继续由 AppKit visual-effect material mask 负责圆角材质与原生窗口阴影，CALayer mask 裁切 hosted subviews，SwiftUI 不绘制整圈外框。待机态不显示品牌名、状态圆或说明文字，只保留用户提供的 28 pt 白圆黑声波录音图、28 pt 白圆/16 pt 黑色八齿齿轮设置图和下方 12 pt Semibold 系统 Monospaced 动态主文字色快捷键符号；当前可达非待机状态用图标、文字和有限语义色明确表达录音、处理、审阅、复制错误或失败。
-- idle 尺寸为 `108×54`，普通非 idle compact 为 `188×56`，错误/提示态为 `280×56`，reviewing 为 `420×160`；idle 之外的非审阅态固定 56 pt 高，不再因状态文案追加 42 pt。idle 的双按钮水平间距为 8 pt，下方快捷键使用 12 pt Semibold 系统 Monospaced 与动态主文字色。尺寸请求只应用最后一次；窗口首次显示在屏幕底部中央，之后允许整窗背景拖动。用户选择的中心/底边由独立逻辑锚点保存，尺寸变化仍钳制到可见屏幕，但临时钳位不覆盖锚点，所以审阅框取消缩回时可恢复展开前位置；用户主动拖动任一尺寸窗口才更新锚点。
-- 齿轮直接打开 AppDelegate 持有并复用的可缩放 `820×600` 设置窗口（最小 `760×540`）；不再从胶囊弹出 sheet，也不依赖字符串 selector。左侧只保留产品标识、“通用 / 转写”与退出；通用页集中三段式快捷键和拖动说明，不再展示 AX，转写页按连接、凭据、高级选项与测试分卡。可见转写主表单仍只有 OpenAI Compatible 的 Model、Endpoint（内部 Base URL + Path）、API Key、Test/Save/Cancel，只有自定义 host 才显示必要安全确认，Language/Prompt/Temperature 收入折叠高级区。保存成功后自动设为当前 OpenAI Compatible connection。退出仍走 `NSApplication.shared.terminate(nil)`；旧 `.injecting` 退出保护保留但当前不可达。
+- idle 尺寸为 `108×54`，普通非 idle compact 为 `188×56`，错误/提示态为 `280×56`，单结果 reviewing 为 `420×160`，对比 reviewing 为 `560×300`；idle 之外的非审阅态固定 56 pt 高，不再因状态文案追加高度。录音态保留原有状态图标与文案，以 `mm:ss` 替代右侧 stop 方块；stopping/transcribing 保留原有省略号状态图标与原有文案，只隐藏右侧重复的禁用 action。idle 的双按钮水平间距为 8 pt，下方快捷键使用 12 pt Semibold 系统 Monospaced 与动态主文字色。尺寸请求只应用最后一次；窗口首次显示在屏幕底部中央，之后允许整窗背景拖动。用户选择的中心/底边由独立逻辑锚点保存，尺寸变化仍钳制到可见屏幕，但临时钳位不覆盖锚点，所以审阅框取消缩回时可恢复展开前位置；用户主动拖动任一尺寸窗口才更新锚点。
+- 齿轮直接打开 AppDelegate 持有并复用的可缩放设置窗口；初始内容尺寸为 `1100×760`，最小内容尺寸为 `820×600`，不再从胶囊弹出 sheet，也不依赖字符串 selector。左侧只保留无图标的 `Flotis`/版本、“快捷键 / 转写”与退出；快捷键页只用一张卡集中固定 voice 与 panel 显隐/前后对比导航，组合键 surface 为 `220×50` / 17 pt，可配置项整块可点击录制，支持逐项/全部恢复和错误显示，不再展示 voice 流程、胶囊拖动说明或 AX。转写页主卡按 Intatis 布局：左栏管理 Provider，右栏编辑 Provider name、共享 API key 与 Active model，Connection 区承载 Endpoint/Path/Request Encoding/自定义 host 确认，Models 区以 Model ID + 可选 Display name 的独立行管理同一 Provider 的多个模型；Test Provider / Save 位于卡片下方。Connection、Models、Comparison 与 Advanced 标题整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换。Comparison 和 Language/Prompt/Temperature 作为 Flotis 扩展继续放在主卡之后。保存成功后把所选 model route 设为当前。退出仍走 `NSApplication.shared.terminate(nil)`；旧 `.injecting` 退出保护保留但当前不可达。
 - `⌃⌥A` 在 idle/failed 开始录音，在 recording/streaming 停止，在 reviewing 复制并返回；requesting/connecting 可取消，stopping/transcribing/injecting 的重复按键忽略。Carbon 使用独占注册和 press/release 门控，按住组合键只触发一次。
 - reviewing 的第三次 Carbon hotkey 不再等待修饰键释放或恢复目标焦点，而是同步把原样审阅文本写入剪贴板；写入成功后 controller 清空会话并回 `idle`，panel 保持可见并按逻辑位置锚点缩回小胶囊，下一次 voice hotkey 直接开始新录音。
 - 转写 adapter 返回最终文本后释放录音/网络 runtime，再进入 `reviewing`。原生审阅文本框支持编辑、鼠标选择、右键与 `⌘C`，工具栏有复制全部、取消和复制并返回三个图标按钮。
 - 复制失败时保持 reviewing、panel 与修改文字并显示错误；成功后才推进 generation、清空文字并回 idle。`ClipboardPasteInjector` 不再由当前产品入口调用。
-- App 启动时只向 `HotkeyManager` 注册 panel/voice 两个固定热键；命令 singleton 不再由 `AppDelegate` 装配，旧命令文件不读取、不改写、不删除。
+- App 启动时常驻注册 panel/voice 两个固定 Carbon ID，其中 panel descriptor 取自 `shortcuts.toggle_panel`，voice descriptor 固定为 `⌃⌥A`；仅在对比 reviewing 且至少两个成功项时临时注册 `shortcuts.previous_comparison_result` / `next_comparison_result`，离开该状态立即注销。设置变化会即时增量重注册，失败状态继续可见并自动重试。命令 singleton 不再由 `AppDelegate` 装配，旧命令文件不读取、不改写、不删除。
 
 ## Apple 转写累积修复（2026-07-12）
 
@@ -94,12 +103,13 @@
 
 - **输入法运行态与接线**：`FlotisInputMethod.app` build `3` 已使用本地 ad-hoc 身份签名、复制到用户 Input Methods 目录并完成稳定启动冒烟；它仍没有固定 Apple Development Team/代码身份，当前登录会话的 TIS 缓存也尚未发现该输入源。用户注销并重新登录、启用 `Flotis Voice` 后，仍需完成 TextEdit/浏览器等真实客户端矩阵。主 App 到输入法的认证本地 IPC 尚未设计和实现，当前不能把“已安装且可启动”描述为“语音已经能通过输入法上屏”。
 - **当前复制返回真机端到端**：三次物理 Carbon 热键、审阅编辑后的原样系统剪贴板内容、成功缩回原位置小胶囊、复制失败时 panel 保留以及跨 Space 行为无法由当前 unit tests 完全证明。当前路径不涉及 `CGEvent`、AX 或目标 app 激活。
+- **多模型对比与自定义热键真机端到端**：当前自动化证明偏好上限、同文件 fan-out、并发结果排序、单项失败隔离、按顺序自动打开首个成功项、失败跳过、循环导航、候选编辑保持、当前项复制、快捷键校验及 canonical 持久化，但尚未用两个以上真实 OpenAI Compatible endpoint 录音联调，也未物理录制非默认快捷键。需要核对每个服务确实收到同一音频、分别计费/失败时 UI 可理解、四项 2×2 无裁切、自定义 previous/next 只在正确状态注册并切换、panel 新旧组合即时替换，以及取消时所有 request 与临时文件都被清理。Realtime/Apple/DashScope/Volcengine 的共享实时捕获尚未实现，不应描述为已支持。
 - **Apple 真机复测**：需要再次验证“你好”短句、两个词中间静音 3–5 秒、连续纠错与重复词；自动化只证明累积策略，不能替代真实 `SFSpeechRecognizer` 回调序列。
 - **胶囊编辑/复制焦点**：原生 `NSTextView.needsPanelToBecomeKey`、复制全部按钮和 copy-and-return 状态路径已构建通过，但鼠标选区、`⌘C`、右键 Copy 及“编辑后按第三次全局热键复制并返回”的真实剪贴板/窗口组合仍需真机验证。
-- **视觉无障碍与兼容矩阵**：macOS 26.5 Light appearance 的旧版 Settings 工作台曾完成目视；本轮 OpenAI Compatible 精简后的空态、列表、表单与隐藏 active provider 状态尚未运行态目视。Dark、Reduce Transparency、Increase Contrast、macOS 13 fallback、所有 voice state 及长错误/长转写仍需人工矩阵。
-- **双语运行态排版**：语言解析和当前完整 65 个主 App 单测已通过，权限 String Catalog 也已编译检查；本轮未分别以简中、英文和其他语言启动 App 做完整目视，因此“Copy and return”英文在审阅态的实际辅助标签及通用语音快捷键 Settings 说明仍需人工确认。
+- **视觉无障碍与兼容矩阵**：新的 Intatis 式 Provider/Models 主卡已在 macOS Dark appearance 对折叠、Models 展开和实际 `1100×760` 内容尺寸完成运行态同屏比较；这不覆盖 Light、Reduce Transparency、Increase Contrast、macOS 13 fallback、空 catalog、长 Provider/model 文案、键盘导航及所有 voice state，仍需人工矩阵。
+- **双语运行态排版**：4 个语言解析测试均通过，权限 String Catalog 也已编译检查；本轮未分别以简中、英文和其他语言启动 App 做完整目视，因此新增对比设置、候选卡及“Copy and return”辅助标签仍需人工确认。
 - **真实供应商联调**：OpenAI、DashScope、Volcengine、GLM 的认证、服务端事件顺序、错误包和限流行为需分别使用有效账号验证；按本轮用户要求未创建、读取或使用真实 API key，也未发出真实供应商请求。
-- **签名/分发**：主 App 当前安装到 `/Applications/Flotis.app` 的 Release `0.8.0 (1)` 与输入法 Release build `3` 都使用 ad-hoc 签名，没有 Developer Team、notarization 或正式发布流水线；ad-hoc 足以做本机启动冒烟，但不是稳定开发/发布身份。重复重编译时 TCC 或输入源缓存可能把产物识别为新代码身份；要让授权与重复安装更稳定，需要在 Xcode 选择固定 Apple Development Team 后用同一 bundle ID 构建。
+- **签名/分发**：主 App 当前安装的 Release 为 `0.12 (3)`，旧 `0.8.0 (2)` 保留在 `/private/tmp/Flotis-before-v0.12-install-20260806-1453.app`。主 App 与输入法 build `3` 都使用 ad-hoc 签名，没有 Developer Team、notarization 或正式发布流水线；ad-hoc 足以做本机启动冒烟，但不是稳定开发/发布身份。重复重编译时 TCC 或输入源缓存可能把产物识别为新代码身份；要让授权与重复安装更稳定，需要在 Xcode 选择固定 Apple Development Team 后用同一 bundle ID 构建。
 - **`VoiceInputMode` 疑似 vestigial**：`AppState.voiceMode` 仍存在，但真实分派依据是 adapter registry 返回的通用 runtime plan。
 - **部分 UI 状态不持久化**：`isPanelVisible`、`selectedSpeechLocale`、`voiceMode` 重启后重置；是否应持久化仍为产品决策。
 - **无 README/CHANGELOG**：项目入口文档仍以 `AGENTS.md` 与 `docs/` 为主。
@@ -110,6 +120,7 @@
 - `FlotisInputMethodService` 的 success 同样只表示当前 IMK client 存在且调用了 `insertText`；即使输入法已安装并可稳定启动，在重新登录后的目视客户端矩阵完成前仍不宣称目标控件已显示文本。session UUID 只解决焦点时序，不等于未来 IPC 的调用方认证。
 - 为支持 Carbon 全局热键与 `CGEvent`，app 当前未沙箱化。正式分发前必须单独评估 hardened runtime、签名和 notarization。
 - 第三方协议已有静态 schema、mock transport、超时/终态保护与严格响应解析，但公开服务端协议可能演进；升级 API 前必须重跑自动化与真实 provider 矩阵。
+- 多模型对比会把同一录音发送给每个被选 model route，并可能为每个请求分别产生费用；Settings 必须持续明确提示。当前实现只把开关与完整 model selector 写入 canonical `comparison.models`，候选文本和失败详情仅存于当前内存会话，不得扩展为默认持久化或日志。
 - `run.sh` 使用固定的临时 DerivedData 做增量构建，不再删除缓存或执行 `tccutil reset Accessibility`；脚本会在产物为 ad-hoc 签名时提示配置稳定 Apple Development 签名。
 
 ## 工作区状态
@@ -130,6 +141,10 @@
 
 2026-08-04 应用图标安装继续在同一未提交工作树上接入用户新增的根目录 `Flotis.icon`，定向修改 `project.yml`、XcodeGen 生成工程与常驻文档。主 App ad-hoc Release 已安装到 `/Applications/Flotis.app` 并启动；没有覆盖或重新安装 `~/Library/Input Methods/FlotisInputMethod.app`，也没有 add/commit/push。
 
+2026-08-05 多模型对比任务开始时工作树为 clean。本轮新增 `Flotis/TranscriptionComparison.swift` 与 `FlotisTests/TranscriptionComparisonTests.swift`，定向更新 controller/state/Settings/候选审阅/UI 文案、布局策略测试、XcodeGen 生成工程和常驻文档；没有改 provider 协议 payload、secret store、输入法源码、构建脚本或真实用户配置，也没有 add/commit/push。完整测试前为释放 `LSMultipleInstancesProhibited`，只正常退出了当时的安装副本。用户随后明确要求安装当前实现：旧 app 已移动到 `/private/tmp/Flotis-before-multiprovider-install-20260805-1524.app`，新的 ad-hoc Release 已复制到 `/Applications/Flotis.app`，安装可执行文件与 build 产物逐字节一致并已成功启动；输入法安装副本未改动。
+
+2026-08-05 Intatis 式 Provider/Models 设置重构继续在同一未提交工作树上新增 `IntatisStyleSpeechProviderSettingsView.swift`，定向更新设置窗口装配、Provider 模型显示名称持久化、UI 文案、配置测试、XcodeGen 工程与文档。只以不含 API key 的字段投影核对当前 catalog，并用隔离 Debug bundle 做折叠/展开视觉捕获；临时视觉捕获代码已完全移除。没有保存或迁移用户 `config.json`、没有真实 provider/录音请求、没有安装新主 App 或输入法，也没有 add/commit/push。
+
 ## 文档与源码冲突
 
-历史上项目入口 `AGENTS.md` 中“24 个 app Swift / 3 个 XCTest”曾与源码冲突，后续已修正为 26/4；新增 `FlotisDesign.swift` 后为主 app 27/4，增加语言策略测试后为 27/5。输入法接口新增后必须分别记录主 app 的 27+5 与输入法的 4+1，不能把跨 target 重复编译的 protocol/service 误算成额外文件。此前文档声称存在 v0.4 tag，但 `git tag --list` 为空，现有文档继续区分提交信息和 tag。后续若文档再次与源码、`project.yml` 或测试冲突，仍以可构建的当前源码与工程配置为准。
+历史上项目入口 `AGENTS.md` 中“24 个 app Swift / 3 个 XCTest”曾与源码冲突，后续依次修正为 26/4、27/4、27/5；多模型对比、单文件配置和 Intatis 式设置界面演进后，当前为主 app 30+6、输入法 4+1，不能把跨 target 重复编译的 protocol/service 误算成额外文件。此前文档声称存在 v0.4 tag，但 `git tag --list` 为空，现有文档继续区分提交信息和 tag。后续若文档再次与源码、`project.yml` 或测试冲突，仍以可构建的当前源码与工程配置为准。

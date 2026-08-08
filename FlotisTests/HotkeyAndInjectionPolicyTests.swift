@@ -53,6 +53,23 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertEqual(VoiceInputState.injecting.hotkeyAction, .none)
     }
 
+    func testRecordingElapsedTimeTracksOnlyActiveAudioCapture() throws {
+        let appState = AppState()
+        XCTAssertNil(appState.recordingStartedAt)
+
+        appState.voiceState = .recording
+        let startedAt = try XCTUnwrap(appState.recordingStartedAt)
+
+        appState.voiceState = .streaming
+        XCTAssertEqual(appState.recordingStartedAt, startedAt)
+
+        appState.voiceState = .transcribing
+        XCTAssertNil(appState.recordingStartedAt)
+        XCTAssertEqual(UIStrings.recordingElapsed(seconds: 0), "00:00")
+        XCTAssertEqual(UIStrings.recordingElapsed(seconds: 65), "01:05")
+        XCTAssertEqual(UIStrings.recordingElapsed(seconds: 3_661), "1:01:01")
+    }
+
     func testHotkeyPressGateAcceptsOnlyOnePressUntilRelease() {
         var gate = HotKeyPressGate()
 
@@ -129,6 +146,14 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertEqual(
             FloatingPanelLayout(state: .reviewing, hasStatusArea: true).panelSize,
             CGSize(width: 420, height: 160)
+        )
+        XCTAssertEqual(
+            FloatingPanelLayout(
+                state: .reviewing,
+                hasStatusArea: false,
+                isComparisonReview: true
+            ).panelSize,
+            CGSize(width: 560, height: 300)
         )
     }
 
@@ -235,6 +260,88 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertEqual(KeyboardShortcutDescriptor.toggleVoice.displayString, "⌃⌥A")
     }
 
+    func testConfigurableHotkeysKeepExistingDefaults() {
+        let configuration = FlotisHotkeyConfiguration.defaults
+
+        XCTAssertEqual(configuration.togglePanel.keyCode, 29)
+        XCTAssertEqual(configuration.togglePanel.modifiers, .commandOptionShift)
+        XCTAssertEqual(configuration.togglePanel.displayString, "⌥⇧⌘0")
+        XCTAssertEqual(configuration.previousComparisonResult.keyCode, 123)
+        XCTAssertEqual(
+            configuration.previousComparisonResult.modifiers,
+            .optionOnly
+        )
+        XCTAssertEqual(
+            configuration.previousComparisonResult.displayString,
+            "⌥←"
+        )
+        XCTAssertEqual(configuration.nextComparisonResult.keyCode, 124)
+        XCTAssertEqual(
+            configuration.nextComparisonResult.modifiers,
+            .optionOnly
+        )
+        XCTAssertEqual(
+            configuration.nextComparisonResult.displayString,
+            "⌥→"
+        )
+    }
+
+    func testConfigurableHotkeysRejectMissingModifiersVoiceAndDuplicates() throws {
+        let (store, directoryURL) = makeIsolatedHotkeyStore()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let noModifiers = KeyboardShortcutDescriptor(
+            keyCode: 123,
+            modifiers: ShortcutModifiers(
+                command: false,
+                option: false,
+                shift: false,
+                control: false
+            )
+        )
+        XCTAssertNotNil(
+            store.validationError(for: noModifiers, hotkey: .previousComparisonResult)
+        )
+        XCTAssertNotNil(
+            store.validationError(for: .toggleVoice, hotkey: .togglePanel)
+        )
+        XCTAssertNotNil(
+            store.validationError(
+                for: store.configuration.nextComparisonResult,
+                hotkey: .previousComparisonResult
+            )
+        )
+    }
+
+    func testConfigurableHotkeysPersistInCanonicalConfiguration() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FlotisHotkeyTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let configurationStore = FlotisConfigurationStore(
+            fileURL: directoryURL.appendingPathComponent("config.json")
+        )
+        let store = HotkeyConfigurationStore(configurationStore: configurationStore)
+        let shortcut = KeyboardShortcutDescriptor(
+            keyCode: 11,
+            modifiers: .controlOption
+        )
+
+        XCTAssertTrue(store.setShortcut(shortcut, for: .togglePanel))
+        XCTAssertEqual(store.configuration.togglePanel, shortcut)
+
+        let reloaded = HotkeyConfigurationStore(configurationStore: configurationStore)
+        XCTAssertEqual(reloaded.configuration.togglePanel, shortcut)
+        XCTAssertEqual(reloaded.configuration.previousComparisonResult.displayString, "⌥←")
+
+        guard case .loaded(let document) = configurationStore.load() else {
+            return XCTFail("Expected canonical config.json to load")
+        }
+        XCTAssertEqual(document.shortcuts?.togglePanel, shortcut)
+        XCTAssertEqual(document.provider, [:])
+        XCTAssertEqual(document.comparison, FlotisComparisonConfiguration(enabled: false, models: []))
+    }
+
     func testPasteQueueCapacityIsBounded() {
         XCTAssertTrue(
             ClipboardPasteInjector.shouldAcceptOperation(inFlightCount: 3, burstOperationCount: 7)
@@ -250,6 +357,18 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
     func testPasteOperationExpirationUsesMonotonicAge() {
         XCTAssertFalse(ClipboardPasteInjector.isOperationExpired(enqueuedAt: 100, now: 105))
         XCTAssertTrue(ClipboardPasteInjector.isOperationExpired(enqueuedAt: 100, now: 105.001))
+    }
+
+    private func makeIsolatedHotkeyStore() -> (HotkeyConfigurationStore, URL) {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FlotisHotkeyTests-\(UUID().uuidString)", isDirectory: true)
+        let configurationStore = FlotisConfigurationStore(
+            fileURL: directoryURL.appendingPathComponent("config.json")
+        )
+        return (
+            HotkeyConfigurationStore(configurationStore: configurationStore),
+            directoryURL
+        )
     }
 }
 

@@ -68,27 +68,23 @@ enum UIStrings {
         english: "Voice input, permissions, and OpenAI Compatible",
         simplifiedChinese: "语音输入、权限与 OpenAI Compatible"
     )
-    static let generalSettings = localized(
-        english: "General",
-        simplifiedChinese: "概览"
+    static let shortcutSettings = localized(
+        english: "Shortcuts",
+        simplifiedChinese: "快捷键"
     )
     static let transcriptionSettings = localized(
         english: "Transcription",
         simplifiedChinese: "转写服务"
     )
-    static let generalSettingsSubtitle = localized(
-        english: "Permission status and the essentials for using Flotis.",
-        simplifiedChinese: "查看权限状态与 Flotis 的核心使用方式。"
-    )
     static let transcriptionSettingsSubtitle = localized(
-        english: "Configure the OpenAI-compatible service used for voice transcription.",
-        simplifiedChinese: "配置用于语音转写的 OpenAI 兼容服务。"
+        english: "Configure providers with multiple models and compare selected model routes.",
+        simplifiedChinese: "配置支持多模型的 Provider，并对比选中的模型路由。"
     )
     static let commands = localized(english: "Commands", simplifiedChinese: "命令")
     static let speech = localized(english: "Speech", simplifiedChinese: "语音")
     static let transcriptionProviders = localized(
-        english: "Transcription Connections",
-        simplifiedChinese: "转写连接"
+        english: "Transcription Providers",
+        simplifiedChinese: "转写 Provider"
     )
     static let openAICompatible = "OpenAI Compatible"
     static let openAICompatibleNotCurrent = localized(
@@ -96,8 +92,48 @@ enum UIStrings {
         simplifiedChinese: "当前未使用 OpenAI Compatible"
     )
     static let noOpenAICompatibleConnections = localized(
-        english: "No OpenAI Compatible connection has been added.",
-        simplifiedChinese: "尚未添加 OpenAI Compatible 连接。"
+        english: "No OpenAI Compatible provider has been added.",
+        simplifiedChinese: "尚未添加 OpenAI Compatible Provider。"
+    )
+    static let comparisonMode = localized(
+        english: "Compare multiple results",
+        simplifiedChinese: "多模型对比"
+    )
+    static let comparisonModeDescription = localized(
+        english: "Record once, send the same audio to every selected route, then review the first result or switch with your comparison shortcuts.",
+        simplifiedChinese: "只录音一次，把同一份音频交给所有所选路由；默认打开第一个结果，也可用自定义的对比快捷键切换。"
+    )
+    static let comparisonPrivacyWarning = localized(
+        english: "Each selected service receives the recording and may charge for one transcription request.",
+        simplifiedChinese: "每个所选服务都会收到本次录音，并可能分别产生一次转写费用。"
+    )
+    static let comparisonConnections = localized(
+        english: "Model routes to compare",
+        simplifiedChinese: "参与对比的模型路由"
+    )
+    static let previousComparisonResult = localized(
+        english: "Previous transcription result",
+        simplifiedChinese: "上一个转写结果"
+    )
+    static let nextComparisonResult = localized(
+        english: "Next transcription result",
+        simplifiedChinese: "下一个转写结果"
+    )
+    static let editConnection = localized(
+        english: "Provider to edit",
+        simplifiedChinese: "正在编辑的 Provider"
+    )
+    static let addAnotherConnection = localized(
+        english: "Add another provider",
+        simplifiedChinese: "再添加一个 Provider"
+    )
+    static let newConnection = localized(
+        english: "New provider",
+        simplifiedChinese: "新 Provider"
+    )
+    static let connectionNotReady = localized(
+        english: "Not ready",
+        simplifiedChinese: "尚未就绪"
     )
     static let back = localized(english: "Back", simplifiedChinese: "返回")
     static let done = localized(english: "Done", simplifiedChinese: "完成")
@@ -120,6 +156,8 @@ enum UIStrings {
         simplifiedChinese: "恢复默认"
     )
     static let enabled = localized(english: "Enabled", simplifiedChinese: "启用")
+    static let expanded = localized(english: "Expanded", simplifiedChinese: "已展开")
+    static let collapsed = localized(english: "Collapsed", simplifiedChinese: "已折叠")
     static let shortcut = localized(english: "Shortcut", simplifiedChinese: "快捷键")
     static let recordShortcut = localized(
         english: "Record Shortcut",
@@ -147,17 +185,17 @@ enum UIStrings {
         simplifiedChinese: "提供商名称"
     )
     static let currentProvider = localized(
-        english: "Current Connection",
-        simplifiedChinese: "当前连接"
+        english: "Current Model Route",
+        simplifiedChinese: "当前模型路由"
     )
-    static let connections = localized(english: "Connections", simplifiedChinese: "连接")
+    static let connections = localized(english: "Providers", simplifiedChinese: "Provider")
     static let basicInformation = localized(
         english: "Basic Information",
         simplifiedChinese: "基本信息"
     )
     static let connectionName = localized(
-        english: "Connection Name",
-        simplifiedChinese: "连接名称"
+        english: "Provider name",
+        simplifiedChinese: "Provider 名称"
     )
     static let protocolCompatibilityType = localized(
         english: "Protocol Compatibility",
@@ -181,30 +219,92 @@ enum UIStrings {
         simplifiedChinese: "高级设置"
     )
     static let connectionEndpoint = localized(
-        english: "Connection Endpoint",
-        simplifiedChinese: "连接端点"
+        english: "Provider Endpoint",
+        simplifiedChinese: "Provider 端点"
     )
     static let addTranscriptionConnection = localized(
-        english: "Add Connection",
-        simplifiedChinese: "新增连接"
+        english: "Add Provider",
+        simplifiedChinese: "新增 Provider"
     )
     static let editTranscriptionConnection = localized(
-        english: "Edit Connection",
-        simplifiedChinese: "编辑连接"
+        english: "Edit Provider",
+        simplifiedChinese: "编辑 Provider"
     )
     static let newTranscriptionConnectionName = localized(
         english: "OpenAI Compatible",
         simplifiedChinese: "OpenAI Compatible"
     )
     static let newConnectionDraftHint = localized(
-        english: "This connection draft has not been saved. Canceling will not change any existing configuration.",
-        simplifiedChinese: "这是未保存的连接草稿；取消不会修改现有配置。"
+        english: "This provider draft has not been saved. Canceling will not change any existing configuration.",
+        simplifiedChinese: "这是未保存的 Provider 草稿；取消不会修改现有配置。"
     )
     static let presetAppliedHint = localized(
-        english: "Recommended values have been filled in. You can still adjust every field for this connection.",
-        simplifiedChinese: "预设已填入建议值，所有字段仍可按当前连接调整。"
+        english: "Recommended values have been filled in. You can still adjust every field for this provider.",
+        simplifiedChinese: "预设已填入建议值，所有字段仍可按当前 Provider 调整。"
     )
     static let model = localized(english: "Model", simplifiedChinese: "模型")
+    static let models = localized(english: "Models", simplifiedChinese: "模型列表")
+    static let modelsLowercase = localized(english: "models", simplifiedChinese: "个模型")
+    static let currentModel = localized(
+        english: "Current model",
+        simplifiedChinese: "当前模型"
+    )
+    static let activeModel = localized(
+        english: "Active model",
+        simplifiedChinese: "当前模型"
+    )
+    static let modelID = localized(
+        english: "Model ID",
+        simplifiedChinese: "模型 ID"
+    )
+    static let modelDisplayName = localized(
+        english: "Display name",
+        simplifiedChinese: "显示名称"
+    )
+    static let addModel = localized(
+        english: "Add model",
+        simplifiedChinese: "新增模型"
+    )
+    static let removeModel = localized(
+        english: "Remove model",
+        simplifiedChinese: "移除模型"
+    )
+    static let connection = localized(
+        english: "Connection",
+        simplifiedChinese: "连接"
+    )
+    static let saved = localized(
+        english: "Saved",
+        simplifiedChinese: "已保存"
+    )
+    static let deleteProvider = localized(
+        english: "Delete provider",
+        simplifiedChinese: "删除 Provider"
+    )
+    static let deleteProviderTitle = localized(
+        english: "Delete this provider?",
+        simplifiedChinese: "删除这个 Provider？"
+    )
+    static let deleteProviderMessage = localized(
+        english: "Its models and shared API key will be removed from Flotis config.json.",
+        simplifiedChinese: "它的模型和共享 API Key 将从 Flotis config.json 中移除。"
+    )
+    static let providerDeleteFailed = localized(
+        english: "Could not delete the provider.",
+        simplifiedChinese: "无法删除这个 Provider。"
+    )
+    static let addProviderToConfigureModels = localized(
+        english: "Add a provider to configure models.",
+        simplifiedChinese: "新增一个 Provider 后即可配置模型。"
+    )
+    static let modelsOnePerLine = localized(
+        english: "Enter one model ID per line. IDs may contain '/', for example openai/gpt-4o-mini-transcribe.",
+        simplifiedChinese: "每行填写一个模型 ID；ID 可以包含“/”，例如 openai/gpt-4o-mini-transcribe。"
+    )
+    static let modelsRequired = localized(
+        english: "Add at least one valid model and choose the current model.",
+        simplifiedChinese: "请至少添加一个有效模型，并选择当前模型。"
+    )
     static let language = localized(english: "Language", simplifiedChinese: "语言")
     static let endpoint = localized(english: "Endpoint", simplifiedChinese: "接口地址")
     static let baseURL = localized(english: "Base URL", simplifiedChinese: "基础地址")
@@ -230,11 +330,23 @@ enum UIStrings {
     )
     static let responseModeJSON = "JSON"
     static let responseModeSSE = "Server-Sent Events"
+    static let requestEncoding = localized(
+        english: "Request encoding",
+        simplifiedChinese: "请求编码"
+    )
+    static let requestEncodingMultipart = localized(
+        english: "Multipart file upload (OpenAI compatible)",
+        simplifiedChinese: "Multipart 文件上传（OpenAI 兼容）"
+    )
+    static let requestEncodingJSONBase64 = localized(
+        english: "JSON + Base64 audio (OpenRouter)",
+        simplifiedChinese: "JSON + Base64 音频（OpenRouter）"
+    )
     static let sampleRate = localized(english: "Sample Rate", simplifiedChinese: "采样率")
     static let channels = localized(english: "Channels", simplifiedChinese: "声道数")
     static let temperature = localized(english: "Temperature", simplifiedChinese: "温度")
     static let serverVAD = localized(english: "Server VAD", simplifiedChinese: "服务端 VAD")
-    static let apiKey = "API Key"
+    static let apiKey = "API key"
     static let saveAPIKey = localized(
         english: "Save API Key",
         simplifiedChinese: "保存 API Key"
@@ -271,8 +383,8 @@ enum UIStrings {
         simplifiedChinese: "选择一个命令进行编辑。"
     )
     static let selectProviderToEdit = localized(
-        english: "Select a transcription connection.",
-        simplifiedChinese: "选择一个转写连接。"
+        english: "Select a transcription provider.",
+        simplifiedChinese: "选择一个转写 Provider。"
     )
     static let noEnabledCommands = localized(
         english: "No Enabled Commands",
@@ -317,8 +429,56 @@ enum UIStrings {
         simplifiedChinese: "语音快捷键"
     )
     static let voiceShortcutDescription = localized(
-        english: "Press once to start recording, again to stop, and once more to copy the reviewed text and return to the capsule.",
-        simplifiedChinese: "按一次开始录音，再按一次停止，确认文字后第三次复制并回到小胶囊。"
+        english: "Press once to record and again to stop. With multiple results, use the comparison shortcuts below, then press once more to copy and return.",
+        simplifiedChinese: "按一次录音，再按一次停止。出现多个结果时可使用下方的对比快捷键切换，再按一次即可复制并返回。"
+    )
+    static let globalHotkeys = localized(
+        english: "Global shortcuts",
+        simplifiedChinese: "全局快捷键"
+    )
+    static let togglePanelShortcutDescription = localized(
+        english: "Show or hide the floating capsule from any app.",
+        simplifiedChinese: "在任意 App 中显示或隐藏悬浮胶囊。"
+    )
+    static let previousComparisonShortcutDescription = localized(
+        english: "While comparing transcripts, open the previous successful result.",
+        simplifiedChinese: "对比转写结果时，打开上一个成功结果。"
+    )
+    static let nextComparisonShortcutDescription = localized(
+        english: "While comparing transcripts, open the next successful result.",
+        simplifiedChinese: "对比转写结果时，打开下一个成功结果。"
+    )
+    static let comparisonShortcutAvailability = localized(
+        english: "Comparison shortcuts are active only while at least two successful results are open.",
+        simplifiedChinese: "只有在对比审阅中至少有两个成功结果时，对比快捷键才会临时生效。"
+    )
+    static let clickToRecordShortcut = localized(
+        english: "Click to record a new shortcut",
+        simplifiedChinese: "点击录制新的快捷键"
+    )
+    static let resetThisShortcut = localized(
+        english: "Restore this shortcut",
+        simplifiedChinese: "恢复这一项的默认快捷键"
+    )
+    static let hotkeyRequiresModifier = localized(
+        english: "A global shortcut must include at least one modifier key.",
+        simplifiedChinese: "全局快捷键至少需要一个修饰键。"
+    )
+    static let hotkeyConflictsWithVoiceInput = localized(
+        english: "This shortcut is already used by the fixed voice shortcut.",
+        simplifiedChinese: "该快捷键已被固定的语音快捷键使用。"
+    )
+    static let hotkeyConfigurationInvalid = localized(
+        english: "The shortcut configuration is invalid.",
+        simplifiedChinese: "快捷键配置无效。"
+    )
+    static let hotkeyConfigurationSaveFailed = localized(
+        english: "Could not save the shortcut configuration to config.json.",
+        simplifiedChinese: "无法将快捷键配置保存到 config.json。"
+    )
+    static let hotkeyConfigurationUnavailable = localized(
+        english: "config.json is unavailable, so the default shortcuts are being used without overwriting the file.",
+        simplifiedChinese: "config.json 当前不可用，因此暂时使用默认快捷键，并且不会覆盖原文件。"
     )
     static let floatingPanelTitle = localized(
         english: "Floating capsule",
@@ -329,28 +489,28 @@ enum UIStrings {
         simplifiedChinese: "拖动胶囊任意空白处；胶囊切换尺寸时会保留当前位置。"
     )
     static let connectionDetails = localized(
-        english: "Connection",
-        simplifiedChinese: "连接"
+        english: "Provider and models",
+        simplifiedChinese: "Provider 与模型"
     )
     static let connectionDetailsDescription = localized(
-        english: "Model and HTTPS transcription endpoint.",
-        simplifiedChinese: "模型与 HTTPS 转写接口。"
+        english: "One shared HTTPS endpoint and one or more models.",
+        simplifiedChinese: "一个共享的 HTTPS 接口，以及一个或多个模型。"
     )
     static let credentials = localized(
         english: "Credentials",
         simplifiedChinese: "凭据"
     )
     static let credentialsDescription = localized(
-        english: "The key stays in Flotis local app data and is never written to the connection snapshot.",
-        simplifiedChinese: "密钥仅保存在 Flotis 本地应用数据中，不会写入连接配置快照。"
+        english: "This provider stores one shared key in Flotis config.json for all of its models.",
+        simplifiedChinese: "该 Provider 的所有模型共用一个密钥，并统一保存在 Flotis 的 config.json 中。"
     )
     static let optionalParameters = localized(
         english: "Optional parameters",
         simplifiedChinese: "可选参数"
     )
     static let addConnectionDescription = localized(
-        english: "Add one OpenAI-compatible endpoint to start transcribing.",
-        simplifiedChinese: "添加一个 OpenAI 兼容接口后即可开始转写。"
+        english: "Add an OpenAI-compatible provider, then list every model that should share its endpoint and key.",
+        simplifiedChinese: "添加一个 OpenAI 兼容 Provider，再列出共享该接口和密钥的全部模型。"
     )
     static let customRealtime = localized(
         english: "Custom Realtime Transcription",
@@ -388,12 +548,12 @@ enum UIStrings {
     static let httpTranscriptionSection = httpTranscription
     static let realtimeStreamingSection = realtimeTranscription
     static let apiKeySavedPlaceholder = localized(
-        english: "Saved. Enter a new value to replace it",
-        simplifiedChinese: "已保存，输入新值可覆盖"
+        english: "Using provider config; enter key to replace",
+        simplifiedChinese: "使用 Provider 配置；输入新 Key 可覆盖"
     )
     static let apiKeyStoredLocally = localized(
-        english: "The API Key is stored locally in Flotis app data.",
-        simplifiedChinese: "API Key 由 Flotis 保存在本机应用数据中。"
+        english: "The API Key is stored in the local Flotis config.json file.",
+        simplifiedChinese: "API Key 已保存在本机 Flotis config.json 文件中。"
     )
     static let apiKeySaved = localized(
         english: "API Key saved.",
@@ -412,39 +572,39 @@ enum UIStrings {
         simplifiedChinese: "API Key 清除失败。"
     )
     static let apiKeyNotSaved = localized(
-        english: "This connection does not have a saved API Key.",
-        simplifiedChinese: "当前连接没有已保存的 API Key。"
+        english: "This provider does not have a saved API Key.",
+        simplifiedChinese: "当前 Provider 没有已保存的 API Key。"
     )
     static let apiKeyRequiredForActivation = localized(
-        english: "Save an API Key for this connection before setting it as current.",
-        simplifiedChinese: "请先保存该连接的 API Key，再设为当前。"
+        english: "Save an API Key for this provider before setting one of its models as current.",
+        simplifiedChinese: "请先保存该 Provider 的 API Key，再把其中一个模型设为当前。"
     )
     static let providerSaved = localized(
-        english: "Transcription connection saved.",
-        simplifiedChinese: "转写连接已保存。"
+        english: "Transcription provider and models saved.",
+        simplifiedChinese: "转写 Provider 与模型已保存。"
     )
     static let providerSavedNeedsAPIKey = localized(
-        english: "Configuration saved. Enter a new API Key before setting this connection as current.",
-        simplifiedChinese: "配置已保存；请录入新的 API Key 后再设为当前。"
+        english: "Configuration saved. Enter a new API Key before using this provider's models.",
+        simplifiedChinese: "配置已保存；请录入新的 API Key 后再使用该 Provider 的模型。"
     )
     static let providerNotFound = localized(
-        english: "Transcription connection not found.",
-        simplifiedChinese: "找不到该转写连接。"
+        english: "Transcription provider or model route not found.",
+        simplifiedChinese: "找不到该转写 Provider 或模型路由。"
     )
     static let keepOneProvider = localized(
-        english: "At least one transcription connection is required.",
-        simplifiedChinese: "至少需要保留一个转写连接。"
+        english: "At least one transcription provider is required.",
+        simplifiedChinese: "至少需要保留一个转写 Provider。"
     )
     static let providerConfigSaveFailed = localized(
-        english: "Could not save the transcription connection.",
-        simplifiedChinese: "转写连接保存失败。"
+        english: "Could not save the transcription provider.",
+        simplifiedChinese: "转写 Provider 保存失败。"
     )
     static let providerSecretCleanupFailed = localized(
         english: "Could not remove the old API Key. The configuration change was reverted. Try again later.",
         simplifiedChinese: "旧 API Key 清理失败；本次配置变更已撤销，请稍后重试。"
     )
     static let providerDeleteSecretCleanupFailed = localized(
-        english: "Could not remove the API Key. The connection was not deleted. Try again later.",
+        english: "Could not remove the API Key. The provider was not deleted. Try again later.",
         simplifiedChinese: "API Key 清理失败；提供商删除已撤销，请稍后重试。"
     )
     static let providerConfigRecoveredWithoutOverwrite = localized(
@@ -452,8 +612,8 @@ enum UIStrings {
         simplifiedChinese: "语音提供商配置无法解码；已使用恢复配置，原始数据未被覆盖。"
     )
     static let providerNameRequired = localized(
-        english: "Connection name is required.",
-        simplifiedChinese: "连接名称不能为空。"
+        english: "Provider name is required.",
+        simplifiedChinese: "Provider 名称不能为空。"
     )
     static let providerModelRequired = localized(
         english: "Model name is required.",
@@ -539,6 +699,10 @@ enum UIStrings {
         english: "Test Connection",
         simplifiedChinese: "测试连接"
     )
+    static let testProvider = localized(
+        english: "Test Provider",
+        simplifiedChinese: "测试 Provider"
+    )
     static let cancelConnectionTest = localized(
         english: "Cancel Test",
         simplifiedChinese: "取消测试"
@@ -568,20 +732,20 @@ enum UIStrings {
         simplifiedChinese: "适配器版本"
     )
     static let connectionNotTested = localized(
-        english: "This connection has not been tested.",
-        simplifiedChinese: "尚未测试此连接。"
+        english: "This model route has not been tested.",
+        simplifiedChinese: "尚未测试此模型路由。"
     )
     static let connectionTestStillValid = localized(
-        english: "The most recent connection test still matches the current configuration.",
-        simplifiedChinese: "最近一次连接测试仍与当前配置匹配。"
+        english: "The most recent route test still matches the current configuration.",
+        simplifiedChinese: "最近一次路由测试仍与当前配置匹配。"
     )
     static let connectionTestInvalidated = localized(
-        english: "The configuration or credentials have changed. Test the connection again.",
-        simplifiedChinese: "配置或凭据已改变，需要重新测试。"
+        english: "The provider, model, or credentials changed. Test this route again.",
+        simplifiedChinese: "Provider、模型或凭据已改变，需要重新测试此路由。"
     )
     static let connectionTestConfigurationInvalid = localized(
-        english: "Complete and correct the connection configuration before testing.",
-        simplifiedChinese: "请先补全并修正连接配置，再开始测试。"
+        english: "Complete and correct the provider and model configuration before testing.",
+        simplifiedChinese: "请先补全并修正 Provider 与模型配置，再开始测试。"
     )
     static let connectionTestPrivacyNote = localized(
         english: "The test uses a short, privacy-safe audio clip built into the app. It never uses your previous recordings.",
@@ -611,6 +775,14 @@ enum UIStrings {
         english: "Transcript preview...",
         simplifiedChinese: "转写预览文本..."
     )
+    static let comparisonResultFailed = localized(
+        english: "Failed",
+        simplifiedChinese: "失败"
+    )
+    static let comparisonResultReady = localized(
+        english: "Ready",
+        simplifiedChinese: "已完成"
+    )
     static let requestingPermission = localized(
         english: "Requesting permission...",
         simplifiedChinese: "正在请求权限..."
@@ -623,6 +795,10 @@ enum UIStrings {
         english: "Listening...",
         simplifiedChinese: "正在听写..."
     )
+    static let comparisonListening = localized(
+        english: "Recording once for all selected models...",
+        simplifiedChinese: "正在为所有所选模型录制同一份音频..."
+    )
     static let realtimeTranscribing = localized(
         english: "Transcribing in real time...",
         simplifiedChinese: "实时转写中..."
@@ -634,6 +810,10 @@ enum UIStrings {
     static let transcribing = localized(
         english: "Transcribing...",
         simplifiedChinese: "正在转写..."
+    )
+    static let comparisonTranscribing = localized(
+        english: "Transcribing with the selected models...",
+        simplifiedChinese: "所选模型正在并行转写..."
     )
     static let reviewing = localized(
         english: "Ready to Review",
@@ -660,6 +840,50 @@ enum UIStrings {
     static let emptyTranscript = localized(
         english: "There is no transcript to copy.",
         simplifiedChinese: "没有可复制的转写文字。"
+    )
+    static let comparisonNeedsTwoConnections = localized(
+        english: "Select at least two model routes before enabling comparison mode.",
+        simplifiedChinese: "请至少选择两个模型路由，再启用多模型对比。"
+    )
+    static let comparisonNeedsTwoReadyConnections = localized(
+        english: "Comparison mode needs at least two saved and available model routes.",
+        simplifiedChinese: "多模型对比至少需要两个已经保存且可用的模型路由。"
+    )
+    static let comparisonConnectionLimit = localized(
+        english: "Comparison mode supports up to four model routes.",
+        simplifiedChinese: "多模型对比最多支持四个模型路由。"
+    )
+    static let comparisonSupportsRecordedFileOnly = localized(
+        english: "This first comparison version supports recorded-file model routes only.",
+        simplifiedChinese: "当前第一版对比功能仅支持录音文件型模型路由。"
+    )
+    static let comparisonAudioFormatsMustMatch = localized(
+        english: "All comparison routes must use the same recording format, sample rate, and channel count.",
+        simplifiedChinese: "参与对比的模型路由必须使用相同的录音格式、采样率和声道数。"
+    )
+    static let comparisonRecordingDidNotStart = localized(
+        english: "The shared comparison recording did not start correctly.",
+        simplifiedChinese: "用于多模型对比的共享录音未正确启动。"
+    )
+    static let recordingFileUnavailable = localized(
+        english: "Could not create a readable recording file.",
+        simplifiedChinese: "无法生成可读取的录音文件。"
+    )
+    static let allComparisonConnectionsFailed = localized(
+        english: "All selected transcription model routes failed.",
+        simplifiedChinese: "所有所选转写模型路由都失败了。"
+    )
+    static let comparisonPreferencesUnavailable = localized(
+        english: "The saved comparison settings could not be read. Comparison mode was turned off without overwriting them.",
+        simplifiedChinese: "已保存的对比设置无法读取；对比模式已关闭，原数据未被覆盖。"
+    )
+    static let comparisonPreferencesSaveFailed = localized(
+        english: "Could not save the comparison settings.",
+        simplifiedChinese: "无法保存多模型对比设置。"
+    )
+    static let localDevice = localized(
+        english: "On this Mac",
+        simplifiedChinese: "本机"
     )
     static let copyReviewedTranscriptFailed = localized(
         english: "Flotis could not copy the reviewed text. It was preserved so you can try again.",
@@ -756,6 +980,13 @@ enum UIStrings {
     static let voiceInput = localized(english: "Voice Input", simplifiedChinese: "语音输入")
     static let space = localized(english: "Space", simplifiedChinese: "空格")
 
+    static func hotkeyAlreadyUsed(by displayName: String) -> String {
+        localized(
+            english: "This shortcut is already used by \(displayName).",
+            simplifiedChinese: "该快捷键已被“\(displayName)”使用。"
+        )
+    }
+
     static func pressAgainToInsert(shortcut: String) -> String {
         localized(
             english: "Press \(shortcut) again to insert",
@@ -798,6 +1029,49 @@ enum UIStrings {
             english: "The recording exceeds \(megabytes) MB and was not sent.",
             simplifiedChinese: "录音超过 \(megabytes) MB，未发送。"
         )
+    }
+
+    static func comparisonConnectionError(
+        connectionName: String,
+        message: String
+    ) -> String {
+        localized(
+            english: "\(connectionName): \(message)",
+            simplifiedChinese: "\(connectionName)：\(message)"
+        )
+    }
+
+    static func providerModelCount(_ count: Int) -> String {
+        localized(
+            english: count == 1 ? "1 model" : "\(count) models",
+            simplifiedChinese: "\(count) 个模型"
+        )
+    }
+
+    static func comparisonSelectedCount(_ count: Int) -> String {
+        localized(
+            english: "\(count) of \(TranscriptionComparisonStore.maximumConnectionCount) selected",
+            simplifiedChinese: "已选择 \(count)/\(TranscriptionComparisonStore.maximumConnectionCount)"
+        )
+    }
+
+    static func comparisonElapsed(milliseconds: Int) -> String {
+        let seconds = Double(max(0, milliseconds)) / 1_000
+        return localized(
+            english: String(format: "%.1fs", seconds),
+            simplifiedChinese: String(format: "%.1f 秒", seconds)
+        )
+    }
+
+    static func recordingElapsed(seconds: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(seconds.rounded(.down)))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     static func additionalShortcutIssues(_ count: Int) -> String {

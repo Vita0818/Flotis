@@ -14,7 +14,8 @@ struct FloatingPanelView: View {
     private var layout: FloatingPanelLayout {
         FloatingPanelLayout(
             state: appState.voiceState,
-            hasStatusArea: statusMessage != nil
+            hasStatusArea: statusMessage != nil,
+            isComparisonReview: appState.isComparisonReview
         )
     }
 
@@ -76,13 +77,35 @@ struct FloatingPanelView: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            actionButton
+            if appState.voiceState.isCapturingAudio {
+                recordingTimer
+            }
+
+            if shouldShowActionInCompactStatus {
+                actionButton
+            }
 
             if shouldShowSettingsInCompactStatus {
                 settingsButton
             }
         }
         .padding(.horizontal, 12)
+    }
+
+    private var recordingTimer: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let elapsed = UIStrings.recordingElapsed(
+                seconds: context.date.timeIntervalSince(
+                    appState.recordingStartedAt ?? context.date
+                )
+            )
+
+            Text(elapsed)
+            .font(FlotisType.mono(12, .semibold))
+            .foregroundStyle(FlotisTheme.primary(colorScheme))
+            .monospacedDigit()
+            .accessibilityLabel("\(UIStrings.recording), \(elapsed)")
+        }
     }
 
     private var actionButton: some View {
@@ -147,11 +170,15 @@ struct FloatingPanelView: View {
 
     private var reviewEditor: some View {
         VStack(spacing: 8) {
-            ReviewTextEditor(text: $appState.transcriptPreview)
-                .frame(height: 90)
+            if appState.isComparisonReview {
+                comparisonResultSelector
+            }
+
+            ReviewTextEditor(text: reviewedTranscriptBinding)
                 .padding(4)
                 .flotisContentSurface(cornerRadius: 12)
                 .accessibilityLabel(UIStrings.transcriptPreviewPlaceholder)
+                .frame(height: reviewTextEditorHeight)
 
             HStack(spacing: 8) {
                 Button {
@@ -213,6 +240,111 @@ struct FloatingPanelView: View {
         .padding(12)
     }
 
+    private var comparisonResultSelector: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(minimum: 0), spacing: 8),
+                GridItem(.flexible(minimum: 0), spacing: 8)
+            ],
+            alignment: .leading,
+            spacing: 8
+        ) {
+            ForEach(appState.transcriptCandidates) { candidate in
+                comparisonCandidateButton(candidate)
+            }
+        }
+        .frame(height: comparisonResultSelectorHeight, alignment: .top)
+    }
+
+    private func comparisonCandidateButton(
+        _ candidate: TranscriptCandidate
+    ) -> some View {
+        let isSelected = appState.selectedTranscriptCandidateID == candidate.id
+        return Button {
+            voiceController.selectTranscriptCandidate(id: candidate.id)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Image(
+                        systemName: candidate.isSuccessful
+                            ? "checkmark.circle.fill"
+                            : "xmark.circle.fill"
+                    )
+                    .foregroundStyle(candidate.isSuccessful ? Color.green : Color.orange)
+
+                    Text(candidate.primaryDisplayName)
+                        .font(
+                            candidate.modelDisplayName == nil
+                                ? FlotisType.mono(10, .semibold)
+                                : FlotisType.body(11, .semibold)
+                        )
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Spacer(minLength: 2)
+
+                    Text(UIStrings.comparisonElapsed(milliseconds: candidate.elapsedMilliseconds))
+                        .font(FlotisType.mono(9, .medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                if let secondaryDisplayName = candidate.secondaryDisplayName {
+                    Text(secondaryDisplayName)
+                        .font(FlotisType.body(9, .regular))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .padding(.horizontal, 9)
+            .frame(maxWidth: .infinity, minHeight: 50, maxHeight: 50, alignment: .leading)
+            .contentShape(Rectangle())
+            .background(
+                Color.secondary.opacity(isSelected ? 0.15 : 0.07),
+                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(
+                        isSelected ? Color.accentColor : Color.secondary.opacity(0.18),
+                        lineWidth: isSelected ? 1.5 : 1
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!candidate.isSuccessful)
+        .help(
+            candidate.failureMessage
+                ?? candidate.accessibilityDisplayName
+        )
+        .accessibilityLabel(
+            candidate.isSuccessful
+                ? "\(candidate.accessibilityDisplayName), \(UIStrings.comparisonResultReady)"
+                : "\(candidate.accessibilityDisplayName), \(UIStrings.comparisonResultFailed)"
+        )
+    }
+
+    private var reviewedTranscriptBinding: Binding<String> {
+        Binding(
+            get: { appState.transcriptPreview },
+            set: { appState.updateReviewedTranscript($0) }
+        )
+    }
+
+    private var comparisonCandidateRowCount: Int {
+        max(1, (appState.transcriptCandidates.count + 1) / 2)
+    }
+
+    private var comparisonResultSelectorHeight: CGFloat {
+        CGFloat(comparisonCandidateRowCount * 50 + (comparisonCandidateRowCount - 1) * 8)
+    }
+
+    private var reviewTextEditorHeight: CGFloat {
+        guard appState.isComparisonReview else { return 90 }
+        return comparisonCandidateRowCount == 1 ? 162 : 112
+    }
+
     private var statusMessage: String? {
         if let pasteError = appState.pasteError {
             return pasteError
@@ -255,6 +387,15 @@ struct FloatingPanelView: View {
             return true
         }
         return false
+    }
+
+    private var shouldShowActionInCompactStatus: Bool {
+        switch appState.voiceState.hotkeyAction {
+        case .start, .cancel:
+            return true
+        case .stop, .copyAndReturn, .none:
+            return false
+        }
     }
 
     private var statusIcon: String {
@@ -452,18 +593,24 @@ struct FloatingPanelLayout: Equatable {
     static let minPanelWidth = idlePanelWidth
     static let minPanelHeight = idlePanelHeight
     static let activePanelWidth: CGFloat = 188
-    static let maxPanelWidth: CGFloat = 460
-    static let maxPanelHeight: CGFloat = 180
+    static let maxPanelWidth: CGFloat = 600
+    static let maxPanelHeight: CGFloat = 300
     static let screenCoverage: CGFloat = 0.9
     static let cornerRadius: CGFloat = 20
     static let headerHeight: CGFloat = 56
     static let statusPanelWidth: CGFloat = 280
     static let reviewWidth: CGFloat = 420
     static let reviewHeight: CGFloat = 160
+    static let comparisonReviewWidth: CGFloat = 560
+    static let comparisonReviewHeight: CGFloat = 300
 
     let panelSize: CGSize
 
-    init(state: VoiceInputState, hasStatusArea: Bool) {
+    init(
+        state: VoiceInputState,
+        hasStatusArea: Bool,
+        isComparisonReview: Bool = false
+    ) {
         let isReviewing = state == .reviewing
         let isFailed: Bool
         if case .failed = state {
@@ -473,7 +620,9 @@ struct FloatingPanelLayout: Equatable {
         }
         let width: CGFloat
         if isReviewing {
-            width = Self.reviewWidth
+            width = isComparisonReview
+                ? Self.comparisonReviewWidth
+                : Self.reviewWidth
         } else if hasStatusArea || isFailed {
             width = Self.statusPanelWidth
         } else if state == .idle {
@@ -483,7 +632,9 @@ struct FloatingPanelLayout: Equatable {
         }
         let height: CGFloat
         if isReviewing {
-            height = Self.reviewHeight
+            height = isComparisonReview
+                ? Self.comparisonReviewHeight
+                : Self.reviewHeight
         } else if state == .idle, !hasStatusArea {
             height = Self.idlePanelHeight
         } else {
