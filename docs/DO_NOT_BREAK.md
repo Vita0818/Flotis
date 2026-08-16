@@ -1,6 +1,6 @@
 # DO_NOT_BREAK
 
-最近自查日期：2026-08-06
+最近自查日期：2026-08-16
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -28,7 +28,7 @@
 ### 命令
 
 - 路径：`~/Library/Application Support/Flotis/commands.json`。
-- V0.12 主入口不得加载、改写或删除旧命令文件，也不得注册 command ID `1000+` 热键；旧源码暂留兼容。未来删除或迁移必须由明确版本化方案驱动。
+- V0.13 主入口不得加载、改写或删除旧命令文件，也不得注册 command ID `1000+` 热键；旧源码暂留兼容。未来删除或迁移必须由明确版本化方案驱动。
 - 格式：`[PromptCommand]` JSON；写入必须继续使用 atomic option。
 - 8 个默认命令 UUID `1111…`–`8888…` 与默认 `⌘⌥⇧1..8` 属于兼容边界；若需迁移必须显式版本化，不能静默重编号。
 - 标题/正文/排序改变不能触发全量热键重注册；仅 enabled/shortcut 改变发出 hotkey configuration change。
@@ -55,11 +55,11 @@
 
 ### 可配置全局快捷键
 
-- panel 显隐、上一个对比结果、下一个对比结果只允许存于 canonical 顶层 `shortcuts.toggle_panel`、`previous_comparison_result`、`next_comparison_result`；不得另建 UserDefaults 或第二个运行时 JSON 真源。固定 voice descriptor `⌃⌥A` 不进入 `shortcuts`，本轮需求未授权修改它。
-- 旧 schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison 或 API key。
-- 三项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键、彼此不同，并且都不能等于固定 voice descriptor；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
-- descriptor 变化只允许差异注销/注册对应 Carbon ID；voice 和未变化项不能被无条件全量重建。previous/next 无论配置为何，都只能在对比 reviewing 且至少两个成功候选时临时注册，离开后立即注销。
-- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留固定 voice 与三项可配置组合的一张卡，不得重新加入语音流程、胶囊拖动说明或重复 section。组合键 surface 不得小于当前 `220×50` / 17 pt，三项可配置组合必须整块可点并在同尺寸录制态获得键盘焦点。
+- voice、panel 显隐、上一个对比结果、下一个对比结果只允许存于 canonical 顶层 `shortcuts.toggle_voice`、`toggle_panel`、`previous_comparison_result`、`next_comparison_result`；不得另建 UserDefaults 或第二个运行时 JSON 真源。
+- 旧 schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：voice `⌃⌥A`、panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison 或 API key。
+- 四项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键并且彼此不同；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
+- descriptor 变化只允许差异注销/注册对应 Carbon ID；未变化项不能被无条件全量重建。previous/next 无论配置为何，都只能在对比 reviewing 且至少两个成功候选时临时注册，离开后立即注销。
+- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留 voice、panel 与前后对比导航的一张紧凑卡和四个 `52` pt 行，不得重新加入语音流程、胶囊拖动、对比生效条件、重复 section、hover help、铅笔或常驻恢复控件。四项都保持 `156×38` / 15 pt Monospaced 的轻量 surface，整块可点并在同尺寸录制态获得键盘焦点。真实校验、持久化或 Carbon 注册错误仍必须可见。
 
 ### API key / 应用自管本地存储
 
@@ -138,7 +138,7 @@
 ## 语音生命周期与并发
 
 - `VoiceInputController` 的 session generation/identity guard 不得绕过。任何异步 callback 在修改 UI、清理资源或提交最终文本前都必须验证当前 session。
-- V0.12 最终转写必须先进入 `reviewing`，不得恢复 provider 完成即自动提交。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
+- V0.13 最终转写必须先进入 `reviewing`，不得恢复 provider 完成即自动提交。进入 reviewing 前应释放已完成的 capture/transcriber/runtime；reviewing 文本允许用户编辑。
 - reviewing 文本必须保持原生可选择/可复制能力，至少支持鼠标选区、`⌘C` 和显式复制全部；不能用窗口背景拖动或不可命中的装饰 overlay 吞掉文本交互。
 - reviewing 的当前热键动作必须是 `copyAndReturn`：用 trim 结果判断空白，但必须原样复制用户编辑文本；写入失败必须保留 reviewing/文本并保持 panel 可见，成功后才允许推进 generation、清空文本、回 idle，并让审阅框按逻辑位置锚点缩回小胶囊。成功路径不得隐藏或关闭 panel。当前产品路径不得调用 `ClipboardPasteInjector`、请求 AX 或发送 `CGEvent`/`⌘V`。
 - requesting/connecting 可由热键取消；stopping/transcribing 已进入终态处理时，额外热键必须忽略而不是清空本次会话。
@@ -157,26 +157,27 @@
 ## 热键、当前复制与旧注入安全边界
 
 - `VoiceInputState.reviewing.hotkeyAction` 必须保持 `copyAndReturn`；idle/failed→start、recording/streaming→stop、requesting/connecting→cancel、stopping/transcribing/injecting→none 的其余映射不得回归。
-- 固定 voice hotkey 当前必须保持 `⌃⌥A`（Carbon virtual key `0`，Control+Option）。panel descriptor 由用户配置、默认 `⌘⌥⇧0`；previous/next descriptor 也由用户配置、默认 `⌥←` / `⌥→`，但只能在对比 reviewing 且至少两个成功候选时临时注册，离开后必须注销；不得在 idle、单结果 reviewing 或后台普通使用中长期抢占任何用户配置的导航按键。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
+- voice descriptor 由用户配置、默认 `⌃⌥A`（Carbon virtual key `0`，Control+Option）；panel descriptor 默认 `⌘⌥⇧0`，previous/next 默认 `⌥←` / `⌥→`。previous/next 只能在对比 reviewing 且至少两个成功候选时临时注册，离开后必须注销；不得在 idle、单结果 reviewing 或后台普通使用中长期抢占任何用户配置的导航按键。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
 - 当前复制写入成功后必须直接清空会话并回 idle，不得恢复 `.closePanel` outcome 或窗口关闭回调。失败或纯空白必须保持 panel 与 review 可恢复；复制后的文字必须留在剪贴板，不能用旧注入器的 snapshot restore 覆盖。
 - `ClipboardPasteInjector` 当前只作为不可达兼容实现保留；没有用户新的明确产品决策，不得重新接入 AppDelegate、`VoiceInputController` 或审阅按钮。
 
 - 如果旧 `ClipboardPasteInjector` 被独立调用，缺 AX 权限时必须立即返回明确的 accessibility failure；禁止以任何方式绕过检查发 `CGEvent`。当前产品 UI 不展示或请求 AX；未来重新接入时，平时状态刷新仍须非提示式，只有用户明确发起授权或真实注入缺权时才可提示。
-- 发 `⌘V` 前必须再次确认：operation 未过期、目标进程存活且 PID 未变、目标仍为 frontmost、Flotis 自身不再持有 key window、当前语音快捷键主键 A 及 Control/Option 均已释放、AX 仍可信、pasteboard `changeCount` 仍是 app 管理值。
+- 保留的旧 `ClipboardPasteInjector` 仍按 legacy 默认 A + Control/Option 检查释放，因此在 voice 可配置后更不能直接接回产品路径。若未来明确重接，必须先让 operation 快照触发时的完整 voice descriptor，并在发 `⌘V` 前再次确认：operation 未过期、目标进程存活且 PID 未变、目标仍为 frontmost、Flotis 自身不再持有 key window、该 descriptor 的主键及相关修饰键均已释放、AX 仍可信、pasteboard `changeCount` 仍是 app 管理值。
 - 用户在激活等待中切到第三方 app 时必须 abort，不能把文本发给当前任意 frontmost app。
 - 队列必须保持有界（当前 max in-flight 4、burst 8、operation 5 秒过期）或采用同等安全的 backpressure；不得恢复无上限 backlog。
 - 剪贴板无法完整复制全部 item/type 时拒绝注入。恢复只在 `changeCount` 未被外部更新时进行，且要检查 `writeObjects` 成功。
 - 完整语音快捷键等待超时必须失败，不能只等修饰键、不等当前描述符的主键，也不能超时后照常粘贴。
 - success 只代表安全核验、PID 定向 event post 与 clipboard outcome 成功；不得在 UI 文案中声称已证明目标控件消费文本。失败结果必须保持可区分，不能再次压扁成无法诊断的单一 Bool。
 - 点击胶囊编辑导致 Flotis 获得键盘焦点时，只能使用当前语音 session 开始时捕获并重新核验的非 Flotis target；显式胶囊输入可重激活该目标，从不同第三方 app 触发全局热键则必须 abort。不得直接向任意 frontmost app 或未核验 PID 发事件。
-- 旧命令的可打印全局快捷键必须包含 Command + 至少一个额外修饰键；固定 toggle、重复项与 `⌘V` 等危险组合必须拒绝。`⌃⌥A` 是主入口直接注册的固定 voice toggle 产品例外，不经过旧命令的 `shortcutSafetyError`，不得据此放宽用户命令快捷键的安全校验。
-- hotkey handler 必须同时监听 press/release 并以 gate 抑制 auto-repeat；注册必须保持 `kEventHotKeyExclusive`。handler 安装失败时不得继续注册；单项失败状态必须可见并自动重试，event signature 必须核验。
+- 旧命令的可打印全局快捷键必须包含 Command + 至少一个额外修饰键；toggle、重复项与 `⌘V` 等危险组合必须拒绝。当前 voice 组合由主入口直接注册，不经过旧命令的 `shortcutSafetyError`，不得据此放宽用户命令快捷键的安全校验；若未来恢复命令入口，必须让命令冲突校验读取当时的四项快捷键配置，不能继续只依赖旧默认常量。
+- hotkey handler 必须同时监听 press/release 并以 gate 抑制 auto-repeat；注册必须保持 `kEventHotKeyExclusive`。handler 安装失败时不得继续注册；单项失败必须保留、通过 compact 胶囊的橙点与 accessibility value 暴露并自动重试，event signature 必须核验，不得为此重新增加可见错误句或按钮。
 - panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败时则继续显示 reviewing panel。对比结果只要至少一项成功就必须已有自动 selection；不得重新引入等待人工首次选择的空 selection 状态。
-- panel 必须允许用户从非交互背景拖动；尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。原生审阅文本视图必须继续声明不以鼠标按下移动窗口，避免整窗拖动抢占文本拖选。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
+- panel 必须允许用户从非审阅胶囊的任意可见位置拖动，但在用户鼠标事件之外必须保持 `isMovable=false`，使系统在 Space/显示环境过渡中维持相对屏幕位置，不能重新长期开启系统管理移动而产生动画结束后的瞬移。单次 mouse-down 必须由 panel 直接进入原生 `performDrag(with:)`，不得只依赖被全尺寸 SwiftUI surface 吞掉的 background drag。reviewing 的 mouse-down 可仅在原生事件分发调用期间临时允许 background drag，使非交互背景仍可拖、文本与按钮继续优先；不得把可移动状态留到事件之外。尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。reviewing 的鼠标事件必须继续转发给原生编辑器，避免窗口拖动抢占文本拖选或双击选词。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
 - Settings 的窗口内容默认尺寸必须保持 `1100×760`、最小内容尺寸保持 `820×600`；HostingController 赋值后必须显式应用 `contentMinSize` 和 `setContentSize`，不能再次让 SwiftUI fitting size 把实际内容宽度缩成 820 pt、破坏 Provider/Models 双栏。若后续调整尺寸，必须同时用折叠和 Models 展开状态做与 Intatis 参考同屏的运行态视觉回归。
-- idle 的当前 Presentation contract 为 `108×54` 外壳、28 pt 白圆六条黑声波开始录音图、28 pt 白圆/16 pt 黑色八齿齿轮设置图，以及下方 12 pt Semibold 系统 Monospaced/动态主文字色快捷键；不得借视觉替换改变两个既有 `30×30` 点击区域、8 pt 间距、Start/Settings 无障碍标签与帮助、action、快捷键或语音状态映射，也不得为图标或文字对比度重新给整个原生 glass 加固定 tint。录音态不得重新放回右侧 stop 方块，必须保留原有状态图标与文案并显示从本次捕获开始计时的 `mm:ss`；stopping/transcribing 必须保留原有省略号状态图标与原有文案，只隐藏右侧重复的禁用 action。cancel/retry/copy-and-return 等其他非 idle 状态图标继续按现有逻辑显示。若再次替换图稿，对应 `docs/assets/*-reference.png` 与 `Assets.xcassets/VoiceWaveformButton.imageset` / `SettingsGearButton.imageset` 的 1x/2x/3x 派生资源必须同步核对。
+- 当前 compact Presentation contract 为 reviewing 之外所有状态统一 `96×36`、18 pt 连续圆角的透明系统 glass/material 表面；AppKit 原生容器必须是唯一底面，SwiftUI compact 内容不得绘制固定白色/不透明填充或自定义整圈描边，快捷键必须使用随 Light/Dark appearance 解析的动态主文字色。可见内容严格只有 6 pt 语义圆点、7 pt 间距和 15 pt 系统 Semibold Monospaced 的当前 voice 快捷键。不得重新增加品牌名、麦克风、设置齿轮、计时、状态/错误句、说明、hover 提示、动作按钮或任何其他可见元素，也不得把参考图中的 `Ask` 当作提示词移植。idle/成功为绿色，录音/流式为红色，请求/连接/停止/转写/失败/热键错误为橙色；完整状态与错误只通过 accessibility value 暴露。voice 快捷键的 start/stop/copy-and-return 状态映射不得因键位配置或视觉精简改变。
+- Settings 的 compact 入口必须是非审阅胶囊双击：单击不得打开设置；double-click 复用现有独立 Settings 窗口；reviewing 中不得由 panel 截获双击，以免破坏原生文本选词。最小胶囊上不得为该交互增加齿轮、文字提示或其他可见 affordance。
 - 单结果 reviewing 的 Presentation contract 保持 `420×160`；对比 reviewing 为 `560×300`，必须用固定双列网格容纳 2–4 个候选，四项为 2×2，不能退化为需要横向滚动的一行。首个成功项直接打开原生编辑器，不显示额外的“先选择”提示；既有复制/取消/复制并返回动作保留。候选有非空 Model Display name 时可见卡片只能显示该名称；没有时必须以 Model ID 为主要文字、Provider 名称为次要文字，不能显示 endpoint。失败状态不能只靠颜色表达，长 Display name/model/provider 必须截断，panel 不能超过当前 `600×300` 上限。
-- macOS 26+ 的胶囊外壳必须继续由原生 `NSGlassEffectView(style: .regular)` 承载并保留系统自适应 tint；不得给整个 glass 设置固定黑色 `tintColor`，也不得在 SwiftUI hosting root 后方铺全表面黑色/不透明/半透明填充来模拟对比度，否则会压掉原生 Liquid Glass 的高光、折射与背景适配。语义强调只能局部、按控件使用；macOS 13–25 的 material fallback 仍须保留。
+- macOS 26+ 的 panel 容器必须继续由原生 `NSGlassEffectView(style: .regular)` 承载，macOS 13–25 的 material fallback 与窗口阴影路径仍须保留。compact SwiftUI 层必须透明，禁止再用固定浅色/深色填充、固定 tint 或覆盖 material 的额外表面压平系统 Liquid Glass；reviewing/Settings 的既有原生 glass/material 兼容路径也不得因最小胶囊改版退化。
 - 当前 Settings 不应展示 AX 状态或授权入口，胶囊 reviewing 也不应因缺 AX 展开提示；当前流程只需报告系统剪贴板写入失败。旧 AX 文案/类型可随兼容实现保留，但不得成为可达主流程。
 - Settings 的一键退出必须走 `NSApplication.terminate` → `applicationWillTerminate`，不得用 `exit`/kill 绕过热键与语音资源清理；`.injecting` 期间不仅要禁用页头按钮，`applicationShouldTerminate` 还必须统一拒绝菜单、`⌘Q` 等其他终止请求，避免剪贴板尚未完成安全恢复。
 

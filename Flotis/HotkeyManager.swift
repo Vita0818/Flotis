@@ -159,7 +159,7 @@ final class HotkeyManager {
                 displayName: UIStrings.showHideFloatingPanel
             ),
             FixedHotKeyID.toggleVoice: DesiredHotKey(
-                descriptor: .toggleVoice,
+                descriptor: currentHotkeyConfiguration.toggleVoice,
                 commandID: nil,
                 displayName: UIStrings.voiceInput
             )

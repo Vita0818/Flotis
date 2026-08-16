@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FloatingPanelView: View {
     @ObservedObject var appState: AppState
+    @ObservedObject var hotkeyStore: HotkeyConfigurationStore
     @Environment(\.colorScheme) private var colorScheme
 
     let voiceController: VoiceInputController
@@ -25,10 +26,8 @@ struct FloatingPanelView: View {
         Group {
             if appState.voiceState == .reviewing {
                 reviewEditor
-            } else if appState.voiceState == .idle, statusMessage == nil {
-                idleControls
             } else {
-                compactStatus
+                compactCapsule
             }
         }
         .frame(width: layout.panelSize.width, height: layout.panelSize.height)
@@ -43,129 +42,26 @@ struct FloatingPanelView: View {
         }
     }
 
-    private var idleControls: some View {
-        VStack(spacing: 2) {
-            HStack(spacing: 8) {
-                actionButton
-                settingsButton
-            }
-
-            Text(KeyboardShortcutDescriptor.toggleVoice.displayString)
-                .font(FlotisType.mono(12, .semibold))
-                .foregroundStyle(FlotisTheme.primary(colorScheme))
-                .lineLimit(1)
-                .accessibilityLabel(
-                    UIStrings.pressToStartRecording(
-                        shortcut: KeyboardShortcutDescriptor.toggleVoice.displayString
-                    )
-                )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var compactStatus: some View {
-        HStack(spacing: 8) {
-            Image(systemName: statusIcon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(statusColor)
+    private var compactCapsule: some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(capsuleIndicatorColor)
+                .frame(width: 6, height: 6)
                 .accessibilityHidden(true)
 
-            Text(compactStatusText)
-                .font(FlotisType.body(12, .medium))
+            Text(hotkeyStore.configuration.toggleVoice.displayString)
+                .font(.system(size: 15, weight: .semibold, design: .monospaced))
                 .foregroundStyle(FlotisTheme.primary(colorScheme))
                 .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            if appState.voiceState.isCapturingAudio {
-                recordingTimer
-            }
-
-            if shouldShowActionInCompactStatus {
-                actionButton
-            }
-
-            if shouldShowSettingsInCompactStatus {
-                settingsButton
-            }
+                .minimumScaleFactor(0.7)
         }
-        .padding(.horizontal, 12)
-    }
-
-    private var recordingTimer: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let elapsed = UIStrings.recordingElapsed(
-                seconds: context.date.timeIntervalSince(
-                    appState.recordingStartedAt ?? context.date
-                )
-            )
-
-            Text(elapsed)
-            .font(FlotisType.mono(12, .semibold))
-            .foregroundStyle(FlotisTheme.primary(colorScheme))
-            .monospacedDigit()
-            .accessibilityLabel("\(UIStrings.recording), \(elapsed)")
-        }
-    }
-
-    private var actionButton: some View {
-        Button {
-            performPrimaryAction()
-        } label: {
-            if appState.voiceState == .idle {
-                ZStack {
-                    Circle()
-                        .fill(.black)
-                        .frame(width: 24, height: 24)
-
-                    Image("VoiceWaveformButton")
-                        .resizable()
-                        .renderingMode(.original)
-                        .interpolation(.high)
-                        .antialiased(true)
-                        .scaledToFit()
-                        .frame(width: 28, height: 28)
-                }
-                .frame(width: 28, height: 28)
-            } else {
-                Image(systemName: actionIcon)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(actionColor)
-                    .frame(width: 18, height: 18)
-            }
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .frame(width: 30, height: 30)
-        .disabled(isActionDisabled)
-        .accessibilityLabel(actionHelp)
-        .help(actionHelp)
-    }
-
-    private var settingsButton: some View {
-        Button {
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(hotkeyStore.configuration.toggleVoice.displayString)
+        .accessibilityValue(capsuleAccessibilityStatus)
+        .accessibilityAction(named: Text(UIStrings.settings)) {
             onOpenSettings()
-        } label: {
-            ZStack {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 28, height: 28)
-
-                Image("SettingsGearButton")
-                    .resizable()
-                    .renderingMode(.original)
-                    .interpolation(.high)
-                    .antialiased(true)
-                    .scaledToFit()
-                    .frame(width: 16, height: 16)
-            }
-            .frame(width: 28, height: 28)
         }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .frame(width: 30, height: 30)
-        .accessibilityLabel(UIStrings.settings)
-        .help(UIStrings.settings)
     }
 
     private var reviewEditor: some View {
@@ -352,142 +248,28 @@ struct FloatingPanelView: View {
         return appState.hotkeyError
     }
 
-    private var compactStatusText: String {
+    private var capsuleAccessibilityStatus: String {
         if let statusMessage {
             return statusMessage
         }
-
-        switch appState.voiceState {
-        case .idle:
-            return UIStrings.start
-        case .requestingPermission:
-            return UIStrings.requestingPermission
-        case .connecting:
-            return UIStrings.connecting
-        case .recording, .streaming:
-            return UIStrings.recording
-        case .stopping:
-            return UIStrings.stopping
-        case .transcribing:
-            return UIStrings.transcribing
-        case .reviewing:
-            return UIStrings.reviewTranscript
-        case .injecting:
-            return UIStrings.injecting
-        case .failed(let message):
-            return message
-        }
+        return appState.voiceState.displayText
     }
 
-    private var shouldShowSettingsInCompactStatus: Bool {
+    private var capsuleIndicatorColor: Color {
         if statusMessage != nil {
-            return true
+            return .orange
         }
-        if case .failed = appState.voiceState {
-            return true
-        }
-        return false
-    }
-
-    private var shouldShowActionInCompactStatus: Bool {
-        switch appState.voiceState.hotkeyAction {
-        case .start, .cancel:
-            return true
-        case .stop, .copyAndReturn, .none:
-            return false
-        }
-    }
-
-    private var statusIcon: String {
         switch appState.voiceState {
         case .idle:
-            return "mic.fill"
-        case .recording, .streaming:
-            return "waveform"
-        case .reviewing:
-            return "text.cursor"
-        case .failed:
-            return "exclamationmark"
-        case .injecting:
-            return "arrow.up.forward"
-        case .requestingPermission, .connecting, .stopping, .transcribing:
-            return "ellipsis"
-        }
-    }
-
-    private var statusColor: Color {
-        switch appState.voiceState {
+            return .green
         case .recording, .streaming:
             return .red
         case .failed:
             return .orange
-        case .reviewing:
-            return FlotisTheme.action(colorScheme)
-        case .requestingPermission, .connecting, .stopping, .transcribing, .injecting:
-            return FlotisTheme.secondary(colorScheme)
-        default:
-            return FlotisTheme.action(colorScheme)
-        }
-    }
-
-    private var actionIcon: String {
-        if case .failed = appState.voiceState {
-            return "arrow.clockwise"
-        }
-
-        switch appState.voiceState.hotkeyAction {
-        case .start:
-            return "mic.fill"
-        case .stop:
-            return "stop.fill"
-        case .cancel:
-            return "xmark"
-        case .copyAndReturn:
-            return "checkmark"
-        case .none:
-            return "ellipsis"
-        }
-    }
-
-    private var actionColor: Color {
-        switch appState.voiceState.hotkeyAction {
-        case .stop:
-            return .red
-        case .start, .cancel, .copyAndReturn, .none:
-            return FlotisTheme.action(colorScheme)
-        }
-    }
-
-    private var isActionDisabled: Bool {
-        if appState.voiceState.hotkeyAction == .none {
-            return true
-        }
-
-        if appState.voiceState == .reviewing {
-            return appState.transcriptPreview
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty
-        }
-
-        return false
-    }
-
-    private var actionHelp: String {
-        if case .failed = appState.voiceState {
-            return UIStrings.retry
-        }
-
-        switch appState.voiceState.hotkeyAction {
-        case .start:
-            return UIStrings.start
-        case .stop:
-            return UIStrings.stop
-        case .cancel:
-            return UIStrings.cancel
-        case .copyAndReturn:
-            return UIStrings.copyAndReturn
-        case .none:
-            return UIStrings.speechBusy
+        case .requestingPermission, .connecting, .stopping, .transcribing:
+            return .orange
+        case .reviewing, .injecting:
+            return .green
         }
     }
 
@@ -588,17 +370,17 @@ private struct ReviewTextEditor: NSViewRepresentable {
 }
 
 struct FloatingPanelLayout: Equatable {
-    static let idlePanelWidth: CGFloat = 108
-    static let idlePanelHeight: CGFloat = 54
+    static let idlePanelWidth: CGFloat = 96
+    static let idlePanelHeight: CGFloat = 36
     static let minPanelWidth = idlePanelWidth
     static let minPanelHeight = idlePanelHeight
-    static let activePanelWidth: CGFloat = 188
+    static let activePanelWidth = idlePanelWidth
     static let maxPanelWidth: CGFloat = 600
     static let maxPanelHeight: CGFloat = 300
     static let screenCoverage: CGFloat = 0.9
-    static let cornerRadius: CGFloat = 20
-    static let headerHeight: CGFloat = 56
-    static let statusPanelWidth: CGFloat = 280
+    static let cornerRadius: CGFloat = 18
+    static let headerHeight = idlePanelHeight
+    static let statusPanelWidth = idlePanelWidth
     static let reviewWidth: CGFloat = 420
     static let reviewHeight: CGFloat = 160
     static let comparisonReviewWidth: CGFloat = 560

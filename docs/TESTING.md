@@ -1,6 +1,6 @@
 # TESTING
 
-最近验证日期：2026-08-07
+最近验证日期：2026-08-16
 
 ## 环境与边界
 
@@ -54,9 +54,59 @@ git status --short
 
 为 build 与 test 使用不同的临时 DerivedData。Xcode 26 的 test action 会把 XCTest framework 复制进 test host；复用已跑过 test 的 app bundle 再次执行普通 build，可能在 app validation 阶段把旧测试 framework 当作产品 framework 检查。
 
+2026-08-16 V0.13 版本与安装验证：
+
+- 主 App `MARKETING_VERSION` 提升为 `0.13`、`CURRENT_PROJECT_VERSION` 提升为 `4`；输入法保持 `0.1.0 (3)`。`xcodegen generate` 后，生成工程和主 App Release Info.plist 均展开为 `0.13 (4)`，输入法生成设置仍为 `0.1.0 (3)`。
+- 主 App Debug build `/private/tmp/Flotis-v013-MainBuild-20260816` 与输入法 Debug build `/private/tmp/Flotis-v013-InputBuild-20260816` 均成功。唯一主测试 bundle ID 的 `/private/tmp/Flotis-v013-MainTests-20260816-1624.xcresult` 为 82 tests、0 failures、0 skipped；输入法 `/private/tmp/Flotis-v013-InputTests-20260816-1624.xcresult` 为 8 tests、0 failures、0 skipped。
+- ad-hoc Release 位于 `/private/tmp/Flotis-v013-Release-20260816/Build/Products/Release/Flotis.app`；bundle ID 为 `com.Vita0818.FlotisMac`，严格签名校验通过，`Flotis.icns`、`Assets.car` 与可执行文件均存在。构建只保留既有 Apple Speech async-context `NSLock` Swift 6 兼容 warning，以及 XCTest deployment/本机 Xcode 诊断提示。
+- 安装前正常退出了两个旧隔离预览；原 `/Applications/Flotis.app` 的 `0.12 (3)` 移到 `/private/tmp/Flotis-before-v0.13-install-20260816-1626.app`。新 `0.13 (4)` 已复制安装、注册 Launch Services 并启动，运行进程来自 `/Applications/Flotis.app/Contents/MacOS/Flotis`；安装副本的可执行文件、`Flotis.icns` 与 `Assets.car` 和 Release 逐字节一致，安装副本严格签名校验通过。
+- 没有重新安装、启动或切换用户 Input Methods 副本，没有修改输入法版本；没有读取或输出 Provider/API key、完整配置或转写文本，也没有录音、请求 provider、产生费用或修改系统输入源。
+
+2026-08-16 compact 原生 Liquid Glass 恢复与重新安装验证：
+
+- 用户在 Dark appearance 发现已安装胶囊仍是固定白色。源码根因是 `FloatingPanelView.compactCapsule` 在既有 `NSGlassEffectView(style: .regular)` / `.popover` material 上又绘制 `245/255` 不透明圆角 fill、0.5 pt 黑边和固定近黑文字；当前删除整个 SwiftUI background/overlay，并把快捷键恢复为动态系统主文字色。`FloatingPanelController` 的原生玻璃、旧系统 fallback、阴影、拖动、双击、Space 位置策略和三档静态尺寸未改。
+- `xcodegen generate` 与 `git diff --check` 成功。主 App Debug build `/private/tmp/FlotisGlassFix-MainBuild-20260816`、输入法 Debug build `/private/tmp/FlotisGlassFix-InputBuild-20260816` 均成功；唯一测试 bundle ID 的主 App `/private/tmp/FlotisGlassFix-MainTests-20260816.xcresult` 为 82 Success、输入法 `/private/tmp/FlotisGlassFix-InputTests-20260816.xcresult` 为 8 Success。`xcresulttool` 在受限环境无法生成自己的 `TestReport` 临时内容，因此最终数量直接从两个 xcresult 的只读 SQLite `TestCaseRuns` 表核对；主 App 控制台摘要也明确为 82 tests、0 failures。
+- 唯一 bundle ID `com.Vita0818.FlotisGlassFixPreview20260816` 的签名 Debug 预览位于 `/private/tmp/FlotisGlassFix-Preview-20260816/Build/Products/Debug/Flotis.app`。按项目规定尝试通过 Computer Use 获取真实窗口时，服务明确返回 `Computer Use was not approved to use Flotis`；没有改用绕过权限的 GUI 自动化，所以本轮不把 Light/Dark 背景采样、Reduce Transparency 或 Increase Contrast 标为运行态通过。此前截图仍只证明 `96×36` 几何、内容和交互，不再证明当前颜色/material token。
+- 新 ad-hoc Release 位于 `/private/tmp/Flotis-v013-GlassFix-Release-20260816-1845/Build/Products/Release/Flotis.app`，最终 Info.plist 为 `0.13 (4)` / `com.Vita0818.FlotisMac`，严格签名通过，`Flotis.icns`、`Assets.car` 与可执行文件存在。被替换的固定白底 `0.13 (4)` 已移动到 `/private/tmp/Flotis-before-transparent-glass-fix-v0.13-20260816-1954.app`；玻璃修复版已安装、注册 Launch Services 并从 `/Applications/Flotis.app/Contents/MacOS/Flotis` 启动。安装副本的可执行文件、`Flotis.icns` 与 `Assets.car` 和 Release 逐字节一致，安装副本严格验签通过。
+- 本轮没有改动版本号、用户 `config.json`、Provider/API key、语音状态机或输入法源码；没有录音、请求 provider、产生费用，也没有重新安装、启动或切换用户 Input Methods 副本。
+
+2026-08-16 跨 Space 位置瞬移修复验证：
+
+- 根因位于 `FloatingPanelController`：panel 为支持拖动而长期设置 `isMovable=true`，系统可在 Space/显示环境过渡时自行搬动窗口，随后 live frame/逻辑锚点恢复产生可见瞬移。当前鼠标事件之外固定为 `false`；非审阅 mouse-down 仍显式调用 `performDrag(with:)`，reviewing 只在 `super.sendEvent` 分发该 mouse-down 的调用期间临时允许原生 background drag，不改变胶囊外观、尺寸、双击 Settings、reviewing 编辑或程序 resize。
+- `HotkeyAndInjectionPolicyTests` 的既有交互测试新增断言：系统管理移动必须关闭，非审阅单击仍为显式 drag、双击仍为 Settings，reviewing 单/双击仍走保留 background drag 的原生转发。定向测试 `/private/tmp/FlotisSpaceTransitionTargetedTests-20260816` 为 26 tests、0 failures。
+- `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisSpaceTransitionMainBuildFinal-20260816` 与输入法 Debug build `/private/tmp/FlotisSpaceTransitionInputBuildFinal-20260816` 均成功；完整主 App XCTest `/private/tmp/FlotisSpaceTransitionMainTestsFinal-20260816` 为 82 tests、0 failures，输入法 XCTest `/private/tmp/FlotisSpaceTransitionInputTestsFinal-20260816` 为 8 tests、0 failures。
+- 唯一 bundle ID `com.Vita0818.FlotisSpaceTransitionPreview20260816` 的 ad-hoc Debug 预览位于 `/private/tmp/FlotisSpaceTransitionPreview-20260816/Build/Products/Debug/Flotis.app`。本机 Computer Use 拒绝访问 Flotis，未启动可控画面流，因此没有把真实 Space 滑动动画、compact 拖动或 reviewing 点击标为运行态通过；没有改用绕过权限的 GUI 自动化，也没有安装或覆盖 `/Applications/Flotis.app`。
+
+2026-08-16 voice 快捷键开放配置验证：
+
+- Settings 唯一快捷键卡片仍严格只有四个 `52` pt 行，没有新增提示、说明或操作；voice 行改为与 panel/previous/next 相同的 `156×38` / 15 pt 可点击录制 surface。保存后写入 canonical `shortcuts.toggle_voice`，`HotkeyManager` 保持 Carbon ID `200` 并差异替换旧注册，胶囊观察同一 store、即时显示新组合。
+- 校验覆盖四项都至少含一个修饰键且互不重复；新增策略测试证明 voice 可改、保存重载后仍保留，并证明旧 schema v2 的 shortcuts 对象缺少 `toggle_voice` 时回退默认 `⌃⌥A`。provider 与 comparison 分区仍由同一 read-modify-write 保留。
+- `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisVoiceHotkeyMainBuild-20260816` 与输入法 Debug build `/private/tmp/FlotisVoiceHotkeyInputBuild-20260816` 均成功。
+- 使用唯一 bundle ID `com.Vita0818.FlotisVoiceHotkeyTests20260816` 的完整主 App XCTest `/private/tmp/FlotisVoiceHotkeyMainTests-20260816` 为 82 tests、0 failures、0 skipped；独立输入法 XCTest `/private/tmp/FlotisVoiceHotkeyInputTests-20260816` 为 8 tests、0 failures。
+- 唯一 bundle ID `com.Vita0818.FlotisVoiceHotkeyPreview20260816` 的 ad-hoc Debug 预览位于 `/private/tmp/FlotisVoiceHotkeyPreview-20260816/Build/Products/Debug/Flotis.app`，`codesign --verify --deep --strict` 通过；没有安装或覆盖 `/Applications/Flotis.app`。
+- 未读取或修改真实 `config.json`、Provider/API key，未录音、请求 provider、启动预览或触碰输入法安装副本。物理录制、旧/新 voice 组合即时切换及胶囊文字变化仍需人工确认。
+
+2026-08-16 Settings 快捷键页第二次极简化验证：
+
+- 唯一快捷键卡片只保留四个 `52` pt 行；固定 voice 只显示无底板 `⌃⌥A`，三项可配置组合从旧 `220×50` / 17 pt 收为 `156×38` / 15 pt，并移除铅笔、常驻对比说明、hover help、逐项恢复和全部恢复控件。直接点击组合键进入同尺寸原生录制态，临时提示收为“按下组合键”；Esc、校验、canonical 持久化、Carbon 增量重注册和真实错误显示路径未改。
+- `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisShortcutsMinimalCompile-20260816` 与输入法 Debug build `/private/tmp/FlotisShortcutsMinimalInputBuild-20260816` 均成功。
+- 使用唯一 bundle ID `com.Vita0818.FlotisShortcutsMinimalTestsFinal20260816` 的最终完整主 App XCTest `/private/tmp/FlotisShortcutsMinimalMainTestsFinal-20260816` 为 80 tests、0 failures、0 skipped；独立输入法 XCTest `/private/tmp/FlotisShortcutsMinimalInputTests-20260816` 为 8 tests、0 failures、0 skipped。结果数量由对应 `.xcresult` 读取确认。
+- 可直接检查的 ad-hoc Debug 预览位于 `/private/tmp/FlotisShortcutsMinimalPreview-20260816/Build/Products/Debug/Flotis.app`，bundle ID 为 `com.Vita0818.FlotisShortcutsMinimalPreview20260816`，`codesign --verify --deep --strict` 通过；没有安装或覆盖 `/Applications/Flotis.app`。
+- Computer Use 对既有运行态连续两次启动 ScreenCaptureKit 画面流均返回 `-3811`，因此按原生界面验收规则停止继续尝试；本轮没有把快捷键页截图、像素层级或点击录制标为运行态通过。源码层级、完整构建与状态/持久化单测均通过，但 Light/Dark、最小窗口、真实点击录制和错误换行仍需在该预览或后续安装版本中目视确认。
+- 未读取或修改真实 `config.json`、Provider/API key，未录音、请求 provider、触发费用或触碰输入法安装副本。构建仍只有既有 Apple Speech `NSLock` Swift 6 兼容 warning、XCTest deployment 与本机 Xcode 诊断提示。
+
+2026-08-16 最小胶囊、原生拖动与双击 Settings 验证：
+
+- 用户参考图为 `284×164 px`，其中可见胶囊精确测得 `192×72 px`，按 `@2x` 还原为 `96×36 pt`；圆点约 `6 pt`。实现使用相同 `96×36`、18 pt 圆角、6 pt 圆点、7 pt 间距和单个 15 pt Semibold Monospaced `⌃⌥A`。`Ask` 仅作为参考图内容存在；按用户最后指示，compact 表面不显示品牌名，也没有按钮、图标、计时、状态/错误句、双击提示或其他说明。
+- `xcodegen generate` 成功。最终主 App Debug build `/private/tmp/FlotisCapsuleShortcutMainBuild-20260816` 与输入法 Debug build `/private/tmp/FlotisCapsuleShortcutInputBuild-20260816` 均为 `BUILD SUCCEEDED`。
+- 使用唯一 bundle ID `com.Vita0818.FlotisCapsuleShortcutMainTests20260816` 的完整主 App XCTest `/private/tmp/FlotisCapsuleShortcutMainTests-20260816` 为 80 tests、0 failures；独立输入法 XCTest `/private/tmp/FlotisCapsuleShortcutInputTests-20260816` 为 8 tests、0 failures。`HotkeyAndInjectionPolicyTests` 维持 24 tests，并将交互策略锁定为非审阅单击 `beginDrag`、双击 `openSettings`、reviewing 鼠标事件 `forward`。
+- 唯一 bundle ID `com.Vita0818.FlotisCapsuleShortcutDragVisual20260816` 的签名隔离 Debug 预览位于 `/private/tmp/FlotisCapsuleShortcutDragVisual-20260816/Build/Products/Debug/Flotis.app`。Computer Use 捕获的最终 idle 窗口为 `/private/tmp/Flotis-Minimal-Capsule-Shortcut-20260816.jpeg`；参考图副本为 `/private/tmp/Flotis-Minimal-Capsule-Reference-20260816.png`，实现按 `2×` 归一化后的等画布并排比较为 `/private/tmp/Flotis-Capsule-Reference-vs-Shortcut-Implementation-20260816.png`，`design-qa.md` 最终为 passed，无 P0/P1/P2 残留。
+- 运行态原生 drag gesture 已从 compact SwiftUI surface 成功进入 panel 的 `performDrag(with:)`；单击保持 compact 且不打开 Settings，双击打开既有 `1100×760` Settings。reviewing 事件转发由纯策略测试锁定，避免破坏文本拖选和双击选词。最后一次试图把三项交互合并进同一 ScreenCaptureKit stream 时，Computer Use 遇到环境错误 `-3811`；此前分开的 drag/single/double 运行态结果、最终 idle 截图与 XCTest 不受影响。视觉验收没有按 voice hotkey、录音、请求麦克风/provider、读取/改写配置或触碰输入法。
+- 为解除 Carbon 占用并取得真实 idle 绿点，验收时通过原生 `⌘Q` 正常退出了已安装旧版和两个旧隔离预览；最终隔离预览保持为 compact 状态供直接查看。当前实现没有安装或覆盖 `/Applications/Flotis.app`。
+
 2026-08-07 Settings 快捷键页精简与重新安装验证：
 
-- 以用户提供的已安装 Settings 截图为真实问题依据，侧栏品牌区移除应用图标，“General/概览”改为“Shortcuts/快捷键”；删除固定 voice 流程、胶囊拖动说明、重复 section 标题与每行长描述，只在一张卡中保留固定 voice 和三项可配置组合。组合键 surface 由最小 `92×32` / 11 pt 扩至固定 `220×50` / 17 pt，原生录制态同尺寸，录制提示为 14 pt；可配置项整块 surface 可点。
+- 以用户提供的已安装 Settings 截图为真实问题依据，侧栏品牌区移除应用图标，“General/概览”改名为“Shortcuts/快捷键”；删除固定 voice 流程、胶囊拖动说明、重复 section 标题与每行长描述，只在一张卡中保留固定 voice 和三项可配置组合。当时组合键 surface 由最小 `92×32` / 11 pt 扩至固定 `220×50` / 17 pt，原生录制态同尺寸，录制提示为 14 pt；可配置项整块 surface 可点。该尺寸与恢复控件 contract 已被 2026-08-16 的第二次极简化取代。
 - `xcodegen generate` 成功。主 App Debug build `/private/tmp/FlotisShortcutUI-MainBuild-20260807` 与输入法 Debug build `/private/tmp/FlotisShortcutUI-InputBuild-20260807` 均成功。
 - 使用隔离 bundle ID `com.Vita0818.FlotisShortcutUIRegression20260807` 的完整主 App XCTest `/private/tmp/FlotisShortcutUI-MainTests-20260807` 为 79 tests、0 failures；独立输入法 XCTest `/private/tmp/FlotisShortcutUI-InputTests-20260807` 为 8 tests、0 failures。
 - ad-hoc Release `/private/tmp/FlotisShortcutUI-ReleaseInstall-20260807/Build/Products/Release/Flotis.app` 为 `0.12 (3)`，通过 `codesign --verify --deep --strict`。上一版已移动到 `/private/tmp/Flotis-before-shortcut-ui-install-20260807-2211.app`；新版本已安装到 `/Applications/Flotis.app`、注册 Launch Services 并启动，安装可执行文件、`Flotis.icns` 与 `Assets.car` 和 Release 逐字节一致。更早的可配置快捷键首次安装产物为 `/private/tmp/FlotisHotkeyReleaseInstall-20260807/Build/Products/Release/Flotis.app`，其替换前副本仍在 `/private/tmp/Flotis-before-configurable-hotkeys-install-20260807-2150.app`。
@@ -352,20 +402,22 @@ git status --short
 
 ### `HotkeyAndInjectionPolicyTests`
 
-23 tests：
+26 tests：
 
-- V0.12 语音热键严格映射 start → stop → reviewing/copyAndReturn。
+- V0.13 语音热键严格映射 start → stop → reviewing/copyAndReturn。
 - copy-and-return 成功时原样交给 clipboard writer、重置会话并回 idle；panel 保持可见并缩回小胶囊。
 - clipboard writer 失败时保留 reviewing、编辑文字和可区分错误供重试。
 - requesting/connecting 保持 cancel；stopping/transcribing/injecting 忽略重复动作。
 - Carbon hotkey 使用独占注册。
 - press gate 在 release 前只接受一次按下，并可 reset。
-- 固定 voice descriptor 为 `⌃⌥A`，并锁定 Carbon key `0` 与 Control/Option。
-- panel/previous/next 可配置 descriptor 保留 `⌘⌥⇧0` / `⌥←` / `⌥→` 默认值；覆盖至少一个修饰键、固定 voice 冲突、三项重复拒绝，以及 canonical `shortcuts` 持久化/重载且不改 provider/comparison 分区。
+- voice descriptor 默认 `⌃⌥A`（Carbon key `0` 与 Control/Option），但可录制、持久化为其他合法组合；旧 shortcuts 缺少 `toggle_voice` 时回退默认值。
+- panel/previous/next 可配置 descriptor 保留 `⌘⌥⇧0` / `⌥←` / `⌥→` 默认值；四项共同覆盖至少一个修饰键、重复拒绝，以及 canonical `shortcuts` 持久化/重载且不改 provider/comparison 分区。
 - 录音开始时间在 recording→streaming 期间保持，在离开捕获态后清空；计时格式覆盖 `mm:ss` 与小时边界。
 - 保留旧注入器要求当前 voice 主键及相关修饰键都释放后才允许继续。
 - 保留旧注入器的显式胶囊重试只允许重激活捕获目标。
-- 四档胶囊尺寸保持稳定，status 不改变 reviewing 高度。
+- reviewing 之外所有状态和 status/error 都保持 `96×36`；单结果 reviewing 为 `420×160`，对比 reviewing 为 `560×300`。
+- 非审阅 compact 单次 mouse-down 进入原生拖动，双击打开 Settings；reviewing 鼠标事件不被 panel 截获。
+- panel 在 mouse-down 分发之外禁止系统管理移动，避免 Space/显示环境过渡改写相对屏幕位置；显式 compact drag 与 reviewing background drag 策略仍可达。
 - 对比 reviewing 使用独立 `560×300` 静态尺寸，单结果仍为 `420×160`。
 - panel resize 保持用户拖动后的水平中心与底边。
 - panel resize 会把拖动位置钳制在目标屏幕可见区。
@@ -452,14 +504,14 @@ git status --short
 每次修改 `FlotisDesign.swift`、`FloatingPanelView.swift`、`FloatingPanelController.swift`、`VoiceSettingsView.swift` 或 `IntatisStyleSpeechProviderSettingsView.swift` 后，至少手动检查：
 
 - Light / Dark appearance，以及 Reduce Transparency / Increase Contrast 开关前后。
-- idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、failed，以及保留但当前不可达的 injecting；状态不能只靠颜色表达。
+- idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、failed，以及保留但当前不可达的 injecting。compact 状态按最新最小化要求只用语义圆点作可见差异，完整状态/错误必须仍出现在 accessibility value；reviewing 内候选成功/失败不能只靠颜色表达。
 - 单结果 reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与复制并返回；对比 reviewing 还要检查 2–4 个候选的固定双列布局（四项为 2×2、无横向滚动）、成功/失败的非颜色表达、Display name 存在时只显示该名称、Display name 为空时显示主 Model ID + 次 Provider、endpoint 不可见、长名称/model/provider 截断、首个成功项自动打开、用户配置的 previous/next（默认 `⌥←` / `⌥→`）跳过失败项并循环，以及候选切换后的编辑内容保持。点击文本时 panel 可成为 key，但当前确认不应激活或切换任何目标 app。
-- idle/工作/提示/单结果审阅/对比审阅各档静态 panel 尺寸、首次屏幕底边位置、背景拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化、跨 Space 与长错误单行截断；连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
-- Settings 只能通过可复用独立窗口打开，不能附着成胶囊 sheet；齿轮重复点击只前置同一窗口，关闭不能误关胶囊。实际内容初始尺寸应为 `1100×760`、最小 `820×600`；缩放、切页、展开 Models/Connection/高级项和滚动时，侧栏与页头必须保持在标题栏下方，1100 pt 宽时主卡必须保持双栏。侧栏左上只显示 `Flotis` 与版本、不得出现应用图标，导航应为“快捷键 / 转写”。快捷键页只能有一张卡，固定 voice 与三项可配置组合均使用 `220×50` / 17 pt 的大号 surface；三项可配置组合应整块可点，录制态保持同尺寸、获得键盘焦点并可用 Esc 取消，逐项/全部恢复及错误文本不能导致卡片裁切。Connection、Models、Comparison、Advanced 标题应整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换；点击文案或空白区域也必须生效。
+- compact `96×36`、单结果审阅 `420×160`、对比审阅 `560×300` 三档静态 panel 尺寸、首次屏幕底边位置、从 compact 任意位置开始的原生拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化与跨 Space；切换桌面的整个系统动画期间胶囊都必须保持同一相对屏幕位置，不能先落在旧/错误位置再在动画结束瞬移。所有非审阅状态与 status/error 必须保持同一 compact frame，不能因隐藏文案产生尺寸跳变。连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
+- Settings 只能通过 compact 胶囊双击打开可复用独立窗口，单击不得打开，reviewing 双击必须保留文本选词；不能附着成胶囊 sheet，重复双击只前置同一窗口，关闭不能误关胶囊。实际内容初始尺寸应为 `1100×760`、最小 `820×600`；缩放、切页、展开 Models/Connection/高级项和滚动时，侧栏与页头必须保持在标题栏下方，1100 pt 宽时主卡必须保持双栏。侧栏左上只显示 `Flotis` 与版本、不得出现应用图标，导航应为“快捷键 / 转写”。快捷键页只能有一张紧凑卡和四个 `52` pt 行；voice、panel、previous、next 四项都使用 `156×38` / 15 pt Monospaced 的轻量 surface，整块可点，录制态保持同尺寸、获得键盘焦点并可用 Esc 取消。常态不得显示流程、拖动、对比条件、hover help、铅笔或恢复控件；真实错误文本不得被裁切。Connection、Models、Comparison、Advanced 标题应整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换；点击文案或空白区域也必须生效。
 - 转写页的主卡应与 Intatis 信息层级一致：左侧 Providers 标题/Add、Provider 列表与模型数；右侧 Provider name、共享 API key、Active model、Connection 和 Models disclosure。Models 展开后每个模型有独立 Model ID、可选 Display name 和删除动作，并可 Add model；Test Provider/Save 在卡片下方。音频格式、采样率、声道、response mode 和其他 adapter 选择不出现。
 - Flotis 特有的 2–4 route Comparison 与费用提醒放在主卡下方的独立 disclosure；Language/Prompt/Temperature 继续位于高级区。检查 OpenAI Compatible 空态、多 provider 新增/切换/未保存草稿门控、同 Provider 多模型、隐藏 adapter 保留、OpenRouter 自动 JSON+Base64、custom endpoint warning/confirmation、Clear API Key、Test Provider、对比不足 2 项/超过 4 项/失效项 reconcile、disabled/error/success、Esc 与 `⌘W`。
-- 按钮 hover/focus/disabled 层级、键盘导航、idle 双白圆资源、其余 SF Symbol 与文字标签；idle 外壳当前应为 `108×54`，录音图稿必须保持白圆六条黑色圆角声波，设置图稿必须保持 28 pt 白圆中的 16 pt 黑色八齿齿轮，二者均不得裁切或产生外部黑边，下方 `⌃⌥A` 应为清晰的 12 pt Semibold 系统 Monospaced/动态主文字色。主操作使用系统动态黑/白，红/橙/绿只用于明确语义状态。
-- macOS 26+ 原生 Liquid Glass 路径必须核对 `NSGlassEffectView(style: .regular)`、系统默认自适应 tint、无 hosting-root 全表面深色填充，并在真实运行态检查边缘高光与背景适配；macOS 13–15 Material/native bordered fallback 也需真机核对。当前自动化不能证明两条路径的实际像素和交互。
+- compact 外壳必须为 `96×36`、18 pt 圆角的透明系统 glass/material；SwiftUI 内容层不得出现固定白色/不透明填充或自定义整圈描边，快捷键文字必须随 Light/Dark appearance 使用动态主文字色。内容只能是 6 pt 状态圆点和 15 pt Semibold Monospaced 的当前 voice 快捷键，二者垂直居中、间距 7 pt。修改 voice 后文字必须即时更新，不得继续显示旧组合。不得出现品牌名、旧双白圆资源、SF Symbol、齿轮、计时、状态/错误文字、双击提示、说明或额外 action；录音/流式红点、处理中/失败橙点、idle 绿点应清楚但不抢过快捷键。
+- macOS 26+ 原生 `NSGlassEffectView(style: .regular)` panel 容器、窗口阴影与 macOS 13–25 Material fallback 仍需真机核对。至少把胶囊跨明暗背景移动并分别切换 Light/Dark，确认表面会采样背景、系统边缘高光仍存在且文字保持可读；Reduce Transparency/Increase Contrast 打开后应遵循系统 fallback，而不是退化成代码写死的白底。此前参考图 QA 只证明 `96×36` 几何、内容层级与双击入口，不再作为固定浅色 token 的当前依据。
 
 ## 真机手动验证矩阵
 
@@ -492,24 +544,26 @@ git status --short
 
 | 场景 | 操作 | 预期 |
 |---|---|---|
-| 默认 toggle | 默认 `⌘⌥⇧0` / 固定 `⌃⌥A` | panel 与 voice 各自响应一次；隐藏时 voice 显示胶囊，reviewing 第三次成功复制后保持可见并缩回 idle |
-| 自定义 panel 快捷键 | 在“快捷键”页录制一个新的双修饰键组合，再分别按旧组合和新组合 | 新组合立即显示并控制 panel；旧组合不再触发；重启后仍恢复新组合；逐项恢复后回到默认值 |
+| 默认 toggle | 默认 panel `⌘⌥⇧0` / voice `⌃⌥A` | panel 与 voice 各自响应一次；隐藏时 voice 显示胶囊，reviewing 第三次成功复制后保持可见并缩回 idle |
+| compact Settings 入口 | idle/录音/处理/failed 分别单击、双击；reviewing 文本双击 | 单击不打开 Settings；非审阅双击打开或前置同一个独立窗口；reviewing 双击正常选词，不触发 Settings；胶囊表面不显示该操作的提示或图标 |
+| 自定义 panel 快捷键 | 在“快捷键”页录制一个新的双修饰键组合，再分别按旧组合和新组合 | 新组合立即显示并控制 panel；旧组合不再触发；重启后仍恢复新组合；重新录制默认 descriptor 后可回到默认值 |
+| 自定义 voice 快捷键 | 点击语音输入行录制一个未占用的新组合，再观察胶囊并分别按旧组合、新组合，最后重启 | 胶囊立即只显示新组合；旧组合不再触发 voice，新组合继续执行 start/stop/copy-and-return；重启后仍恢复新组合 |
 | 自定义对比导航 | 把 previous/next 改为两个不同组合，分别在 idle、单结果 reviewing 与多结果 reviewing 中按下 | 前两种状态不抢占按键；仅多结果 reviewing 中临时生效、跳过失败项并循环；离开后立即注销 |
-| 快捷键校验 | 尝试无修饰键、与另一项相同、固定 `⌃⌥A`，并用其他 app 独占一个合法新组合 | 前三种不写入并显示明确错误；外部 Carbon 冲突可见且解除冲突后自动重试，不覆盖原 `config.json` 其他分区 |
-| 胶囊拖动 | 从按钮和审阅文本以外的空白处把小胶囊拖到屏幕边缘，切换到 reviewing 后取消；再在 reviewing 主动拖动并取消 | 可拖动；大框可为保持可见而临时内移，第一次取消后小胶囊回到展开前位置；主动拖动大框后以新中心/底边缩回，文本拖选不会移动窗口 |
-| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→clipboard copy→idle capsule visible；录音态保留原有图标/文案、无 stop 方块且 `mm:ss` 连续递增，stopping/transcribing 保留原有省略号状态图标/文案且无右侧重复 action；不会在转写完成时自动复制 |
+| 快捷键校验 | 对任一行尝试无修饰键、与另一项相同，并用其他 app 独占一个合法新组合 | 前两种不写入并显示明确错误；外部 Carbon 冲突可见且解除冲突后自动重试，不覆盖原 `config.json` 其他分区 |
+| 胶囊拖动 | 从 compact 胶囊圆点、快捷键或其余任意表面开始拖到屏幕边缘，切换到 reviewing 后取消；再从 reviewing 的非文本区域主动拖动并取消 | compact 任意位置均进入原生窗口拖动且不误开 Settings；大框可为保持可见而临时内移，第一次取消后小胶囊回到展开前位置；主动拖动大框后以新中心/底边缩回，文本拖选不会移动窗口 |
+| 三段式 voice | 连续完成开始、停止/转写、确认三个阶段 | idle→recording/streaming→reviewing→clipboard copy→idle capsule visible；所有非审阅阶段保持同一 `96×36` 胶囊，只由圆点在 idle 绿、录音红、处理中橙之间变化，不出现按钮、计时、状态句或提示；不会在转写完成时自动复制 |
 | 对比三段式 | 在一个 OpenRouter Provider 下建立 2–4 个 ready model route、勾选并开启对比；依次开始、停止、查看结果 | endpoint/key 只配置一次；麦克风只录制一次；各模型请求并发处理；`560×300` 审阅页按选择顺序用双列展示，四项为 2×2，首个成功项自动打开且无需横向滚动 |
-| 对比导航与编辑 | 自动打开候选 A 后修改，按当前 next（默认 `⌥→`）到 B 修改，再按当前 previous（默认 `⌥←`）回 A，最后按 `⌃⌥A` | A/B 各自编辑内容保持；导航快捷键跳过失败项并在边界循环；第三次 voice hotkey 只复制当前 A；候选清空、临时导航热键注销、panel 缩回原位置 idle |
+| 对比导航与编辑 | 自动打开候选 A 后修改，按当前 next（默认 `⌥→`）到 B 修改，再按当前 previous（默认 `⌥←`）回 A，最后按当前 voice 快捷键 | A/B 各自编辑内容保持；导航快捷键跳过失败项并在边界循环；第三次 voice hotkey 只复制当前 A；候选清空、临时导航热键注销、panel 缩回原位置 idle |
 | 对比部分失败 | 让一个 endpoint 返回错误、另一个成功 | 成功结果仍可选择/编辑；失败卡显示失败语义和可查看的受限错误，不取消成功项、不泄漏 key/完整响应 |
 | 对比取消 | 录音中和并发转写中分别取消 | 所有 request/transcriber 取消，共享临时文件清理，不出现延迟候选覆盖下一会话 |
-| 按住/自动重复 | 按住 `⌃⌥A` 约 2 秒后松开 | 整次物理按下只触发一个动作，松开后下一次按下才生效 |
+| 按住/自动重复 | 按住当前 voice 快捷键约 2 秒后松开 | 整次物理按下只触发一个动作，松开后下一次按下才生效 |
 | 处理中误按 | stopping/transcribing 中再次按语音热键 | 忽略，不取消终态处理、不清空即将审阅的转写 |
-| 胶囊编辑 | reviewing 点击文本修改，再按 `⌃⌥A` 或点“复制并返回” | 剪贴板获得包含首尾在内的原样编辑文本，审阅框清空并缩回原位置小胶囊；不激活、不切换、不输入到任何目标 app |
+| 胶囊编辑 | reviewing 点击文本修改，再按当前 voice 快捷键或点“复制并返回” | 剪贴板获得包含首尾在内的原样编辑文本，审阅框清空并缩回原位置小胶囊；不激活、不切换、不输入到任何目标 app |
 | 审阅复制 | reviewing 选中部分文字按 `⌘C`、右键 Copy，再测试复制全部图标 | 部分选区或全文进入剪贴板；文本仍可继续编辑，窗口不随拖选移动 |
 | 编辑后取消 | reviewing 修改后按 Esc/取消 | 清空本次文本并回 idle，不复制 |
 | 复制后下一轮 | 第三次成功缩回后再按一次 voice hotkey | 当前可见小胶囊直接开始新录音；不会重复复制上一轮文字 |
-| 热键冲突 | 让系统或其他 app 独占固定 `⌃⌥A` 或任一用户配置组合后启动 Flotis | 错误持久显示；解除冲突后自动重试成功 |
-| 旧命令兼容 | 启动 V0.12 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
+| 热键冲突 | 让系统或其他 app 独占当前 voice 或任一其他用户配置组合后启动 Flotis | 错误持久显示；解除冲突后自动重试成功 |
+| 旧命令兼容 | 启动 V0.13 并检查旧 commands.json | 不展示命令、不注册命令热键，也不改写或删除旧文件 |
 
 ### 当前剪贴板确认
 

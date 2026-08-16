@@ -224,9 +224,10 @@ struct SettingsView: View {
 }
 
 private enum ShortcutSettingsLayout {
-    static let controlWidth: CGFloat = 220
-    static let controlHeight: CGFloat = 50
-    static let controlCornerRadius: CGFloat = 11
+    static let controlWidth: CGFloat = 156
+    static let controlHeight: CGFloat = 38
+    static let controlCornerRadius: CGFloat = 9
+    static let rowHeight: CGFloat = 52
 }
 
 private struct ShortcutSettingsPage: View {
@@ -237,67 +238,37 @@ private struct ShortcutSettingsPage: View {
     @State private var validationMessage: String?
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                FlotisPageHeader(title: UIStrings.shortcutSettings)
+        VStack(alignment: .leading, spacing: 18) {
+            FlotisPageHeader(title: UIStrings.shortcutSettings)
 
-                VStack(spacing: 0) {
-                    fixedVoiceShortcutRow
-
-                    Divider()
-                        .padding(.vertical, 6)
-
-                    ForEach(ConfigurableHotkey.allCases) { hotkey in
-                        shortcutSettingRow(hotkey)
-
-                        if hotkey != .nextComparisonResult {
-                            Divider()
-                                .padding(.vertical, 6)
-                        }
+            VStack(spacing: 0) {
+                ForEach(ConfigurableHotkey.allCases) { hotkey in
+                    if hotkey != .toggleVoice {
+                        Divider()
                     }
-
-                    Divider()
-                        .padding(.vertical, 12)
-
-                    HStack(alignment: .center, spacing: 16) {
-                        Text(UIStrings.comparisonShortcutAvailability)
-                            .font(FlotisType.caption(12, .regular))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 12)
-
-                        Button(UIStrings.resetDefaults) {
-                            recordingHotkey = nil
-                            if hotkeyStore.resetToDefaults() {
-                                validationMessage = nil
-                            } else {
-                                validationMessage = hotkeyStore.lastError
-                            }
-                        }
-                        .controlSize(.large)
-                    }
-
-                    if let hotkeyStatusMessage {
-                        Text(hotkeyStatusMessage)
-                            .font(FlotisType.caption(12, .medium))
-                            .foregroundStyle(.red)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    shortcutSettingRow(hotkey)
                 }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .flotisContentSurface(cornerRadius: 18)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 26)
-            .padding(.bottom, 32)
-            .frame(maxWidth: 760, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .flotisContentSurface(cornerRadius: 16)
+
+            if let hotkeyStatusMessage {
+                Text(hotkeyStatusMessage)
+                    .font(FlotisType.caption(12, .medium))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 28)
+        .padding(.top, 26)
+        .padding(.bottom, 32)
+        .frame(maxWidth: 560, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onDisappear {
             recordingHotkey = nil
             validationMessage = nil
@@ -308,28 +279,10 @@ private struct ShortcutSettingsPage: View {
         validationMessage ?? hotkeyStore.lastError ?? appState.hotkeyError
     }
 
-    private var fixedVoiceShortcutRow: some View {
-        HStack(alignment: .center, spacing: 16) {
-            Text(UIStrings.voiceShortcutTitle)
-                .font(FlotisType.body(14, .semibold))
-
-            Spacer(minLength: 16)
-
-            shortcutSurface(
-                KeyboardShortcutDescriptor.toggleVoice.displayString
-            )
-            .help(UIStrings.voiceShortcutDescription)
-            .accessibilityLabel(
-                "\(UIStrings.voiceShortcutTitle), \(KeyboardShortcutDescriptor.toggleVoice.displayString)"
-            )
-        }
-        .frame(minHeight: 68)
-    }
-
     private func shortcutSettingRow(_ hotkey: ConfigurableHotkey) -> some View {
         HStack(alignment: .center, spacing: 16) {
             Text(hotkey.displayName)
-                .font(FlotisType.body(14, .semibold))
+                .font(FlotisType.body(13, .medium))
 
             Spacer(minLength: 16)
 
@@ -378,70 +331,28 @@ private struct ShortcutSettingsPage: View {
                     validationMessage = nil
                     recordingHotkey = hotkey
                 } label: {
-                    HStack(spacing: 12) {
-                        Text(hotkeyStore.configuration[hotkey].displayString)
-                            .font(FlotisType.mono(17, .semibold))
-                        Image(systemName: "pencil")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                    .frame(
-                        width: ShortcutSettingsLayout.controlWidth,
-                        height: ShortcutSettingsLayout.controlHeight
-                    )
-                    .contentShape(Rectangle())
-                    .background(
-                        Color.secondary.opacity(0.1),
-                        in: RoundedRectangle(
-                            cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
-                            style: .continuous
+                    Text(hotkeyStore.configuration[hotkey].displayString)
+                        .font(FlotisType.mono(15, .semibold))
+                        .frame(
+                            width: ShortcutSettingsLayout.controlWidth,
+                            height: ShortcutSettingsLayout.controlHeight
                         )
-                    )
+                        .contentShape(Rectangle())
+                        .background(
+                            Color.secondary.opacity(0.1),
+                            in: RoundedRectangle(
+                                cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
+                                style: .continuous
+                            )
+                        )
                 }
                 .buttonStyle(.plain)
-                .help(UIStrings.clickToRecordShortcut)
                 .accessibilityLabel(
                     "\(hotkey.displayName), \(hotkeyStore.configuration[hotkey].displayString)"
                 )
-
-                if hotkeyStore.configuration[hotkey] != hotkey.defaultDescriptor {
-                    Button {
-                        if hotkeyStore.resetShortcut(hotkey) {
-                            validationMessage = nil
-                        } else {
-                            validationMessage = hotkeyStore.lastError
-                        }
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                            .frame(width: 40, height: 40)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help(UIStrings.resetThisShortcut)
-                    .accessibilityLabel(UIStrings.resetThisShortcut)
-                }
             }
         }
-        .frame(minHeight: 68)
-    }
-
-    private func shortcutSurface(_ shortcut: String) -> some View {
-        Text(shortcut)
-            .font(FlotisType.mono(17, .semibold))
-            .frame(
-                width: ShortcutSettingsLayout.controlWidth,
-                height: ShortcutSettingsLayout.controlHeight
-            )
-            .background(
-                Color.secondary.opacity(0.1),
-                in: RoundedRectangle(
-                    cornerRadius: ShortcutSettingsLayout.controlCornerRadius,
-                    style: .continuous
-                )
-            )
+        .frame(height: ShortcutSettingsLayout.rowHeight)
     }
 }
 

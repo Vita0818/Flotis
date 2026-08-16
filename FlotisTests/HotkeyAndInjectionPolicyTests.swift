@@ -133,11 +133,15 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
     func testFloatingPanelUsesStableSizes() {
         XCTAssertEqual(
             FloatingPanelLayout(state: .idle, hasStatusArea: false).panelSize,
-            CGSize(width: 108, height: 54)
+            CGSize(width: 96, height: 36)
         )
         XCTAssertEqual(
             FloatingPanelLayout(state: .recording, hasStatusArea: false).panelSize,
-            CGSize(width: 188, height: 56)
+            CGSize(width: 96, height: 36)
+        )
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .idle, hasStatusArea: true).panelSize,
+            CGSize(width: 96, height: 36)
         )
         XCTAssertEqual(
             FloatingPanelLayout(state: .reviewing, hasStatusArea: false).panelSize,
@@ -159,18 +163,18 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
 
     func testPanelResizePreservesDraggedCenterAndBottomEdge() {
         let origin = FloatingPanelController.resizedOrigin(
-            currentFrame: NSRect(x: 320, y: 140, width: 108, height: 54),
+            currentFrame: NSRect(x: 320, y: 140, width: 96, height: 36),
             targetFrameSize: CGSize(width: 420, height: 160),
             visibleFrame: NSRect(x: 0, y: 0, width: 1_000, height: 800)
         )
 
-        XCTAssertEqual(origin.x, 164, accuracy: 0.001)
+        XCTAssertEqual(origin.x, 158, accuracy: 0.001)
         XCTAssertEqual(origin.y, 140, accuracy: 0.001)
     }
 
     func testPanelResizeClampsDraggedPositionToVisibleScreen() {
         let origin = FloatingPanelController.resizedOrigin(
-            currentFrame: NSRect(x: 0, y: 2, width: 108, height: 54),
+            currentFrame: NSRect(x: 0, y: 2, width: 96, height: 36),
             targetFrameSize: CGSize(width: 420, height: 160),
             visibleFrame: NSRect(x: 0, y: 0, width: 1_000, height: 800)
         )
@@ -181,7 +185,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
 
     func testPanelShrinkRestoresStoredCapsulePositionAfterReviewWasClamped() {
         let visibleFrame = NSRect(x: 0, y: 0, width: 1_000, height: 800)
-        let capsuleFrame = NSRect(x: 880, y: 80, width: 108, height: 54)
+        let capsuleFrame = NSRect(x: 880, y: 80, width: 96, height: 36)
         let positionAnchor = FloatingPanelPositionAnchor(frame: capsuleFrame)
 
         let reviewOrigin = FloatingPanelController.resizedOrigin(
@@ -198,6 +202,52 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         )
         XCTAssertEqual(restoredOrigin.x, capsuleFrame.origin.x, accuracy: 0.001)
         XCTAssertEqual(restoredOrigin.y, capsuleFrame.origin.y, accuracy: 0.001)
+    }
+
+    func testCapsuleMouseDownSeparatesDragSettingsAndReviewEditing() {
+        XCTAssertFalse(FloatingPanelInteraction.allowsSystemManagedMovement)
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 1,
+                state: .idle
+            ),
+            .beginDrag
+        )
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 2,
+                state: .idle
+            ),
+            .openSettings
+        )
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 1,
+                state: .recording
+            ),
+            .beginDrag
+        )
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 2,
+                state: .recording
+            ),
+            .openSettings
+        )
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 1,
+                state: .reviewing
+            ),
+            .forwardWithBackgroundDrag
+        )
+        XCTAssertEqual(
+            FloatingPanelInteraction.mouseDownAction(
+                clickCount: 2,
+                state: .reviewing
+            ),
+            .forwardWithBackgroundDrag
+        )
     }
 
     func testInjectionFailuresProvideSpecificUserMessages() {
@@ -254,7 +304,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertNil(CommandStore.shortcutSafetyError(shortcut))
     }
 
-    func testVoiceShortcutUsesControlOptionA() {
+    func testVoiceShortcutDefaultUsesControlOptionA() {
         XCTAssertEqual(KeyboardShortcutDescriptor.toggleVoice.keyCode, 0)
         XCTAssertEqual(KeyboardShortcutDescriptor.toggleVoice.modifiers, .controlOption)
         XCTAssertEqual(KeyboardShortcutDescriptor.toggleVoice.displayString, "⌃⌥A")
@@ -263,6 +313,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
     func testConfigurableHotkeysKeepExistingDefaults() {
         let configuration = FlotisHotkeyConfiguration.defaults
 
+        XCTAssertEqual(configuration.toggleVoice, .toggleVoice)
         XCTAssertEqual(configuration.togglePanel.keyCode, 29)
         XCTAssertEqual(configuration.togglePanel.modifiers, .commandOptionShift)
         XCTAssertEqual(configuration.togglePanel.displayString, "⌥⇧⌘0")
@@ -286,7 +337,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         )
     }
 
-    func testConfigurableHotkeysRejectMissingModifiersVoiceAndDuplicates() throws {
+    func testConfigurableHotkeysRejectMissingModifiersAndDuplicates() throws {
         let (store, directoryURL) = makeIsolatedHotkeyStore()
         defer { try? FileManager.default.removeItem(at: directoryURL) }
 
@@ -303,7 +354,10 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
             store.validationError(for: noModifiers, hotkey: .previousComparisonResult)
         )
         XCTAssertNotNil(
-            store.validationError(for: .toggleVoice, hotkey: .togglePanel)
+            store.validationError(
+                for: store.configuration.togglePanel,
+                hotkey: .toggleVoice
+            )
         )
         XCTAssertNotNil(
             store.validationError(
@@ -311,6 +365,66 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
                 hotkey: .previousComparisonResult
             )
         )
+    }
+
+    func testVoiceHotkeyCanBeChanged() throws {
+        let (store, directoryURL) = makeIsolatedHotkeyStore()
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        let customVoiceShortcut = KeyboardShortcutDescriptor(
+            keyCode: 11,
+            modifiers: .controlOption
+        )
+
+        XCTAssertNil(
+            store.validationError(for: customVoiceShortcut, hotkey: .toggleVoice)
+        )
+        XCTAssertTrue(store.setShortcut(customVoiceShortcut, for: .toggleVoice))
+        XCTAssertEqual(store.configuration.toggleVoice, customVoiceShortcut)
+    }
+
+    func testLegacyShortcutConfigurationDefaultsMissingVoiceDescriptor() throws {
+        let data = try XCTUnwrap(
+            """
+            {
+              "toggle_panel": {
+                "keyCode": 29,
+                "modifiers": {
+                  "command": true,
+                  "option": true,
+                  "shift": true,
+                  "control": false
+                }
+              },
+              "previous_comparison_result": {
+                "keyCode": 123,
+                "modifiers": {
+                  "command": false,
+                  "option": true,
+                  "shift": false,
+                  "control": false
+                }
+              },
+              "next_comparison_result": {
+                "keyCode": 124,
+                "modifiers": {
+                  "command": false,
+                  "option": true,
+                  "shift": false,
+                  "control": false
+                }
+              }
+            }
+            """.data(using: .utf8)
+        )
+
+        let configuration = try JSONDecoder().decode(
+            FlotisHotkeyConfiguration.self,
+            from: data
+        )
+
+        XCTAssertEqual(configuration.toggleVoice, .toggleVoice)
+        XCTAssertTrue(configuration.isValid)
     }
 
     func testConfigurableHotkeysPersistInCanonicalConfiguration() throws {
@@ -322,22 +436,30 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
             fileURL: directoryURL.appendingPathComponent("config.json")
         )
         let store = HotkeyConfigurationStore(configurationStore: configurationStore)
-        let shortcut = KeyboardShortcutDescriptor(
+        let voiceShortcut = KeyboardShortcutDescriptor(
             keyCode: 11,
             modifiers: .controlOption
         )
+        let panelShortcut = KeyboardShortcutDescriptor(
+            keyCode: 2,
+            modifiers: .commandOptionShift
+        )
 
-        XCTAssertTrue(store.setShortcut(shortcut, for: .togglePanel))
-        XCTAssertEqual(store.configuration.togglePanel, shortcut)
+        XCTAssertTrue(store.setShortcut(voiceShortcut, for: .toggleVoice))
+        XCTAssertTrue(store.setShortcut(panelShortcut, for: .togglePanel))
+        XCTAssertEqual(store.configuration.toggleVoice, voiceShortcut)
+        XCTAssertEqual(store.configuration.togglePanel, panelShortcut)
 
         let reloaded = HotkeyConfigurationStore(configurationStore: configurationStore)
-        XCTAssertEqual(reloaded.configuration.togglePanel, shortcut)
+        XCTAssertEqual(reloaded.configuration.toggleVoice, voiceShortcut)
+        XCTAssertEqual(reloaded.configuration.togglePanel, panelShortcut)
         XCTAssertEqual(reloaded.configuration.previousComparisonResult.displayString, "⌥←")
 
         guard case .loaded(let document) = configurationStore.load() else {
             return XCTFail("Expected canonical config.json to load")
         }
-        XCTAssertEqual(document.shortcuts?.togglePanel, shortcut)
+        XCTAssertEqual(document.shortcuts?.toggleVoice, voiceShortcut)
+        XCTAssertEqual(document.shortcuts?.togglePanel, panelShortcut)
         XCTAssertEqual(document.provider, [:])
         XCTAssertEqual(document.comparison, FlotisComparisonConfiguration(enabled: false, models: []))
     }

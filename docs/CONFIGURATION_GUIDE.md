@@ -1,6 +1,6 @@
 # Flotis `config.json` 配置教程
 
-本文适用于 Flotis `0.12 (3)` 的 canonical config schema v2。Flotis 使用一个 JSON 文件串联 Provider、共享 endpoint、API key、多个模型、当前模型、对比选择和可配置的全局快捷键：
+本文适用于 Flotis `0.13 (4)` 的 canonical config schema v2。Flotis 使用一个 JSON 文件串联 Provider、共享 endpoint、API key、多个模型、当前模型、对比选择和可配置的全局快捷键：
 
 ```text
 ~/Library/Application Support/Flotis/config.json
@@ -30,13 +30,14 @@
 
 ## 在界面中修改全局快捷键
 
-打开 Flotis Settings 的“快捷键”页，在唯一的快捷键卡片中点击当前组合键的大号按钮，然后直接按下新组合。可以修改：
+打开 Flotis Settings 的“快捷键”页，在唯一的紧凑快捷键卡片中点击当前组合键，然后直接按下新组合。可以修改：
 
+- 语音输入，默认 `⌃⌥A`；
 - 显示/隐藏悬浮胶囊，默认 `⌘⌥⇧0`；
 - 上一个转写结果，默认 `⌥←`；
 - 下一个转写结果，默认 `⌥→`。
 
-新组合会立即写入同一个 `config.json` 并重新注册，不需要另点 Save。每项至少要包含一个修饰键，三项不能重复，也不能占用固定的语音快捷键 `⌃⌥A`。每行右侧的恢复按钮可只恢复该项，卡片底部的“恢复默认”会恢复全部三项。上一个/下一个结果仍只在对比审阅中至少有两个成功候选时临时生效。
+新组合会立即写入同一个 `config.json` 并重新注册，不需要另点 Save。每项至少要包含一个修饰键，四项不能重复。当前极简页面不显示单项或全部恢复按钮；需要回到默认值时，直接重新录制上方列出的默认组合。上一个/下一个结果仍只在对比审阅中至少有两个成功候选时临时生效。
 
 ## 可直接使用的 OpenRouter 完整模板
 
@@ -61,6 +62,15 @@
     ]
   },
   "shortcuts": {
+    "toggle_voice": {
+      "keyCode": 0,
+      "modifiers": {
+        "command": false,
+        "control": true,
+        "option": true,
+        "shift": false
+      }
+    },
     "toggle_panel": {
       "keyCode": 29,
       "modifiers": {
@@ -156,7 +166,7 @@ Provider ID 本身不能包含 `/`，可使用字母、数字、`-`、`_`、`.`�
 | `provider_order` | 是 | Provider 显示与处理顺序；必须与 `provider` 的键集合完全一致且不能重复。 |
 | `enabled_providers` | 是 | 已启用 Provider ID；当前必须与 `provider` 的键集合完全一致。它不是对比模型列表。 |
 | `comparison` | 是 | `enabled` 控制对比开关，`models` 保存按展示顺序排列的 0–4 个完整 selector；开启时至少 2 个。 |
-| `shortcuts` | 否 | panel 显隐及前后对比导航的全局快捷键；旧 schema v2 文件省略时使用默认值，App 启动加载后会用安全的 read-modify-write 补齐。固定语音快捷键不在这里。 |
+| `shortcuts` | 否 | voice、panel 显隐及前后对比导航的四项全局快捷键；旧 schema v2 文件省略整个对象或 `toggle_voice` 时使用对应默认值。 |
 | `provider` | 是 | 以语义化 Provider ID 为键的字典；最多 64 个 Provider。 |
 
 JSON 对象本身的文本排列顺序不决定业务顺序；Provider 顺序以 `provider_order` 为准，对比候选顺序以 `comparison.models` 为准。App 保存时会按 pretty-printed、sorted-keys 格式重写文件。
@@ -229,25 +239,25 @@ Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON �
 ]
 ```
 
-运行时只录制一份文件，并发交给每个选中的 model route。每个 route 都可能单独计费；失败会单独显示。至少一个 route 成功时，App 会按 `comparison.models` 的顺序自动打开第一个成功结果；这只是稳定默认项，不是质量评分。你可以点击候选，或使用 `shortcuts.previous_comparison_result` / `shortcuts.next_comparison_result` 对应的组合键跳过失败项并循环查看（默认 `⌥←` / `⌥→`），最后按固定语音快捷键 `⌃⌥A` 把当前结果复制到剪贴板并返回小胶囊。当前对比只支持录音文件型 route，并要求它们的格式、采样率和声道一致。
+运行时只录制一份文件，并发交给每个选中的 model route。每个 route 都可能单独计费；失败会单独显示。至少一个 route 成功时，App 会按 `comparison.models` 的顺序自动打开第一个成功结果；这只是稳定默认项，不是质量评分。你可以点击候选，或使用 `shortcuts.previous_comparison_result` / `shortcuts.next_comparison_result` 对应的组合键跳过失败项并循环查看（默认 `⌥←` / `⌥→`），最后按 `shortcuts.toggle_voice` 对应的当前语音快捷键把当前结果复制到剪贴板并返回小胶囊。当前对比只支持录音文件型 route，并要求它们的格式、采样率和声道一致。
 
 ## `shortcuts` 的结构
 
 每个快捷键对象由 Carbon 虚拟 `keyCode` 和四个修饰键布尔值组成：
 
 ```json
-"toggle_panel": {
-  "keyCode": 29,
+"toggle_voice": {
+  "keyCode": 0,
   "modifiers": {
-    "command": true,
-    "control": false,
+    "command": false,
+    "control": true,
     "option": true,
-    "shift": true
+    "shift": false
   }
 }
 ```
 
-默认 key code 为：数字 `0` = `29`、左方向键 = `123`、右方向键 = `124`。手工编辑时三项必须都包含至少一个修饰键、彼此不同，并且都不能等于固定 voice descriptor `keyCode: 0` + `control: true` + `option: true`。推荐直接在“快捷键”设置中录制，避免手工查虚拟键码。
+默认 key code 为：字母 `A` = `0`、数字 `0` = `29`、左方向键 = `123`、右方向键 = `124`。四项都必须包含至少一个修饰键并且彼此不同。推荐直接在“快捷键”设置中点击对应组合键并录制，避免手工查虚拟键码；修改 voice 后，胶囊文字与 Carbon 注册会立即使用新组合，旧组合不再触发 voice。
 
 ## 空配置与 Apple Speech
 
@@ -265,6 +275,15 @@ Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON �
     "models": []
   },
   "shortcuts": {
+    "toggle_voice": {
+      "keyCode": 0,
+      "modifiers": {
+        "command": false,
+        "control": true,
+        "option": true,
+        "shift": false
+      }
+    },
     "toggle_panel": {
       "keyCode": 29,
       "modifiers": {
@@ -342,7 +361,7 @@ App 还会以同目录 `.config.lock` 协调写入。不要把 `config.json` 或
 - 以为 OpenRouter 只能使用一种编码。它当前同时支持 JSON+Base64 和 multipart；本模板与 Flotis 自动默认使用 `json-base64`，若手动切换则应确认服务端和测试结果与所选编码匹配。
 - Base URL 写成完整 API URL，同时 Path 又写一次 `/v1/audio/transcriptions`，导致路径重复。
 - `comparison.models` 引用了不存在的模型，或开启对比但不足两个 selector。
-- 三个可配置快捷键没有修饰键、彼此重复，或占用了固定语音快捷键 `⌃⌥A`。
+- 四个可配置快捷键有任一项没有修饰键，或任意两项重复。
 - 在 App 运行时手工编辑，随后又在 Settings 保存，导致手工版本被旧内存状态覆盖。
 - 把真实 API key 写进教程、截图、日志或 Git。
 

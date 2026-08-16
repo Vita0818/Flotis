@@ -47,6 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         panelController = FloatingPanelController(
             appState: appState,
             voiceController: voiceController!,
+            hotkeyStore: hotkeyStore,
             onOpenSettings: { [weak self] in
                 self?.settingsWindowController?.showWindow(nil)
             }

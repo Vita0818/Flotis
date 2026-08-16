@@ -11,6 +11,35 @@ struct FloatingPanelPositionAnchor: Equatable {
     }
 }
 
+enum FloatingPanelMouseDownAction: Equatable {
+    case beginDrag
+    case openSettings
+    case forwardWithBackgroundDrag
+    case forward
+}
+
+enum FloatingPanelInteraction {
+    // Keep AppKit from relocating the panel during Space/display transitions.
+    // Explicit capsule dragging still hands the original mouse-down to Window Server.
+    static let allowsSystemManagedMovement = false
+
+    static func mouseDownAction(
+        clickCount: Int,
+        state: VoiceInputState
+    ) -> FloatingPanelMouseDownAction {
+        guard state != .reviewing else { return .forwardWithBackgroundDrag }
+
+        switch clickCount {
+        case 1:
+            return .beginDrag
+        case 2:
+            return .openSettings
+        default:
+            return .forward
+        }
+    }
+}
+
 private final class FlotisFloatingPanel: NSPanel {
     var pendingResizeWorkItem: DispatchWorkItem?
     var anchoredScreenNumber: NSNumber?
@@ -18,9 +47,41 @@ private final class FlotisFloatingPanel: NSPanel {
     // A clamped review frame is temporary; only a real window move replaces this anchor.
     var positionAnchor: FloatingPanelPositionAnchor?
     var isApplyingProgrammaticFrame = false
+    var currentVoiceState: (() -> VoiceInputState)?
+    var onOpenSettings: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown,
+           let state = currentVoiceState?() {
+            switch FloatingPanelInteraction.mouseDownAction(
+                clickCount: event.clickCount,
+                state: state
+            ) {
+            case .beginDrag:
+                performDrag(with: event)
+                return
+            case .openSettings:
+                onOpenSettings?()
+                return
+            case .forwardWithBackgroundDrag:
+                forwardEventWithUserMovementEnabled(event)
+                return
+            case .forward:
+                break
+            }
+        }
+        super.sendEvent(event)
+    }
+
+    private func forwardEventWithUserMovementEnabled(_ event: NSEvent) {
+        let previousValue = isMovable
+        isMovable = true
+        defer { isMovable = previousValue }
+        super.sendEvent(event)
+    }
 }
 
 class FloatingPanelController: NSWindowController, NSWindowDelegate {
@@ -31,6 +92,7 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
     init(
         appState: AppState,
         voiceController: VoiceInputController,
+        hotkeyStore: HotkeyConfigurationStore,
         onOpenSettings: @escaping () -> Void
     ) {
         self.appState = appState
@@ -53,13 +115,18 @@ class FloatingPanelController: NSWindowController, NSWindowDelegate {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = true
-        panel.isMovable = true
+        panel.isMovable = FloatingPanelInteraction.allowsSystemManagedMovement
         panel.isMovableByWindowBackground = true
         panel.becomesKeyOnlyIfNeeded = true
+        panel.currentVoiceState = { [weak appState] in
+            appState?.voiceState ?? .idle
+        }
+        panel.onOpenSettings = onOpenSettings
         
         let hostingView = NSHostingView(
             rootView: FloatingPanelView(
                 appState: appState,
+                hotkeyStore: hotkeyStore,
                 voiceController: voiceController,
                 onOpenSettings: onOpenSettings,
                 onPreferredSizeChange: { [weak panel] preferredSize in

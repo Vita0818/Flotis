@@ -2,6 +2,7 @@ import Combine
 import Foundation
 
 enum ConfigurableHotkey: String, CaseIterable, Identifiable {
+    case toggleVoice
     case togglePanel
     case previousComparisonResult
     case nextComparisonResult
@@ -10,6 +11,8 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
 
     var defaultDescriptor: KeyboardShortcutDescriptor {
         switch self {
+        case .toggleVoice:
+            return .toggleVoice
         case .togglePanel:
             return .togglePanel
         case .previousComparisonResult:
@@ -21,6 +24,8 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .toggleVoice:
+            return UIStrings.voiceInput
         case .togglePanel:
             return UIStrings.showHideFloatingPanel
         case .previousComparisonResult:
@@ -32,27 +37,32 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
 }
 
 struct FlotisHotkeyConfiguration: Codable, Equatable {
+    var toggleVoice: KeyboardShortcutDescriptor
     var togglePanel: KeyboardShortcutDescriptor
     var previousComparisonResult: KeyboardShortcutDescriptor
     var nextComparisonResult: KeyboardShortcutDescriptor
 
     static let defaults = FlotisHotkeyConfiguration(
+        toggleVoice: .toggleVoice,
         togglePanel: .togglePanel,
         previousComparisonResult: .previousComparisonResult,
         nextComparisonResult: .nextComparisonResult
     )
 
     init(
+        toggleVoice: KeyboardShortcutDescriptor,
         togglePanel: KeyboardShortcutDescriptor,
         previousComparisonResult: KeyboardShortcutDescriptor,
         nextComparisonResult: KeyboardShortcutDescriptor
     ) {
+        self.toggleVoice = toggleVoice
         self.togglePanel = togglePanel
         self.previousComparisonResult = previousComparisonResult
         self.nextComparisonResult = nextComparisonResult
     }
 
     private enum CodingKeys: String, CodingKey {
+        case toggleVoice = "toggle_voice"
         case togglePanel = "toggle_panel"
         case previousComparisonResult = "previous_comparison_result"
         case nextComparisonResult = "next_comparison_result"
@@ -60,6 +70,10 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        toggleVoice = try container.decodeIfPresent(
+            KeyboardShortcutDescriptor.self,
+            forKey: .toggleVoice
+        ) ?? Self.defaults.toggleVoice
         togglePanel = try container.decodeIfPresent(
             KeyboardShortcutDescriptor.self,
             forKey: .togglePanel
@@ -77,6 +91,8 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
     subscript(hotkey: ConfigurableHotkey) -> KeyboardShortcutDescriptor {
         get {
             switch hotkey {
+            case .toggleVoice:
+                return toggleVoice
             case .togglePanel:
                 return togglePanel
             case .previousComparisonResult:
@@ -87,6 +103,8 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
         }
         set {
             switch hotkey {
+            case .toggleVoice:
+                toggleVoice = newValue
             case .togglePanel:
                 togglePanel = newValue
             case .previousComparisonResult:
@@ -100,7 +118,6 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
     var isValid: Bool {
         let descriptors = ConfigurableHotkey.allCases.map { self[$0] }
         return descriptors.allSatisfy(\.modifiers.hasAnyModifier)
-            && !descriptors.contains(.toggleVoice)
             && Set(descriptors).count == descriptors.count
     }
 }
@@ -148,10 +165,6 @@ final class HotkeyConfigurationStore: ObservableObject {
     ) -> String? {
         guard descriptor.modifiers.hasAnyModifier else {
             return UIStrings.hotkeyRequiresModifier
-        }
-
-        if descriptor == .toggleVoice {
-            return UIStrings.hotkeyConflictsWithVoiceInput
         }
 
         if let conflictingHotkey = ConfigurableHotkey.allCases.first(where: {

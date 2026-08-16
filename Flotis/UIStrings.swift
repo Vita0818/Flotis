@@ -464,10 +464,6 @@ enum UIStrings {
         english: "A global shortcut must include at least one modifier key.",
         simplifiedChinese: "全局快捷键至少需要一个修饰键。"
     )
-    static let hotkeyConflictsWithVoiceInput = localized(
-        english: "This shortcut is already used by the fixed voice shortcut.",
-        simplifiedChinese: "该快捷键已被固定的语音快捷键使用。"
-    )
     static let hotkeyConfigurationInvalid = localized(
         english: "The shortcut configuration is invalid.",
         simplifiedChinese: "快捷键配置无效。"
@@ -768,8 +764,8 @@ enum UIStrings {
         simplifiedChinese: "粘贴失败，可能没有权限。"
     )
     static let shortcutCaptureHint = localized(
-        english: "Press the shortcut; Esc to cancel",
-        simplifiedChinese: "按下快捷键，Esc 取消"
+        english: "Press keys",
+        simplifiedChinese: "按下组合键"
     )
     static let transcriptPreviewPlaceholder = localized(
         english: "Transcript preview...",
