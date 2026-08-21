@@ -1,6 +1,6 @@
 # PROJECT_MAP
 
-最近自查日期：2026-08-16
+最近自查日期：2026-08-20
 
 本文描述当前仓库结构。事实来源为 `project.yml`、生成后的 `Flotis.xcodeproj/project.pbxproj`、`run.sh`、当前源码和测试。
 
@@ -9,7 +9,7 @@
 ```text
 Flotis/
 ├── Flotis.icon/        主 App 的 Icon Composer 源（icon.json + 图层资源）
-├── Flotis/             31 个 app Swift 源文件 + Assets.xcassets + XcodeGen Info.plist + InfoPlist String Catalog
+├── Flotis/             31 个 app Swift 源文件 + Assets.xcassets + JetBrains Mono 字体/OFL 资源 + XcodeGen Info.plist + InfoPlist String Catalog
 ├── FlotisTests/        6 个 XCTest 源文件
 ├── FlotisInputMethod/  4 个 InputMethodKit Swift 源文件 + XcodeGen Info.plist + SVG/TIFF 输入源图标
 ├── FlotisInputMethodTests/ 1 个隔离 XCTest 源文件
@@ -34,7 +34,7 @@ Flotis/
 - Swift language version：5.0；`project.yml` 的 `info.properties` 每次由 XcodeGen 写入 `Flotis/Info.plist` 与 `FlotisInputMethod/Info.plist`；development language 为英文。
 - 用法描述：`NSMicrophoneUsageDescription`、`NSSpeechRecognitionUsageDescription` 的英文基值来自 `project.yml`，简中翻译来自 `Flotis/InfoPlist.xcstrings`。
 - 主 App 图标：根目录 `Flotis.icon` 以 `wrapper.icon` 加入 Resources，`ASSETCATALOG_COMPILER_APPICON_NAME=Flotis`；构建生成 `Flotis.icns`、`Assets.car` 与 `CFBundleIconFile/CFBundleIconName=Flotis`。
-- 无第三方 package、entitlements、sandbox 或显式 code-signing 配置。
+- 无第三方代码 package、entitlements、sandbox 或显式 code-signing 配置。主 App 唯一外部资产依赖是 JetBrains 官方 JetBrains Mono v2.304 variable TTF；字体与原始 OFL 1.1/AUTHORS 文件一起进入 Resources，输入法 target 不携带该字体。
 
 ## App 源文件
 
@@ -66,9 +66,9 @@ Flotis/
 | `HotkeyManager.swift` | Carbon 全局热键独占增量注册、press/release 门控、错误状态与重试；voice/panel 均使用用户配置 descriptor，仅在多结果 reviewing 中临时注册用户配置的前后导航 descriptor 并在离开时注销；设置变化即时替换旧注册 |
 | `PromptCommand.swift` | 旧命令与快捷键数据模型；V0.13 仍为兼容源码，并为四项可配置快捷键提供默认 descriptor 与显示类型 |
 | `CommandStore.swift` | 旧命令 JSON CRUD 与安全策略；V0.13 主入口不实例化、不展示、不注册命令热键 |
-| `FlotisDesign.swift` | 胶囊与 Settings 共用的 Presentation / Design System：动态系统色、canvas、Material/Liquid Glass fallback、字体与共享设置组件 |
+| `FlotisDesign.swift` | 胶囊与 Settings 共用的 Presentation / Design System：动态系统色、canvas、Material/Liquid Glass fallback、JetBrains Mono weight 映射、AppKit 字体入口、资源激活校验与共享设置组件 |
 | `FloatingPanelController.swift` | 首次位于屏幕底边中央的 borderless/nonactivating floating `NSPanel`；鼠标事件之外保持 `isMovable=false`，阻止 Window Server 在 Space/显示环境过渡中自行搬动。非审阅单次 mouse-down 直接调用原生 `performDrag(with:)`，使整粒 SwiftUI 胶囊仍可拖动；双击复用现有 Settings 窗口，reviewing 只在原生 mouse-down 分发期间临时允许 background drag，文本/按钮继续优先。圆角 material mask 同时约束窗口阴影；合并尺寸请求，以独立逻辑位置锚点保持用户选择的中心/底边，状态 resize 的可见区临时钳位不覆盖锚点，用户拖动才更新 |
-| `FloatingPanelView.swift` | reviewing 之外统一为 `96×36`、18 pt 圆角的最小胶囊，可见内容只有 6 pt 语义状态圆点和 15 pt Semibold Monospaced 的当前 voice 快捷键，配置变化后即时更新；不显示品牌名、录音/设置图标、计时、状态/错误句、说明或动作按钮；完整状态通过 accessibility value 暴露。`420×160` 单结果审阅和 `560×300` 对比审阅保持原样；对比页用固定双列网格展示 2–4 个成功/失败候选，四项为 2×2，首个成功项直接显示在原生编辑器；候选优先只显示 Model Display name，无名称时显示主 Model ID + 次 Provider，不显示 endpoint；保留复制全部、取消、复制并返回 |
+| `FloatingPanelView.swift` | reviewing 之外统一为 `96×36`、18 pt 圆角的最小胶囊，可见内容只有 6 pt 语义状态圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，配置变化后即时更新；不显示品牌名、录音/设置图标、计时、状态/错误句、说明或动作按钮；完整状态通过 accessibility value 暴露。`420×160` 单结果审阅和 `560×300` 对比审阅保持原样；原生审阅编辑器也使用 JetBrains Mono 为英文主字体、中文由 Core Text 回退苹方；对比页用固定双列网格展示 2–4 个成功/失败候选，四项为 2×2，首个成功项直接显示在原生编辑器；候选优先只显示 Model Display name，无名称时显示主 Model ID + 次 Provider，不显示 endpoint；保留复制全部、取消、复制并返回 |
 | `VoiceSettingsView.swift` | 内容默认 `1100×760`、最小 `820×600` 的独立 Settings 窗口根视图；固定侧栏分为快捷键/转写，左上品牌区不显示图标；快捷键页只用一张紧凑卡展示 voice、panel 与前后对比导航，四行各 `52` pt，四项均为 `156×38`、15 pt 的轻量可点击 surface 与同尺寸原生录制控件，常态不显示流程、说明、铅笔或恢复动作，只保留真实错误；转写页装配 Intatis 式 provider/model editor，其他 adapter 及旧权限/概览/命令 view 仍不可达 |
 | `IntatisStyleSpeechProviderSettingsView.swift` | Intatis 式 Provider/Models 主卡：左侧 Provider 列表与模型数，右侧 Provider name、共享 API key、Active model、Connection/Models 区、逐模型 Model ID/Display name 与 Add/Delete；Provider 行至少 48 pt，折叠标题与对比 route 整行至少 44 pt 可点；卡下提供 Test Provider/Save，并把 2–4 route Comparison 和高级转写参数保留为独立扩展区 |
 | `UIStrings.swift` | `AppLanguage` 第一首选语言解析与集中简中/英文 UI 文案，包括 Settings 的标准退出动作 |
@@ -79,6 +79,8 @@ Flotis/
 `Flotis/Info.plist` 是 XcodeGen 生成的源 plist，包含版本变量、`LSUIElement`、`LSMultipleInstancesProhibited` 与权限说明基值；`Flotis/InfoPlist.xcstrings` 提供麦克风与 Speech Recognition 权限说明的英文/简中版本并进入 App resources build phase。
 
 `Flotis/Assets.xcassets/VoiceWaveformButton.imageset` 保存 28/56/84 px 的旧 idle 开始录音 PNG，`SettingsGearButton.imageset` 保存 16/32/48 px 的旧透明黑色齿轮 PNG。2026-08-16 起两者不再出现在最小胶囊表面，但资源与用户提供的 `docs/assets/voice-waveform-button-reference.png`、`docs/assets/settings-gear-button-reference.png` 暂时保留，避免在纯 Presentation 改版中做无关删除，也便于历史核对。
+
+`Flotis/Resources/Fonts/JetBrainsMono.ttf` 是 JetBrains 官方 v2.304 archive 中的 upright variable TTF，仓内 SHA-256 为 `662a196d58f1183bf2d77428b6d5283fe3f45161ab021bea4036bc98e5cac016`；同目录保留官方 `JetBrainsMono-OFL.txt` 与 `JetBrainsMono-AUTHORS.txt`。`project.yml` 生成 `ATSApplicationFontsPath=JetBrainsMono.ttf`，Xcode Copy Resources 将三者平铺到主 App 的 `Contents/Resources`；输入法 target 不复制。App 启动在创建 panel/Settings 前核验资源与 Thin–ExtraBold 全部 named instances，失败则显示 critical alert 并退出，不允许 SwiftUI 静默回退英文字体。
 
 根目录 `Flotis.icon` 是独立于胶囊按钮图稿的应用级 Icon Composer 文档；当前包含 `icon.json` 和 `Assets/message.badge.waveform.png`。它只进入主 `Flotis` target，不进入隔离输入法 target。Release 构建会把它编译成系统多尺寸 `Flotis.icns`，当前安装副本位于 `/Applications/Flotis.app`。
 
@@ -98,8 +100,9 @@ Flotis/
 - `FlotisTheme` 只使用随 Light/Dark appearance 动态解析的系统 `.primary`、`.secondary` 与 `separatorColor`；主要操作保持系统白/黑单色，红、橙、绿只用于录音、警告、成功和失败等有限语义状态。
 - `FlotisSystemCanvas` 在 macOS 14+ 使用 SwiftUI `windowBackground`，macOS 13 使用 `.windowBackground` `NSVisualEffectView` fallback，保持系统窗口 canvas 且不引入固定品牌底色。
 - 结构化内容统一使用 `regularMaterial`、1 pt 系统 separator 与 continuous rounded rectangle。macOS 26 且编译器支持时，交互表面和按钮可使用 Liquid Glass；macOS 13–15 回退为原生 `regularMaterial`、`.bordered` / `.borderedProminent`。
-- `FlotisType` 根据显示文本选择标题字体：包含中文时使用系统默认字体，英文品牌与标题使用 Serif；正文使用系统默认字体，快捷键和技术信息使用 Monospaced。
-- `FloatingPanelView` 与 `VoiceSettingsView` 共用上述 palette、字体和系统控件；视觉层不改变语音状态机、canonical config 或保留的旧注入安全边界。非审阅内容统一为 `96×36`、18 pt 圆角的小胶囊，仅含 6 pt 语义圆点和 15 pt Semibold Monospaced 的当前 voice 快捷键；SwiftUI compact 内容保持透明，快捷键使用动态主文字色，由 panel 的原生 glass/material 容器提供唯一底面与系统边缘高光。idle、录音/流式、请求/连接/停止/转写、失败均不增加品牌名、可见图标、计时、状态句、错误句、说明或动作按钮；单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`。
+- `FlotisType` 把 brand/title/headline/body/caption/mono 与两个 AppKit 文本入口统一映射到 JetBrains Mono 的 variable weight 实例；SwiftUI 根视图为未显式指定字号的控件提供同一默认字体。JetBrains Mono 覆盖英文/拉丁字形，缺少的中文 glyph 由 macOS Core Text 正常 cascade 到 `PingFang` 家族，不再按整段文本在 Serif/系统字体之间切换。
+- `FloatingPanelView` 与 `VoiceSettingsView` 共用上述 palette、字体和系统控件；视觉层不改变语音状态机、canonical config 或保留的旧注入安全边界。非审阅内容统一为 `96×36`、18 pt 圆角的小胶囊，仅含 6 pt 语义圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键；SwiftUI compact 内容保持透明，快捷键使用动态主文字色，由 panel 的原生 glass/material 容器提供唯一底面与系统边缘高光。idle、录音/流式、请求/连接/停止/转写、失败均不增加品牌名、可见图标、计时、状态句、错误句、说明或动作按钮；单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`。
+- 当前仓库没有 LaTeX、TeX、MathJax、KaTeX 或其他公式 renderer/source。字体根配置只属于 Flotis 自有界面；任何后续或外部 LaTeX formula surface 必须显式保留其 renderer 当前公式字体，不得接入 `FlotisType`。
 - panel 在用户 mouse-down 分发之外保持不可由系统移动，维持跨 Space 的相对屏幕位置；非审阅胶囊的单次 mouse-down 显式进入原生窗口拖动，双击调用 AppDelegate 持有的 `FlotisSettingsWindowController`。reviewing 的 mouse-down 只在转发给 AppKit/SwiftUI 时临时恢复原生 background-drag 判定，因此文本编辑和按钮仍优先。同一 Settings 窗口以 `1100×760` 内容尺寸打开、最小内容尺寸 `820×600`，复用且不依赖字符串 selector，也不再附着到胶囊 sheet。HostingController 装配后显式设置 `contentMinSize` 与 `setContentSize`，防止实际窗口被 SwiftUI 最小尺寸收窄而破坏 Intatis 式双栏。固定左侧栏承载无图标的 `Flotis`/版本、“快捷键 / 转写”和退出，右侧页面独立滚动；`SettingsView` 同时可作为系统 Settings scene 的根视图。“退出 Flotis / Quit Flotis”调用标准 `NSApplication.terminate`，由 `AppDelegate.applicationWillTerminate` 统一停止热键并取消语音资源。
 - `SpeechSettingsPresentation` 是纯 adapter 展示 allowlist，目前只匹配 `openai-audio-transcriptions-http-v1`。筛选结果用于 Intatis 式 Provider 列表、详情 editor 与 model-route 对比选择，绝不写回或裁剪 `SpeechProviderStore`；一个 provider 共享 endpoint/key 并可拥有多个带可选显示名称的模型，不同 provider 仍各自隔离。Flotis 特有 comparison/advanced 区位于主 Provider/Models 卡下方，不改变 canonical 配置边界。
 
@@ -168,6 +171,8 @@ Flotis/
 2026-08-16 当前源码的最终最小胶囊只在唯一 bundle ID 的隔离签名 Debug 产物 `/private/tmp/FlotisCapsuleShortcutDragVisual-20260816/Build/Products/Debug/Flotis.app` 中启动验收，没有覆盖上述安装副本。可见内容已按用户最后确认改为状态圆点 + `⌃⌥A`，品牌名与说明均不显示；原生拖动、单击不打开 Settings、双击打开 Settings 已分别验证，同密度参考图比较与 idle 原生截图记录在 `design-qa.md`。随后完成的 Settings 快捷键页第二次极简化位于另一个唯一 bundle ID 的签名预览 `/private/tmp/FlotisShortcutsMinimalPreview-20260816/Build/Products/Debug/Flotis.app`，但 ScreenCaptureKit `-3811` 阻止本轮运行态画面验收，因此 `design-qa.md` 仍只覆盖胶囊，不把快捷键页像素描述为已通过。包含两项最新修改的最终源码通过主 App 80 tests、输入法 8 tests 和两个 application Debug build；两个预览均未覆盖 `/Applications/Flotis.app`。
 
 2026-08-16 当前主 App 是恢复原生透明 Liquid Glass 的 ad-hoc Release `0.13 (4)`；Release 位于 `/private/tmp/Flotis-v013-GlassFix-Release-20260816-1845/Build/Products/Release/Flotis.app`，被替换的固定白底 `0.13 (4)` 位于 `/private/tmp/Flotis-before-transparent-glass-fix-v0.13-20260816-1954.app`，更早的 `0.12 (3)` 位于 `/private/tmp/Flotis-before-v0.13-install-20260816-1626.app`。`xcodegen generate`、两个 application Debug build、主 App 82 tests、输入法 8 tests、Release 严格签名、最终 Info.plist 与 `Flotis.icns`/`Assets.car` 均通过；安装副本的可执行文件、图标与 Assets catalog 和 Release 逐字节一致。新版本已注册 Launch Services、从 `/Applications/Flotis.app/Contents/MacOS/Flotis` 成功启动；用户 Input Methods 安装副本未改动。Computer Use 未获准访问 Flotis，因此本轮没有把 Light/Dark 运行态截图标为已通过。
+
+2026-08-20 JetBrains Mono 字体源码尚未安装。主 App Debug build `/private/tmp/FlotisTypographyMainBuild-20260820`、完整 85 tests、输入法 Debug build与 8 tests 均通过；唯一 bundle ID 的签名预览位于 `/private/tmp/FlotisTypographyPreview-20260820/Build/Products/Debug/Flotis.app`。Light appearance 的 compact、Shortcuts 与 Transcription 原生截图分别位于 `/private/tmp/Flotis-JetBrainsMono-Capsule-20260820.jpeg`、`/private/tmp/Flotis-JetBrainsMono-Shortcuts-20260820.jpeg`、`/private/tmp/Flotis-JetBrainsMono-Transcription-20260820.jpeg`，无文字裁切或双栏回归。`/Applications/Flotis.app` 仍是上一段的透明玻璃修复 `0.13 (4)`。
 
 ## 需要后续确认
 

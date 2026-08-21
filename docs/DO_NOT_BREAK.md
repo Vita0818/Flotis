@@ -1,6 +1,17 @@
 # DO_NOT_BREAK
 
-最近自查日期：2026-08-16
+## 外部依赖优先与禁止功能兜底（Vitemis 强制规则）
+
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。本节是强制约束，不是建议。
+
+- 当用户指定、仓库已经采用，或经许可证、provenance、安全与平台审查可采用的外部依赖提供同等能力时，必须直接集成该依赖的官方 API 或官方扩展点。
+- 不得自行重写同等能力，不得新增替代 adapter、shim、compatibility layer、wrapper、proxy、facade、协议翻译层、parallel backend、preview backend、shadow implementation 或“先兜底、以后再换”的实现。
+- 本地代码只允许保留官方 API 必需的最薄生命周期、类型、权限、配置和 bundle 接线；不得重新实现、解释、扩展或替代依赖的核心能力。
+- exact 依赖因版本、构建、签名、许可证、平台、安全或官方 API 限制无法接入时，必须停止该能力、明确失败、报告 blocker 并请求用户决定；不得静默降级、切换 legacy/另一 provider/backend、使用 cache/mock/简化路径或继续交付不完整替代实现。
+- 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
+- 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
+
+最近自查日期：2026-08-20
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -22,6 +33,15 @@
 - 英文是 `project.yml` 的 development language 和权限用法描述 fallback；`InfoPlist.xcstrings` 必须继续包含英文与 `zh-Hans` 权限文案并进入 resources build phase。
 - 不得为了切换界面语言批量改写已有 provider 名称、模型测试摘要或旧 `commands.json`。legacy 内建名称只能在确认稳定 UUID 且名称仍匹配已知默认值时做显示层映射。
 - adapter raw value、UUID、UserDefaults key、`apiKeyReference`、endpoint/model/header/event 名称和协议 payload 都不是 UI 文案，禁止本地化。
+
+## 字体与 LaTeX 边界
+
+- 用户指定的 exact 字体依赖固定为 JetBrains 官方 JetBrains Mono `v2.304` upright variable TTF；仓内 `Flotis/Resources/Fonts/JetBrainsMono.ttf` SHA-256 必须为 `662a196d58f1183bf2d77428b6d5283fe3f45161ab021bea4036bc98e5cac016`，并必须与官方 `JetBrainsMono-OFL.txt`、`JetBrainsMono-AUTHORS.txt` 一起进入主 App Resources。升级版本、替换 bytes 或改来源必须重新做许可证、provenance、安全、平台与 hash 审查。
+- `project.yml` 必须继续生成 macOS `ATSApplicationFontsPath=JetBrainsMono.ttf`，只让系统为 Flotis app 激活 bundle font；不得要求用户安装系统字体、运行时下载字体、从另一 App/IDE 目录读取字体，或把该资源误加到独立输入法 target。
+- Flotis 自有 SwiftUI 和 AppKit 内容中的英文/拉丁 glyph 必须使用 JetBrains Mono；中文 glyph 必须继续走 Core Text 原生 cascade 到 `PingFang` 家族。标题、正文、caption、快捷键与技术字段只保留字号/weight 的语义差异，不得重新引入 Serif、系统正文或另一等宽英文字体，也不得用整段“含中文”判断把其中的英文一起切回苹方。
+- `FlotisType` 只允许做官方 font face 的最薄 weight/bundle 接线；不得复制字形、实现 shaping、创建第二 renderer 或自定义功能 fallback。SF Symbols 上用于图标大小的 `.font(.system(...))` 不是文字字体入口，可保留；系统窗口标题、权限弹窗与系统菜单等 OS-owned chrome 不得用私有 API 强改字体。
+- App 启动必须在创建 panel/Settings 前核验 font resource 与 Thin–ExtraBold 所需 named faces。缺失、损坏或无法激活时必须显示可诊断 critical error 并终止；禁止让 SwiftUI 的默认行为静默改用系统英文字体后继续运行。
+- 当前仓库没有 LaTeX、TeX、MathJax、KaTeX 或其他公式 renderer。任何后续或外部 LaTeX formula surface 必须保留其当前公式字体，并显式隔离于 `FlotisType`/界面默认 font；不得为了“全局统一字体”把公式 glyph 改成 JetBrains Mono 或苹方。
 
 ## 用户数据格式
 
@@ -59,7 +79,7 @@
 - 旧 schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：voice `⌃⌥A`、panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison 或 API key。
 - 四项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键并且彼此不同；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
 - descriptor 变化只允许差异注销/注册对应 Carbon ID；未变化项不能被无条件全量重建。previous/next 无论配置为何，都只能在对比 reviewing 且至少两个成功候选时临时注册，离开后立即注销。
-- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留 voice、panel 与前后对比导航的一张紧凑卡和四个 `52` pt 行，不得重新加入语音流程、胶囊拖动、对比生效条件、重复 section、hover help、铅笔或常驻恢复控件。四项都保持 `156×38` / 15 pt Monospaced 的轻量 surface，整块可点并在同尺寸录制态获得键盘焦点。真实校验、持久化或 Carbon 注册错误仍必须可见。
+- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留 voice、panel 与前后对比导航的一张紧凑卡和四个 `52` pt 行，不得重新加入语音流程、胶囊拖动、对比生效条件、重复 section、hover help、铅笔或常驻恢复控件。四项都保持 `156×38` / 15 pt JetBrains Mono 的轻量 surface，整块可点并在同尺寸录制态获得键盘焦点。真实校验、持久化或 Carbon 注册错误仍必须可见。
 
 ### API key / 应用自管本地存储
 
@@ -174,7 +194,7 @@
 - panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败时则继续显示 reviewing panel。对比结果只要至少一项成功就必须已有自动 selection；不得重新引入等待人工首次选择的空 selection 状态。
 - panel 必须允许用户从非审阅胶囊的任意可见位置拖动，但在用户鼠标事件之外必须保持 `isMovable=false`，使系统在 Space/显示环境过渡中维持相对屏幕位置，不能重新长期开启系统管理移动而产生动画结束后的瞬移。单次 mouse-down 必须由 panel 直接进入原生 `performDrag(with:)`，不得只依赖被全尺寸 SwiftUI surface 吞掉的 background drag。reviewing 的 mouse-down 可仅在原生事件分发调用期间临时允许 background drag，使非交互背景仍可拖、文本与按钮继续优先；不得把可移动状态留到事件之外。尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。reviewing 的鼠标事件必须继续转发给原生编辑器，避免窗口拖动抢占文本拖选或双击选词。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
 - Settings 的窗口内容默认尺寸必须保持 `1100×760`、最小内容尺寸保持 `820×600`；HostingController 赋值后必须显式应用 `contentMinSize` 和 `setContentSize`，不能再次让 SwiftUI fitting size 把实际内容宽度缩成 820 pt、破坏 Provider/Models 双栏。若后续调整尺寸，必须同时用折叠和 Models 展开状态做与 Intatis 参考同屏的运行态视觉回归。
-- 当前 compact Presentation contract 为 reviewing 之外所有状态统一 `96×36`、18 pt 连续圆角的透明系统 glass/material 表面；AppKit 原生容器必须是唯一底面，SwiftUI compact 内容不得绘制固定白色/不透明填充或自定义整圈描边，快捷键必须使用随 Light/Dark appearance 解析的动态主文字色。可见内容严格只有 6 pt 语义圆点、7 pt 间距和 15 pt 系统 Semibold Monospaced 的当前 voice 快捷键。不得重新增加品牌名、麦克风、设置齿轮、计时、状态/错误句、说明、hover 提示、动作按钮或任何其他可见元素，也不得把参考图中的 `Ask` 当作提示词移植。idle/成功为绿色，录音/流式为红色，请求/连接/停止/转写/失败/热键错误为橙色；完整状态与错误只通过 accessibility value 暴露。voice 快捷键的 start/stop/copy-and-return 状态映射不得因键位配置或视觉精简改变。
+- 当前 compact Presentation contract 为 reviewing 之外所有状态统一 `96×36`、18 pt 连续圆角的透明系统 glass/material 表面；AppKit 原生容器必须是唯一底面，SwiftUI compact 内容不得绘制固定白色/不透明填充或自定义整圈描边，快捷键必须使用随 Light/Dark appearance 解析的动态主文字色。可见内容严格只有 6 pt 语义圆点、7 pt 间距和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键。不得重新增加品牌名、麦克风、设置齿轮、计时、状态/错误句、说明、hover 提示、动作按钮或任何其他可见元素，也不得把参考图中的 `Ask` 当作提示词移植。idle/成功为绿色，录音/流式为红色，请求/连接/停止/转写/失败/热键错误为橙色；完整状态与错误只通过 accessibility value 暴露。voice 快捷键的 start/stop/copy-and-return 状态映射不得因键位配置或视觉精简改变。
 - Settings 的 compact 入口必须是非审阅胶囊双击：单击不得打开设置；double-click 复用现有独立 Settings 窗口；reviewing 中不得由 panel 截获双击，以免破坏原生文本选词。最小胶囊上不得为该交互增加齿轮、文字提示或其他可见 affordance。
 - 单结果 reviewing 的 Presentation contract 保持 `420×160`；对比 reviewing 为 `560×300`，必须用固定双列网格容纳 2–4 个候选，四项为 2×2，不能退化为需要横向滚动的一行。首个成功项直接打开原生编辑器，不显示额外的“先选择”提示；既有复制/取消/复制并返回动作保留。候选有非空 Model Display name 时可见卡片只能显示该名称；没有时必须以 Model ID 为主要文字、Provider 名称为次要文字，不能显示 endpoint。失败状态不能只靠颜色表达，长 Display name/model/provider 必须截断，panel 不能超过当前 `600×300` 上限。
 - macOS 26+ 的 panel 容器必须继续由原生 `NSGlassEffectView(style: .regular)` 承载，macOS 13–25 的 material fallback 与窗口阴影路径仍须保留。compact SwiftUI 层必须透明，禁止再用固定浅色/深色填充、固定 tint 或覆盖 material 的额外表面压平系统 Liquid Glass；reviewing/Settings 的既有原生 glass/material 兼容路径也不得因最小胶囊改版退化。

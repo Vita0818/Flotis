@@ -1,16 +1,17 @@
 # CURRENT_STATE
 
-最近一次自查日期：2026-08-16
+最近一次自查日期：2026-08-20
 
 ## 当前真实状态总览
 
 - Flotis V0.13 是 macOS 悬浮语音输入胶囊；`project.yml` 当前声明主 App `MARKETING_VERSION=0.13`、build `4`，隔离输入法 `MARKETING_VERSION=0.1.0`、build `3`。仓库当前没有 Git tag，历史中的 `v0.1`–`v0.7` 是提交信息而非 tag。
-- XcodeGen 工程现在包含 `Flotis`、`FlotisInputMethod` 两个 application target，以及 `FlotisTests`、`FlotisInputMethodTests` 两个 unit-test target。主 app 有 31 个 Swift 源文件与 6 个测试源文件；隔离输入法有 4 个 Swift 源文件与 1 个测试源文件；无第三方依赖。
+- XcodeGen 工程现在包含 `Flotis`、`FlotisInputMethod` 两个 application target，以及 `FlotisTests`、`FlotisInputMethodTests` 两个 unit-test target。主 app 有 31 个 Swift 源文件与 6 个测试源文件；隔离输入法有 4 个 Swift 源文件与 1 个测试源文件。无第三方代码 package；主 App 打包 JetBrains 官方 JetBrains Mono v2.304 variable TTF、OFL 1.1 许可证与作者清单。
 - app 为 `LSUIElement=YES`，无 Dock 图标；`LSMultipleInstancesProhibited=YES` 防止两个 Flotis 进程争抢全局热键；deployment target 为 macOS 13.0。
 - 六个版本化转写 adapter 仍完整注册：Apple on-device、OpenAI-compatible HTTP、OpenAI Realtime GA、DashScope Paraformer、Volcengine BigASR、GLM ASR HTTP/SSE。当前 Settings 的 adapter 展示层只开放 OpenAI Compatible；可新增/切换 provider，并在一个 provider 内配置共享 endpoint/API key 和多个模型。其余 adapter、preset、迁移与 runtime 能力仍暂时隐藏，没有被删除。全新 schema v2 配置是空 provider catalog，绝不写入 Apple；Apple on-device 只作为空 catalog 时的内部 fallback。
 - V0.13 默认主链路由当前配置的语音热键依次执行“开始录音 → 停止并等待转写 → 审阅/编辑 → 复制并返回小胶囊”，默认组合仍为 `⌃⌥A`。可选的多模型对比允许选择 2–4 个就绪的 OpenAI Compatible recorded-file model route，包括同一 provider 下的多个模型：只生成一份录音文件，同时请求各 route，单项失败隔离；至少一项成功后按配置顺序自动打开第一个成功候选，用户可点击候选或用仅在对比审阅期间临时注册的可配置前后导航快捷键（默认 `⌥←` / `⌥→`）在成功项间循环查看，第三次 voice hotkey 复制当前正在查看/编辑的结果。这里的“第一个”只是稳定默认项，不代表质量评分或自动判定最佳。第三次热键和审阅确认按钮都只写系统剪贴板；成功后清空会话、回到 `idle`，审阅框按已保存的位置锚点缩回小胶囊且 panel 保持可见。当前不捕获目标 app、不请求 AX、不发送 `CGEvent`/`⌘V`；旧 `ClipboardPasteInjector` 与 `AccessibilityPermission` 仅作为不可达兼容源码保留。命令网格、命令设置 tab 和命令热键也仍退出运行入口，旧 `commands.json` 未删除。
 - `~/Library/Application Support/Flotis/config.json` 现在是 Provider、active model、2–4 项对比选择、四项可配置全局快捷键和 API key 的唯一运行时配置真源。schema v2 参考 Intatis，以顶层 `$schema` / `model` / `provider_order` / `enabled_providers` / `comparison.models` / `shortcuts` / `provider` 串联全部配置；`provider.<id>.options` 只保存一次 endpoint 与 key，`provider.<id>.models` 可列多个模型及各自的可选显示名称。`shortcuts` 保存 voice、panel 显隐、上一个结果、下一个结果四个 descriptor；旧 schema v2 缺少 `toggle_voice` 时使用默认 `⌃⌥A`。selector 只在第一个 `/` 分割，所以 `openrouter/openai/...` 能保留完整 OpenRouter model ID。旧 canonical v1、connection v3、对比 UserDefaults 和 `secrets.json` 只作迁移输入，迁移后不再参与运行时读写；不保存录音或转写结果。
 - App 界面语言自动读取第一首选系统语言：明确的简体中文标识使用简中，繁体中文、英文及其他语言统一回退英文；不提供手动语言开关，也不改变 provider 的转写语言。
+- 2026-08-20 字体入口已收口到 `FlotisType`：Flotis 自有 SwiftUI 界面、原生审阅 `NSTextView` 与快捷键录制提示中的英文/拉丁字形统一使用随 App 打包的 JetBrains Mono v2.304；该字体不含中文，Core Text 对中文继续选择 `PingFang` 家族。`project.yml` 通过 macOS 官方 `ATSApplicationFontsPath=JetBrainsMono.ttf` 仅在 App 内激活字体；启动时若资源或任一所需 weight 无法激活，会显示明确错误并终止，不静默退回其他英文字体。当前源码、资源、依赖与文档全仓扫描未发现 LaTeX/MathJax/KaTeX/TeX 公式渲染入口，因此本轮没有公式字体调用点可修改；LaTeX 公式保留既有字体已记录为后续不可破坏边界。`xcodegen generate`、主 App Debug build、完整主 App 85 tests、输入法 Debug build与 8 tests 全部通过；ad-hoc 隔离预览的 `96×36` 胶囊、Shortcuts 与 Transcription 页面在 Light appearance 下无字体裁切/重叠。当前源码没有安装或覆盖 `/Applications/Flotis.app`，已安装版本仍是 2026-08-16 的透明玻璃修复 `0.13 (4)`。
 - 2026-08-16 按最新参考图把所有非审阅状态统一收敛为真正的 `96×36` 小胶囊：18 pt 连续圆角，内部严格只保留 6 pt 语义状态圆点、7 pt 间距和 15 pt Semibold Monospaced 的当前 voice 快捷键；品牌名、参考图 `Ask`、按钮、图标、计时、状态/错误句、说明和其他动作均不显示。voice hotkey 的 start/stop/copy-and-return 状态机未改。此前只依赖 `isMovableByWindowBackground` 时，全尺寸 SwiftUI surface 会吞掉背景拖动；当前 `FlotisFloatingPanel.sendEvent` 在非审阅单次 mouse-down 时直接调用原生 `performDrag(with:)`，整粒胶囊均可拖，双击才打开复用 Settings；reviewing 鼠标事件继续转发给原生编辑器，保留文本拖选与双击选词。`420×160` 单结果和 `560×300` 对比审阅内容/动作保持原样。最终隔离预览已按参考图密度归一化比较并通过几何、内容与交互 Design QA，原生拖动、单击不打开设置、双击设置均完成运行态验证；当时主 App 80 tests、输入法 8 tests 和两个 application Debug build 全部通过。该阶段加入的固定浅色 SwiftUI surface 后续被确认会遮住原生 Liquid Glass，已由当前透明 compact 内容层取代。
 - 2026-08-16 用户随后否定此前偏大的 Settings 快捷键编排，当时页面继续做减法：唯一卡片只保留固定语音、浮窗显隐、上一个结果、下一个结果四行，每行由 `68` pt 收为 `52` pt；可配置组合键由 `220×50` / 17 pt 收为 `156×38` / 15 pt，去掉铅笔，固定 `⌃⌥A` 改为无底板文本。常驻对比说明、hover help、逐项恢复和全部恢复控件均删除，录制态只临时显示“按下组合键”，真实校验/持久化/Carbon 错误仍保留；三项配置的 canonical 持久化、即时重注册、默认 descriptor 和冲突校验没有改变。`xcodegen generate`、两个 application Debug build、主 App 80 tests 与输入法 8 tests 均通过；独立 ad-hoc Debug 预览位于 `/private/tmp/FlotisShortcutsMinimalPreview-20260816/Build/Products/Debug/Flotis.app` 且严格验签通过，没有安装或覆盖 `/Applications/Flotis.app`。原生 Computer Use 连续两次因 ScreenCaptureKit `-3811` 无法启动画面流，所以本轮没有把快捷键页像素或点击录制标为运行态视觉通过；未读取/改写真实 `config.json`、Provider/API key，也未录音或请求 provider。
 - 2026-08-16 最新修正把语音输入纳入同一快捷键配置：快捷键页四行现在全部使用相同 `156×38` 可点击录制 surface，不添加新说明或控件；`shortcuts.toggle_voice` 与另外三项一起校验至少一个修饰键和互不重复，并通过 canonical read-modify-write 持久化。`HotkeyManager` 保持 voice Carbon ID `200`，配置变化时只注销旧 descriptor、注册新 descriptor；胶囊观察同一个 store，立即显示新组合。旧 schema v2 缺少 `toggle_voice` 时安全回退默认 `⌃⌥A`。`xcodegen generate`、两个 application Debug build、主 App 82 tests 与输入法 8 tests 均通过，其中 `HotkeyAndInjectionPolicyTests` 为 26 tests。隔离签名预览位于 `/private/tmp/FlotisVoiceHotkeyPreview-20260816/Build/Products/Debug/Flotis.app` 并通过严格验签；未读取或修改真实 `config.json`、Provider/API key，未启动预览、安装或覆盖 `/Applications/Flotis.app`。
@@ -51,7 +52,7 @@
 
 | 能力 | 入口 / 关键类型 | 自动化覆盖 | 当前验证 |
 |---|---|---|---|
-| V0.13 悬浮语音胶囊 | `FloatingPanelController` / `FloatingPanelView` / `FlotisDesign` | 当前源码两个 application Debug build；主 App 82 tests、输入法 8 tests，均为 0 failures；无 UI/snapshot test | 当前透明玻璃修复版 `0.13 (4)` 已安装并启动于 `/Applications/Flotis.app`；此前原生预览仍证明 `96×36` 几何、圆点 + 当前 voice 快捷键内容、整面拖动、单击不打开与双击 Settings，当前源码已移除遮住 AppKit glass 的固定白底并恢复动态文字色。Computer Use 本轮未获准访问 Flotis，因此 Light/Dark 背景采样、真实桌面切换动画、物理 voice hotkey、真实转写与完整兼容矩阵仍待人工验证 |
+| V0.13 悬浮语音胶囊 | `FloatingPanelController` / `FloatingPanelView` / `FlotisDesign` | 当前源码两个 application Debug build；主 App 85 tests、输入法 8 tests，均为 0 failures；新增字体测试证明 Latin→JetBrains Mono、中文→PingFang 与资源缺失 fail-closed；无 UI/snapshot test | 当前安装的透明玻璃修复版仍是 2026-08-16 的 `0.13 (4)`；JetBrains Mono 源码只以唯一 bundle ID 的隔离预览运行。当前 Light appearance 已重新捕获 `96×36` 胶囊、Shortcuts 与 Transcription，字体切换无裁切/重叠；Dark/Reduce Transparency/Increase Contrast、真实桌面切换动画、物理 voice hotkey、真实转写与完整兼容矩阵仍待人工验证 |
 | 隔离输入法提交接口 | `FlotisInputMethod` / `FlotisInputController` / `FlotisInputMethodService` | Release build + 严格签名校验 + 8 session/提交策略 tests | build `3` 已 ad-hoc 签名并安装，后台启动冒烟稳定；当前登录会话尚未发现输入源，需重新登录后做真实 IMK client 矩阵；未连接主 App |
 | OpenAI Compatible Settings | `FlotisSettingsWindowController` / `SettingsView` / `IntatisStyleSpeechProviderSettingsView` | 构建覆盖；provider/model/key/display name 与对比偏好行为由配置/对比单测覆盖 | Intatis 参考与 Flotis 实现的 Provider/Models 折叠、展开状态已在 Dark appearance 同屏目视；同 Provider 多模型行、Connection、Test Provider/Save 与实际 `1100×760` 内容尺寸通过 |
 | 多模型 recorded-file 对比 | `TranscriptionComparisonStore` / `FileTranscriptionComparisonRunner` / `TranscriptCandidate` | 5 个 selector 偏好、失败隔离、同文件、自动首项、循环导航、编辑保持与当前项复制策略 tests | 候选会话内携带可选 Display name；卡片优先只显示该名称，无名称时显示主 Model ID + 次 Provider；同 Provider 多模型的 mock 并发通过，真实 2–4 个 route 与物理快捷键待验 |
@@ -86,7 +87,7 @@
 
 ## 当前最小胶囊契约（2026-08-16）
 
-- reviewing 之外的 idle、请求权限、连接、录音/流式、停止、转写、失败及保留的 injecting 全部使用同一个 `96×36` frame，不再因状态或错误文案改变尺寸。可见内容严格只有 6 pt 状态圆点和当前配置的 voice 快捷键，默认 `⌃⌥A`，没有品牌名、麦克风、齿轮、计时、状态/错误句、说明或其他提示元素。
+- reviewing 之外的 idle、请求权限、连接、录音/流式、停止、转写、失败及保留的 injecting 全部使用同一个 `96×36` frame，不再因状态或错误文案改变尺寸。可见内容严格只有 6 pt 状态圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，默认 `⌃⌥A`，没有品牌名、麦克风、齿轮、计时、状态/错误句、说明或其他提示元素。
 - 胶囊采用 18 pt 连续圆角的原生透明 Liquid Glass/material 表面；SwiftUI compact 内容不绘制固定白色填充或自定义整圈描边，快捷键使用随 Light/Dark appearance 变化的动态主文字色。idle 为绿色圆点，录音/流式为红色，请求、连接、停止、转写、失败或热键错误为橙色；完整状态或错误仍通过胶囊 accessibility value 暴露，不增加可见文案。
 - voice 的唯一产品动作入口仍是当前配置的 voice 快捷键：开始、停止、reviewing 复制并返回的状态映射未改。非审阅胶囊单次 mouse-down 直接进入 AppKit 原生窗口拖动，不打开设置；双击打开复用的独立 Settings。reviewing 的鼠标事件继续交给原生文本编辑器。
 - 单结果 reviewing 保持 `420×160`，对比 reviewing 保持 `560×300`，候选网格、可编辑文本、复制全部、取消、复制并返回及前后导航均未改变。位置锚点、可见区钳位、跨 Space 和 panel 显隐策略继续沿用。
@@ -120,7 +121,7 @@
 - **Apple 真机复测**：需要再次验证“你好”短句、两个词中间静音 3–5 秒、连续纠错与重复词；自动化只证明累积策略，不能替代真实 `SFSpeechRecognizer` 回调序列。
 - **胶囊编辑/复制焦点**：原生 `NSTextView.needsPanelToBecomeKey`、复制全部按钮和 copy-and-return 状态路径已构建通过，但鼠标选区、`⌘C`、右键 Copy 及“编辑后按第三次全局热键复制并返回”的真实剪贴板/窗口组合仍需真机验证。
 - **视觉无障碍与兼容矩阵**：此前 `96×36` idle 最小胶囊在原生运行态与用户参考图完成的等密度比较仍可证明几何、内容层级、单击/双击和拖动，但当时的固定浅色 token 已被用户否定，不能继续作为当前 glass 外观证据。当前源码已恢复 AppKit 原生 Liquid Glass/material 为唯一底面并使用动态文字色；本机 Computer Use 明确拒绝访问 Flotis，因此 Light/Dark 背景采样、Reduce Transparency、Increase Contrast、macOS 13–25 fallback、所有语义圆点状态和 VoiceOver 仍需人工确认。跨 Space 瞬移修复已按 AppKit `isMovable=false` 契约实现并通过策略/完整回归，但切换动画期间的位置稳定性也仍需人工确认。Intatis 式 Provider/Models 主卡此前只在 Dark appearance 对折叠、Models 展开和实际 `1100×760` 内容尺寸完成运行态比较，空 catalog、长 Provider/model 文案与键盘导航仍需人工矩阵。
-- **双语运行态排版**：4 个语言解析测试均通过，权限 String Catalog 也已编译检查；本轮未分别以简中、英文和其他语言启动 App 做完整目视，因此新增对比设置、候选卡及“Copy and return”辅助标签仍需人工确认。
+- **双语运行态排版**：4 个语言解析测试与 3 个字体资源/回退测试均通过，权限 String Catalog 也已编译检查；英文 Settings 已以 JetBrains Mono 做 Light appearance 目视，尚未分别以简中、繁中/其他语言启动 App 做完整页面目视，因此中文混排、候选卡及“Copy and return”辅助标签仍需人工确认。
 - **真实供应商联调**：OpenAI、DashScope、Volcengine、GLM 的认证、服务端事件顺序、错误包和限流行为需分别使用有效账号验证；按本轮用户要求未创建、读取或使用真实 API key，也未发出真实供应商请求。
 - **签名/分发**：主 App 当前安装的是透明玻璃修复 Release `0.13 (4)`，被替换的固定白底 `0.13 (4)` 保留在 `/private/tmp/Flotis-before-transparent-glass-fix-v0.13-20260816-1954.app`，再前一版 `0.12 (3)` 保留在 `/private/tmp/Flotis-before-v0.13-install-20260816-1626.app`；更早的 `0.8.0 (2)` 仍保留在 `/private/tmp/Flotis-before-v0.12-install-20260806-1453.app`。主 App 与 build `3` 的输入法都使用 ad-hoc 签名，没有 Developer Team、notarization 或正式发布流水线；ad-hoc 足以做本机启动冒烟，但不是稳定开发/发布身份。重复重编译时 TCC 或输入源缓存可能把产物识别为新代码身份；要让授权与重复安装更稳定，需要在 Xcode 选择固定 Apple Development Team 后用同一 bundle ID 构建。
 - **`VoiceInputMode` 疑似 vestigial**：`AppState.voiceMode` 仍存在，但真实分派依据是 adapter registry 返回的通用 runtime plan。
@@ -163,6 +164,8 @@
 2026-08-16 V0.13 安装继续在同一未提交工作树上只修改主 App 的 `project.yml` 版本值、XcodeGen 生成工程和常驻文档；业务源码保持上述已验证状态。安装前正常退出两个旧隔离预览，把 `/Applications/Flotis.app` 的 `0.12 (3)` 移到 `/private/tmp/Flotis-before-v0.13-install-20260816-1626.app`，再安装、注册并启动 `0.13 (4)`。输入法源码、版本和用户 Input Methods 安装副本均未改，没有 add/commit/push。
 
 2026-08-16 透明玻璃回归修复开始时工作树为 clean。本轮业务源码只修改 `FloatingPanelView.swift`：删除 compact SwiftUI 的固定白色 fill/描边并恢复动态主文字色；同步更新 `AGENTS.md`、`design-qa.md` 与相关 `docs/`，没有改 controller、拖动/Space 位置策略、语音链路、provider/schema、凭据、输入法、版本号或构建脚本。安装前正常退出旧 `0.13 (4)`，将其移动到 `/private/tmp/Flotis-before-transparent-glass-fix-v0.13-20260816-1954.app`，再安装、注册并启动同版本玻璃修复 Release；没有 add/commit/push。
+
+2026-08-20 字体任务开始时，`AGENTS.md`、`docs/ARCHITECTURE.md`、`docs/DO_NOT_BREAK.md`、`docs/TESTING.md` 已有用户加入的 dependency-first/no-fallback 文档改动；本轮完整保留这些改动并在其上追加 exact JetBrains Mono 依赖契约。业务变更只涉及主 App Presentation 字体入口、启动依赖校验、官方 TTF/OFL/AUTHORS resources、XcodeGen font plist/resource 接线与 `LocalizationTests`；没有改语音/provider/config/凭据、输入法源码、版本号或 `run.sh`。隔离预览读取现有 UI 投影但没有读取/输出 key、保存设置、录音或请求 provider，随后正常退出；没有安装、覆盖、add、commit 或 push。
 
 ## 文档与源码冲突
 

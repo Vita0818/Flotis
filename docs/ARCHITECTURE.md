@@ -1,6 +1,17 @@
 # ARCHITECTURE
 
-最近自查日期：2026-08-16
+## 外部依赖优先与禁止功能兜底（Vitemis 强制规则）
+
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。本节是强制约束，不是建议。
+
+- 当用户指定、仓库已经采用，或经许可证、provenance、安全与平台审查可采用的外部依赖提供同等能力时，必须直接集成该依赖的官方 API 或官方扩展点。
+- 不得自行重写同等能力，不得新增替代 adapter、shim、compatibility layer、wrapper、proxy、facade、协议翻译层、parallel backend、preview backend、shadow implementation 或“先兜底、以后再换”的实现。
+- 本地代码只允许保留官方 API 必需的最薄生命周期、类型、权限、配置和 bundle 接线；不得重新实现、解释、扩展或替代依赖的核心能力。
+- exact 依赖因版本、构建、签名、许可证、平台、安全或官方 API 限制无法接入时，必须停止该能力、明确失败、报告 blocker 并请求用户决定；不得静默降级、切换 legacy/另一 provider/backend、使用 cache/mock/简化路径或继续交付不完整替代实现。
+- 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
+- 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
+
+最近自查日期：2026-08-20
 
 ## 总体架构
 
@@ -62,19 +73,28 @@ future authenticated local transport (尚未实现)
 
 `FlotisDesign.swift` 是胶囊与 Settings 共用的 Presentation / Design System 层。`FloatingPanelView` 和 `VoiceSettingsView` 只从该层取得 palette、字体、内容表面、glass button 与设置页组合组件；视觉层不持有语音或 provider 状态，也不改变 `VoiceInputController`、connection schema、`LocalSecretStore` 或 `ClipboardPasteInjector` 的边界。
 
+### JetBrains Mono exact 依赖与字体边界
+
+- **选定依赖**：用户指定 JetBrains Mono；当前固定使用 JetBrains 官方 release `v2.304` 的 `fonts/variable/JetBrainsMono[wght].ttf`，仓内重命名为 `Flotis/Resources/Fonts/JetBrainsMono.ttf`。官方 archive URL 为 `https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip`，archive SHA-256 为 `6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf`，仓内 TTF SHA-256 为 `662a196d58f1183bf2d77428b6d5283fe3f45161ab021bea4036bc98e5cac016`。
+- **能力与许可证证据**：官方 font metadata 暴露 `JetBrains Mono` family、Thin 至 ExtraBold named weight instances 与 `JetBrainsMono-Regular` PostScript face，直接提供本任务所需的英文/拉丁等宽界面字体。官方 `JetBrainsMono-OFL.txt` 与 `JetBrainsMono-AUTHORS.txt` 原样随主 App 资源分发；许可证为 SIL Open Font License 1.1，允许应用内商业/非商业使用与再分发。
+- **平台与安全/分发边界**：字体是 data asset，不引入可执行第三方代码、package manager、网络运行时或系统级字体安装。macOS 通过官方 `ATSApplicationFontsPath=JetBrainsMono.ttf` 仅为该 App 激活 bundle resource；字体由系统 Core Text 解析，输入法 target 不携带或注册它。升级字体必须重新固定官方版本、来源与 hash，并重跑构建/渲染测试。
+- **最薄本地接线**：`FlotisType` 只把既有 brand/title/headline/body/caption/mono weight 请求映射到官方 named face，并为两个 AppKit 文本入口返回对应 `NSFont`；`SettingsView` 与 `FloatingPanelView` 只设置默认 SwiftUI environment font。没有本地重写字体、glyph、shaper、renderer、adapter 或备用字体后端。
+- **回退与失败**：JetBrains Mono 不含中文，混排时由 Core Text 原生 glyph cascade 选择 `PingFang` 家族；这是 macOS 文本排版行为，不是 Flotis 的第二字体 renderer。App 在创建 panel/Settings 前核验 TTF resource 与全部所需 weight；资源缺失或 macOS 无法激活任一 face 时显示 critical error 并终止，不允许 SwiftUI 静默改用另一英文字体。
+- **LaTeX 例外**：全仓源码/资源扫描没有找到 LaTeX、TeX、MathJax、KaTeX 或其他公式渲染入口，因此本轮没有公式字体调用点可修改。任何后续或外部 formula surface 必须继续使用其 renderer 当前公式字体，不得继承或显式套用 `FlotisType`；只有普通 Flotis 界面文案使用上述 JetBrains Mono/PingFang 组合。
+
 - **动态系统白黑**：`FlotisTheme` 使用随 Light/Dark appearance 动态解析的 `.primary`、`.secondary`、透明度派生 tertiary 与系统 `separatorColor`。主要操作为系统白/黑单色；红、橙、绿只保留给录音、警告、成功和失败等有限语义状态，不维护固定品牌色板。
 - **窗口 canvas**：Settings 在 macOS 14+ 使用 SwiftUI `windowBackground`；macOS 13 通过 `.windowBackground` `NSVisualEffectView` fallback。胶囊仍由透明 borderless `NSPanel` 承载：编译器支持且运行于 macOS 26+ 时，hosting content 进入原生 `NSGlassEffectView(style: .regular)`，macOS 27+ 开启 interactive glass；macOS 13–25 回退到 `.popover` `NSVisualEffectView`，其可拉伸圆角 `maskImage` 同时限定 material 与窗口服务器阴影，CALayer mask 仅裁切 hosted subviews，并在显示或静态尺寸切换后刷新原生阴影。compact SwiftUI 内容不再绘制固定白色填充或自定义整圈描边，保持透明并让原生 glass/material 直接采样背景；快捷键使用动态主文字色。reviewing 继续使用既有原生 glass/material 内容结构，窗口服务器阴影与兼容路径继续由 AppKit 管理。
 - **内容表面**：结构化内容使用 `regularMaterial`、1 pt separator 和 continuous rounded rectangle；长文本与表单内容保持在系统 canvas / Material 层，不用 glass 覆盖全部正文。
 - **Liquid Glass 与兼容路径**：在编译器支持且运行于 macOS 26+ 时，panel 容器继续使用 AppKit `NSGlassEffectView(style: .regular)`，并作为 compact 胶囊的唯一表面；结构化 reviewing/Settings 交互表面仍可使用原生 glass。compact 内容层禁止再用固定白色/不透明 surface 覆盖系统高光、折射与背景采样。macOS 13–25 的 panel 继续回退到 `.popover` material，其他内容/按钮回退到 `regularMaterial` 与原生 `.bordered` / `.borderedProminent`，因此 deployment target 仍为 macOS 13。
-- **字体与图标**：中文页面大标题和标题使用系统默认字体，英文品牌与标题使用 Serif；正文使用系统默认字体，快捷键和技术信息使用 Monospaced。最小胶囊只用 15 pt 系统 Semibold Monospaced 的当前 voice 快捷键与一个原生 `Circle`，不显示品牌名、raster image set、SF Symbol 或 emoji；reviewing 与 Settings 的既有功能图标继续使用 SF Symbols。
+- **字体与图标**：Flotis 自有界面所有英文/拉丁字形统一使用 JetBrains Mono；中文 glyph 继续由 Core Text 回退到苹方。标题、正文、caption、快捷键和技术字段保留既有字号/weight 层级，不再切换 Serif、系统正文或系统 Monospaced family。最小胶囊只用 15 pt JetBrains Mono Semibold 的当前 voice 快捷键与一个原生 `Circle`，不显示品牌名、raster image set、SF Symbol 或 emoji；reviewing 与 Settings 的既有功能图标继续使用 SF Symbols。LaTeX 公式 renderer（当前仓库不存在）保持自己的既有公式字体，不属于该界面字体层。
 - **应用图标**：根目录 `Flotis.icon` 是主 App 的 Icon Composer source of truth，并以 target resource 交给 `actool`；build setting 使用名称 `Flotis`。因此产物由 Xcode 生成系统多尺寸 `Flotis.icns` 和 `Assets.car`，Info.plist 的 icon name/file 也来自编译结果。历史录音/设置 raster image set 暂时保留但不再用于当前最小胶囊；输入法仍使用自己的 TIFF 输入源图标。
-- **共享组合**：reviewing 之外所有状态统一使用 `96×36` compact frame 与 18 pt 连续圆角的透明原生 glass/material 表面，内部只含 6 pt 语义圆点与 15 pt Semibold Monospaced 的当前 voice 快捷键，间距 7 pt；快捷键为动态主文字色，默认显示 `⌃⌥A`，配置变化后即时更新。idle 为绿点，录音/流式为红点，请求/连接/停止/转写/失败或热键错误为橙点；完整状态继续通过 accessibility value 暴露，视觉层不显示品牌名、计时、状态/错误句、图标、动作按钮或设置提示。单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`；对比页顶部继续用固定双列网格表达 2–4 个成功/失败候选与耗时，四项为 2×2。开始会话时从 canonical model entry 快照可选 Display name，有名称的候选只显示该名称，没有名称的候选以 Model ID 为主要文字、Provider 名称为次要文字，endpoint 不进入可见卡片。首个成功项直接在原生编辑器打开，不显示额外选择提示，也不需要横向滚动。尺寸请求只保留最后一次，panel 首次位于屏幕底部中央；panel 平时禁止系统管理移动，非审阅单次 mouse-down 显式进入原生窗口拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 的临时钳位不回写逻辑锚点。Settings 使用固定侧栏和右侧独立滚动页面；当前可达页面不展示 AX 状态。
+- **共享组合**：reviewing 之外所有状态统一使用 `96×36` compact frame 与 18 pt 连续圆角的透明原生 glass/material 表面，内部只含 6 pt 语义圆点与 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，间距 7 pt；快捷键为动态主文字色，默认显示 `⌃⌥A`，配置变化后即时更新。idle 为绿点，录音/流式为红点，请求/连接/停止/转写/失败或热键错误为橙点；完整状态继续通过 accessibility value 暴露，视觉层不显示品牌名、计时、状态/错误句、图标、动作按钮或设置提示。单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`；对比页顶部继续用固定双列网格表达 2–4 个成功/失败候选与耗时，四项为 2×2。开始会话时从 canonical model entry 快照可选 Display name，有名称的候选只显示该名称，没有名称的候选以 Model ID 为主要文字、Provider 名称为次要文字，endpoint 不进入可见卡片。首个成功项直接在原生编辑器打开，不显示额外选择提示，也不需要横向滚动。尺寸请求只保留最后一次，panel 首次位于屏幕底部中央；panel 平时禁止系统管理移动，非审阅单次 mouse-down 显式进入原生窗口拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 的临时钳位不回写逻辑锚点。Settings 使用固定侧栏和右侧独立滚动页面；当前可达页面不展示 AX 状态。
 
 ## 界面语言与本地化
 
 `AppLanguage` 与 `UIStrings` 构成独立的 Presentation 文案层。启动时只读取 `Locale.preferredLanguages.first`：明确的简体中文标识（`zh-Hans` 或中国大陆、新加坡、马来西亚地区标识）选择简中；繁体中文、英文和其他语言都选择英文。语言改变后通过重新启动 App 生效，不提供手动切换入口。
 
-- 胶囊、Settings、热键注册、音频捕获、连接测试和各 adapter 的 App 自定义错误都通过同一双语入口生成；英文标题继续进入 Serif 字体路径，中文标题继续使用系统默认字体。
+- 胶囊、Settings、热键注册、音频捕获、连接测试和各 adapter 的 App 自定义错误都通过同一双语入口生成；英文/拉丁 glyph 进入 JetBrains Mono，中文 glyph 由同一文本排版链路回退到苹方，不再按整段语言选择 Serif 或系统标题字体。
 - 日期显示显式使用当前 App 中/英文 locale，避免其他系统 locale 把英文界面中的日期格式化成第三种语言。
 - `project.yml` 以英文为 development language 和权限说明基值；`InfoPlist.xcstrings` 为麦克风与 Speech Recognition 权限提示提供英文、简中资源。
 - UI 语言不参与 provider language、模型、endpoint、协议事件或 schema 编码。现有用户 provider 名称和历史测试摘要不做持久化迁移；legacy 内建名称仅在兼容显示层处理。
@@ -208,7 +228,7 @@ controller 将 chunk 写入容量为 512 的有界 `AsyncStream`，由单一 wri
 - 支持的 language/prompt/temperature/Volc two-pass 字段；
 - 录音时长和上传字节限制。
 
-当前 Settings 以固定侧栏分为“快捷键 / 转写”，左上品牌区只显示 `Flotis` 与版本，不再显示应用图标。“快捷键”页只保留一张紧凑内容卡，按四个 `52` pt 行显示 voice、panel 显隐及前后对比导航。四项都使用 `156×38`、15 pt Monospaced 的轻量可点击 surface，点击后在相同尺寸的原生录制态直接接收新组合。常态不显示语音流程、胶囊拖动、对比生效条件、第二层 section、hover help、铅笔或恢复控件；只有真实校验、持久化或 Carbon 注册错误才在卡片下出现。当前可达 Settings 不展示与主流程无关的 AX 权限。转写页只会为 OpenAI Compatible HTTP 实例化 editor。主 Provider/Models 卡复刻 Intatis 的信息层级：左侧 Provider 列表/Add，右侧 Provider name、API key、Active model、Connection/Models disclosure，Models 中按行提供 Model ID、Display name 与删除动作，卡片下方是 Test Provider / Save。Flotis 特有的 2–4 route Comparison 与 Language/Prompt/Temperature 位于主卡之后的独立 disclosure，不把 route 选择或高级参数混进 Provider 共享字段。preset 与其他 adapter 选择不可见。没有现有 OpenAI provider 时只显示明确空态，创建内存 draft 后 Cancel 不落盘。底层六套 schema 与多 provider/model route 数据仍用于迁移、normalize、校验、连接测试和 runtime；可见性不是新的 runtime discriminator。URL 校验继续拒绝非 HTTPS、userinfo、query、fragment、反斜杠和歧义 path。自定义 host 仍需用户显式确认，UI 仍显示凭据的精确目标 host。
+当前 Settings 以固定侧栏分为“快捷键 / 转写”，左上品牌区只显示 `Flotis` 与版本，不再显示应用图标。“快捷键”页只保留一张紧凑内容卡，按四个 `52` pt 行显示 voice、panel 显隐及前后对比导航。四项都使用 `156×38`、15 pt JetBrains Mono 的轻量可点击 surface，点击后在相同尺寸的原生录制态直接接收新组合。常态不显示语音流程、胶囊拖动、对比生效条件、第二层 section、hover help、铅笔或恢复控件；只有真实校验、持久化或 Carbon 注册错误才在卡片下出现。当前可达 Settings 不展示与主流程无关的 AX 权限。转写页只会为 OpenAI Compatible HTTP 实例化 editor。主 Provider/Models 卡复刻 Intatis 的信息层级：左侧 Provider 列表/Add，右侧 Provider name、API key、Active model、Connection/Models disclosure，Models 中按行提供 Model ID、Display name 与删除动作，卡片下方是 Test Provider / Save。Flotis 特有的 2–4 route Comparison 与 Language/Prompt/Temperature 位于主卡之后的独立 disclosure，不把 route 选择或高级参数混进 Provider 共享字段。preset 与其他 adapter 选择不可见。没有现有 OpenAI provider 时只显示明确空态，创建内存 draft 后 Cancel 不落盘。底层六套 schema 与多 provider/model route 数据仍用于迁移、normalize、校验、连接测试和 runtime；可见性不是新的 runtime discriminator。URL 校验继续拒绝非 HTTPS、userinfo、query、fragment、反斜杠和歧义 path。自定义 host 仍需用户显式确认，UI 仍显示凭据的精确目标 host。
 
 adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBoundaryIdentifier`：store 生成新 `apiKeyReference`，并在同一次 `config.json` 原子事务里替换 provider 配置、写入可选新 key、移除旧 reference 对应的内存映射，防止旧服务凭据被发送到新目标。文件提交失败时 provider catalog 与 key 一起回滚。
 

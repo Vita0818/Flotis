@@ -1,12 +1,20 @@
 # Minimal floating capsule design QA — geometry and interaction baseline
 
-Date: 2026-08-16
+Date: 2026-08-16; typography addendum: 2026-08-20
 
 ## Current Liquid Glass status
 
 - The saved comparison in this document predates the user's Dark-appearance correction. It remains valid for the `96×36 pt` geometry, dot/shortcut hierarchy, and compact drag/single-click/double-click behavior only.
 - The fixed `245/255` SwiftUI fill, half-point custom outline, and fixed near-black label captured in that pass are superseded. The current compact SwiftUI layer is transparent, the AppKit `NSGlassEffectView(style: .regular)` (or the macOS 13–25 material fallback) is the only surface, and the shortcut uses the dynamic system primary color.
-- A signed current preview was built at `/private/tmp/FlotisGlassFix-Preview-20260816/Build/Products/Debug/Flotis.app`, but Computer Use returned `Computer Use was not approved to use Flotis`. Therefore the current Liquid Glass appearance is not marked as visually passed for Light/Dark, Reduce Transparency, or Increase Contrast; no alternate GUI automation was used to bypass that restriction.
+- The 2026-08-16 signed preview could not be captured because Computer Use was denied. A later signed, isolated typography preview at `/private/tmp/FlotisTypographyPreview-20260820/Build/Products/Debug/Flotis.app` was captured successfully in the current Light appearance. Its compact screenshot `/private/tmp/Flotis-JetBrainsMono-Capsule-20260820.jpeg` confirms the transparent current surface, dynamic label, and exact `96×36` crop without clipping. Dark appearance, Reduce Transparency, Increase Contrast, and macOS 13–25 remain unverified.
+
+## JetBrains Mono typography addendum (2026-08-20)
+
+- The preview bundles the official JetBrains Mono v2.304 upright variable TTF and activates it through `ATSApplicationFontsPath`; Core Text tests independently prove Latin runs use the `JetBrains Mono` family and Chinese runs cascade to `PingFang`.
+- `/private/tmp/Flotis-JetBrainsMono-Capsule-20260820.jpeg` is exactly `96×36 px`; the current configured shortcut remains on one line, centered with the 6 pt status dot, with no clipping or scale-down artifact visible.
+- `/private/tmp/Flotis-JetBrainsMono-Shortcuts-20260820.jpeg` captures the English Shortcuts page. The `Flotis` brand, sidebar, page title, four row labels, shortcut surfaces, and Quit action all use the new monospaced family without overlap, truncation, or vertical clipping. The existing `1100×760` content contract and `156×38` shortcut surfaces remain intact.
+- `/private/tmp/Flotis-JetBrainsMono-Transcription-20260820.jpeg` captures the English Transcription page with the existing provider data projected by the UI but no credential value exposed. Header, subtitle, provider/model labels, fields, disclosures, and actions remain readable; the two-column hierarchy, disclosure hit rows, and bottom actions do not collide or overflow.
+- The repository contains no LaTeX/TeX/MathJax/KaTeX or formula-rendering surface, so no formula screenshot can be produced. The formula-font exception is recorded as a strict boundary: future/external formula renderers keep their existing font and do not inherit `FlotisType`.
 
 ## Comparison target
 
@@ -26,7 +34,7 @@ Date: 2026-08-16
 
 ## Required fidelity surfaces
 
-- Fonts and typography: one centered system Semibold Monospaced shortcut at 15 pt, dynamic system-primary foreground, one line, no wrapping or subordinate copy. Its optical weight and vertical centering preserve the source's single-label hierarchy.
+- Fonts and typography: one centered JetBrains Mono Semibold shortcut at 15 pt, dynamic system-primary foreground, one line, no wrapping or subordinate copy. Chinese interface glyphs elsewhere continue to cascade to PingFang. Its optical weight and vertical centering preserve the source's single-label hierarchy; LaTeX formula fonts are explicitly outside this interface typography contract.
 - Spacing and layout rhythm: exact `96×36 pt` capsule, full `18 pt` pill radius, centered `6 pt` status dot, `7 pt` dot-to-label spacing, and no additional controls or secondary row.
 - Colors and tokens: native transparent system glass/material with no fixed SwiftUI fill or custom full outline, system green idle dot, and dynamic primary label. Busy, recording, and error states change only the semantic dot color; they do not add visible copy or controls.
 - Image quality and asset fidelity: the source contains no photographic, illustrative, logo, or icon asset that needs raster reproduction. The dot, type, AppKit glass/material surface, and window shadow remain resolution-independent native UI; no placeholder, emoji, handcrafted SVG, or substitute icon was introduced.
@@ -49,11 +57,12 @@ The component itself is only `96×36 pt`, so the normalized full-component compa
 - Pass 1: the first equal-density, equal-size combined comparison validated the requested geometry with the interim `Flotis` label.
 - Pass 2: after the user's explicit content correction, the brand label was replaced by the default `⌃⌥A`; the refreshed equal-density comparison found no P0/P1/P2 geometry, spacing, color, typography, asset, or copy issue in that compact state. The later configurable-key change reuses the same text slot and has not been recaptured.
 - Current correction: the user rejected Pass 2's fixed light surface after observing it in Dark appearance. Its geometry/content/interaction evidence is retained; its color/material conclusion is withdrawn and replaced by the transparent native-glass contract above.
+- Typography pass: the 2026-08-20 isolated preview replaces the shortcut and all Flotis-owned English/Latin interface typography with bundled JetBrains Mono while preserving the prior geometry. Light-appearance capsule, Shortcuts, and Transcription captures show no actionable clipping or hierarchy regression.
 
 ## Residual test gaps
 
-- The source defines only the idle appearance. Recording, processing, error-dot colors, review expansion, Dark appearance, Reduce Transparency, Increase Contrast, and macOS 13–25 material fallback do not have matching source frames and remain compatibility checks rather than fidelity comparisons. The current glass surface also lacks a new approved native capture because Computer Use was denied access to Flotis.
+- The source defines only the idle appearance. Recording, processing, error-dot colors, review expansion, Dark appearance, Reduce Transparency, Increase Contrast, and macOS 13–25 material fallback do not have matching source frames and remain compatibility checks rather than fidelity comparisons. The 2026-08-20 Light-appearance native capture now covers the current glass/typography combination, but not those remaining appearance states.
 - The existing review layouts were intentionally preserved and were not re-captured in this capsule-only pass.
 - A later attempt to repeat all Computer Use interactions in one capture stream hit ScreenCaptureKit error `-3811`; the saved final idle capture and the earlier separate native drag/single-click/double-click passes remain valid, and the interaction policy is independently covered by XCTest.
 
-final result: geometry/content/interaction baseline passed; current Liquid Glass appearance not visually verified because Computer Use access was denied
+final result: geometry/content/interaction baseline passed; JetBrains Mono Light-appearance capsule and Settings layout passed; Dark/contrast/transparency compatibility and any future LaTeX renderer remain unverified

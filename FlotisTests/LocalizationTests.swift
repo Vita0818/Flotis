@@ -1,3 +1,5 @@
+import AppKit
+import CoreText
 import XCTest
 @testable import Flotis
 
@@ -75,6 +77,61 @@ final class LocalizationTests: XCTestCase {
                 simplifiedChinese: "设置"
             ),
             "Settings"
+        )
+    }
+
+    func testBundledJetBrainsMonoDependencyIsAvailable() throws {
+        XCTAssertNoThrow(try FlotisType.validateBundledFont())
+        XCTAssertEqual(FlotisType.appKit(14).familyName, FlotisType.familyName)
+        XCTAssertEqual(
+            FlotisType.appKit(14, .medium).familyName,
+            FlotisType.familyName
+        )
+        XCTAssertNotNil(
+            Bundle.main.url(
+                forResource: "JetBrainsMono-OFL",
+                withExtension: "txt"
+            )
+        )
+    }
+
+    func testMissingJetBrainsMonoResourceFailsClosed() {
+        XCTAssertThrowsError(
+            try FlotisType.validateBundledFont(
+                in: Bundle(for: LocalizationTests.self)
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? FlotisFontDependencyError,
+                .missingResource
+            )
+        }
+    }
+
+    func testJetBrainsMonoUsesPingFangForChineseFallback() {
+        let baseFont = CTFontCreateWithName(
+            FlotisType.regularPostScriptName as CFString,
+            14,
+            nil
+        )
+        let sample = "A中" as CFString
+        let latinFont = CTFontCreateForString(
+            baseFont,
+            sample,
+            CFRange(location: 0, length: 1)
+        )
+        let chineseFont = CTFontCreateForString(
+            baseFont,
+            sample,
+            CFRange(location: 1, length: 1)
+        )
+
+        XCTAssertEqual(
+            CTFontCopyFamilyName(latinFont) as String,
+            FlotisType.familyName
+        )
+        XCTAssertTrue(
+            (CTFontCopyFamilyName(chineseFont) as String).hasPrefix("PingFang")
         )
     }
 }

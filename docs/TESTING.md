@@ -1,13 +1,23 @@
 # TESTING
 
-最近验证日期：2026-08-16
+## 外部依赖与禁止兜底验证（Vitemis 强制规则）
+
+本项目继承 `/Users/vita/Vitemis/docs/DEPENDENCY_POLICY.md`。涉及外部能力的变更必须验证：
+
+- exact 外部依赖可用时只调用其官方 API/扩展点，不调用第一方重复实现。
+- 依赖缺失、版本不兼容或构建/签名/许可证/平台/安全条件不成立时，产生明确、可诊断失败并停止该能力。
+- 失败路径不会切换到 legacy、另一 provider/backend、adapter/shim、cache、mock、简化实现或不完整路径。
+- 测试 double 只存在于测试 target，不进入 production selection 或 runtime fallback。
+- Review 检查新增 wrapper/adapter/facade 是否仅为官方 API 必需的最薄接线；发现核心能力复制、第二实现或静默降级即判定失败。
+
+最近验证日期：2026-08-20
 
 ## 环境与边界
 
 - 两个 macOS application target，deployment target 13.0，Swift 5.0。
 - XcodeGen 生成 `Flotis.xcodeproj`；scheme 为 `Flotis`、`FlotisInputMethod` 与独立的 `FlotisInputMethodTests`。
 - 主 App 当前产品路径依赖 Carbon、AppKit、Speech、AVFoundation 与 Darwin 文件系统调用；保留的旧 `ClipboardPasteInjector` 仍编译真实 macOS Accessibility/`CGEvent` 代码但当前不可达。输入法 target 依赖 AppKit/InputMethodKit。二者都不能用 iOS Simulator 验证核心交互。App 源码不再导入 Security 或调用系统钥匙串。
-- 无第三方依赖，无仓内 SwiftLint/SwiftFormat 配置。
+- 无第三方代码 package；主 App 有一个固定版本的外部字体资产依赖：JetBrains 官方 JetBrains Mono v2.304 variable TTF（OFL 1.1），由 macOS `ATSApplicationFontsPath` 从 app bundle 激活。输入法 target 不含该资源。无仓内 SwiftLint/SwiftFormat 配置。
 - 当前没有 UI-test target、SwiftUI snapshot test、Preview fixture 或产品内 debug state 开关；视觉、物理热键、系统剪贴板/返回行为、多模型真实服务与输入客户端验收必须结合真实 macOS 运行态，不能由主 App 单元测试或输入法接口 8 个测试替代。
 - API key 明文不进入仓库、UserDefaults、日志或单独凭据文件；自动化只使用临时目录、内存 fake transport 与虚拟字符串。真实 provider 的 key 由操作者在 UI 保存到私有权限 `config.json` 对应 provider 的 `options.apiKey`。
 
@@ -53,6 +63,16 @@ git status --short
 ```
 
 为 build 与 test 使用不同的临时 DerivedData。Xcode 26 的 test action 会把 XCTest framework 复制进 test host；复用已跑过 test 的 app bundle 再次执行普通 build，可能在 app validation 阶段把旧测试 framework 当作产品 framework 检查。
+
+2026-08-20 JetBrains Mono / PingFang 字体切换验证：
+
+- 官方依赖固定为 JetBrains Mono `v2.304`；下载 archive SHA-256 为 `6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf`，仓内 `JetBrainsMono.ttf` SHA-256 为 `662a196d58f1183bf2d77428b6d5283fe3f45161ab021bea4036bc98e5cac016`。官方 OFL 1.1 与 AUTHORS 文件随资源复制，没有运行时下载、系统级安装或第三方 executable/package。
+- `xcodegen generate` 成功；生成 `Flotis/Info.plist` 包含 `ATSApplicationFontsPath=JetBrainsMono.ttf`，生成工程把 TTF、OFL 与 AUTHORS 三项只加入主 App Copy Resources。首次主 App Debug build `/private/tmp/FlotisTypographyMainBuild-20260820` 成功，产物的 `Contents/Resources` 已实际包含三项资源。
+- 初次定向 `LocalizationTests` 在 `/private/tmp/FlotisTypographyTargetedTests-20260820` 为 6 tests、0 failures；加入显式资源缺失 case 后，最终完整主 App `/private/tmp/FlotisTypographyMainTestsFinal-20260820` 为 85 tests、0 failures，其中 `LocalizationTests` 为 7 tests、0 failures。它们证明 App bundle 可激活 Thin–ExtraBold named faces、AppKit regular/medium family 为 `JetBrains Mono`，拉丁 `A` 的 Core Text run 为 `JetBrains Mono`，中文 `中` 的 run 为 `PingFang`，测试 bundle 缺少字体资源时产生 `.missingResource` 明确失败。
+- 代码扫描已把 Flotis 自有可见文本的显式系统/semantic font 调用收口到 `FlotisType`；剩余 `.font(.system(...))` 均作用于 SF Symbol `Image` 的图标字号。SwiftUI `SettingsView`/`FloatingPanelView` 默认 font、AppKit 审阅 `NSTextView` 与快捷键录制 draw attributes 均接入 JetBrains Mono。字体资源/face 校验在创建 panel/Settings 前执行，失败弹出 critical alert 并终止，不允许静默英文字体 fallback。
+- 全仓 `rg` 未发现 LaTeX、TeX、MathJax、KaTeX 或公式 renderer/source，因此没有可运行的公式字体回归 fixture；本轮未修改任何 formula font 调用点。LaTeX 保留当前公式字体作为明确静态边界，后续出现 renderer 时必须补 renderer-specific font assertion/visual fixture。
+- 输入法隔离回归 `/private/tmp/FlotisTypographyInputBuildFinal-20260820` build 成功；`/private/tmp/FlotisTypographyInputTestsFinal-20260820` 为 8 tests、0 failures。输入法最终 Resources 没有 `JetBrainsMono*`，Info.plist 也没有 `ATSApplicationFontsPath`，证明字体依赖没有越过 target 边界。
+- 唯一 bundle ID `com.Vita0818.FlotisTypographyPreview20260820` 的 ad-hoc Debug 预览位于 `/private/tmp/FlotisTypographyPreview-20260820/Build/Products/Debug/Flotis.app`，严格签名、最终 Info.plist、字体 hash 与 build/source 逐字节比较均通过。Computer Use 在当前 Light appearance 捕获 `/private/tmp/Flotis-JetBrainsMono-Capsule-20260820.jpeg`（精确 `96×36`）、`/private/tmp/Flotis-JetBrainsMono-Shortcuts-20260820.jpeg` 与 `/private/tmp/Flotis-JetBrainsMono-Transcription-20260820.jpeg`；胶囊单行居中、快捷键四行、Provider/Models 双栏均无裁切、重叠或溢出。预览随后通过标准 Quit 退出；未安装或覆盖 `/Applications/Flotis.app`，Dark/Reduce Transparency/Increase Contrast、中文整页与未来 LaTeX renderer 仍需后续运行态验证。
 
 2026-08-16 V0.13 版本与安装验证：
 
@@ -470,10 +490,13 @@ git status --short
 
 ### `LocalizationTests`
 
-4 tests：
+7 tests：
 
 - `zh-Hans`、`zh-CN`、`zh-SG`、`zh-MY` 作为第一首选语言时选择简中。
 - 繁体中文、英文、日文、法文、粤语、空数组和非法标识回退英文。
+- 主 App bundle 必须存在并激活官方 JetBrains Mono resource，regular/medium 等 face 的 family 必须为 `JetBrains Mono`，官方 OFL 文件必须随包复制。
+- 测试 bundle 不携带字体资源时 `FlotisType.validateBundledFont` 必须返回 `.missingResource`，证明依赖不可用时 fail closed。
+- Core Text 对拉丁 run 必须选择 JetBrains Mono，对中文 run 必须选择 `PingFang` family。
 
 ### `TranscriptionComparisonTests`
 
@@ -504,13 +527,15 @@ git status --short
 每次修改 `FlotisDesign.swift`、`FloatingPanelView.swift`、`FloatingPanelController.swift`、`VoiceSettingsView.swift` 或 `IntatisStyleSpeechProviderSettingsView.swift` 后，至少手动检查：
 
 - Light / Dark appearance，以及 Reduce Transparency / Increase Contrast 开关前后。
+- 英文、简中与中英混排分别检查标题、正文、表单、button、picker、候选卡、快捷键与原生审阅编辑器：所有英文/拉丁 glyph 应为 JetBrains Mono，中文 glyph 应保持苹方；中英位于同一字符串时不能把其中英文整段退回苹方。系统窗口标题、系统菜单、权限弹窗/critical dependency alert 等 OS-owned chrome 不作为 App 自有字体 surface。
+- 当前没有 LaTeX renderer 可目视；如果后续加入公式 fixture，必须在同一界面同时检查普通英文已经是 JetBrains Mono、公式仍是 renderer 原字体，且公式 view 不继承 `FlotisType`。
 - idle、requesting permission、connecting、recording/streaming、stopping/transcribing、reviewing、failed，以及保留但当前不可达的 injecting。compact 状态按最新最小化要求只用语义圆点作可见差异，完整状态/错误必须仍出现在 accessibility value；reviewing 内候选成功/失败不能只靠颜色表达。
 - 单结果 reviewing 中的长 CJK/Latin、多行、滚动、选区、caret、右键 Copy、`⌘C`、复制全部、空文本禁用、取消与复制并返回；对比 reviewing 还要检查 2–4 个候选的固定双列布局（四项为 2×2、无横向滚动）、成功/失败的非颜色表达、Display name 存在时只显示该名称、Display name 为空时显示主 Model ID + 次 Provider、endpoint 不可见、长名称/model/provider 截断、首个成功项自动打开、用户配置的 previous/next（默认 `⌥←` / `⌥→`）跳过失败项并循环，以及候选切换后的编辑内容保持。点击文本时 panel 可成为 key，但当前确认不应激活或切换任何目标 app。
 - compact `96×36`、单结果审阅 `420×160`、对比审阅 `560×300` 三档静态 panel 尺寸、首次屏幕底边位置、从 compact 任意位置开始的原生拖动、resize 后中心/底边保持、小屏/多屏可见区、显示器拔插/排列变化与跨 Space；切换桌面的整个系统动画期间胶囊都必须保持同一相对屏幕位置，不能先落在旧/错误位置再在动画结束瞬移。所有非审阅状态与 status/error 必须保持同一 compact frame，不能因隐藏文案产生尺寸跳变。连续快速状态切换不能回放旧尺寸或跳到另一屏幕。特别检查靠边小胶囊展开时允许大框临时内移，取消后必须回到展开前位置；若用户主动拖动大框，缩回则采用新位置。
-- Settings 只能通过 compact 胶囊双击打开可复用独立窗口，单击不得打开，reviewing 双击必须保留文本选词；不能附着成胶囊 sheet，重复双击只前置同一窗口，关闭不能误关胶囊。实际内容初始尺寸应为 `1100×760`、最小 `820×600`；缩放、切页、展开 Models/Connection/高级项和滚动时，侧栏与页头必须保持在标题栏下方，1100 pt 宽时主卡必须保持双栏。侧栏左上只显示 `Flotis` 与版本、不得出现应用图标，导航应为“快捷键 / 转写”。快捷键页只能有一张紧凑卡和四个 `52` pt 行；voice、panel、previous、next 四项都使用 `156×38` / 15 pt Monospaced 的轻量 surface，整块可点，录制态保持同尺寸、获得键盘焦点并可用 Esc 取消。常态不得显示流程、拖动、对比条件、hover help、铅笔或恢复控件；真实错误文本不得被裁切。Connection、Models、Comparison、Advanced 标题应整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换；点击文案或空白区域也必须生效。
+- Settings 只能通过 compact 胶囊双击打开可复用独立窗口，单击不得打开，reviewing 双击必须保留文本选词；不能附着成胶囊 sheet，重复双击只前置同一窗口，关闭不能误关胶囊。实际内容初始尺寸应为 `1100×760`、最小 `820×600`；缩放、切页、展开 Models/Connection/高级项和滚动时，侧栏与页头必须保持在标题栏下方，1100 pt 宽时主卡必须保持双栏。侧栏左上只显示 `Flotis` 与版本、不得出现应用图标，导航应为“快捷键 / 转写”。快捷键页只能有一张紧凑卡和四个 `52` pt 行；voice、panel、previous、next 四项都使用 `156×38` / 15 pt JetBrains Mono 的轻量 surface，整块可点，录制态保持同尺寸、获得键盘焦点并可用 Esc 取消。常态不得显示流程、拖动、对比条件、hover help、铅笔或恢复控件；真实错误文本不得被裁切。Connection、Models、Comparison、Advanced 标题应整行至少 44 pt 可点，Provider 行至少 48 pt，对比 route 整卡可切换；点击文案或空白区域也必须生效。
 - 转写页的主卡应与 Intatis 信息层级一致：左侧 Providers 标题/Add、Provider 列表与模型数；右侧 Provider name、共享 API key、Active model、Connection 和 Models disclosure。Models 展开后每个模型有独立 Model ID、可选 Display name 和删除动作，并可 Add model；Test Provider/Save 在卡片下方。音频格式、采样率、声道、response mode 和其他 adapter 选择不出现。
 - Flotis 特有的 2–4 route Comparison 与费用提醒放在主卡下方的独立 disclosure；Language/Prompt/Temperature 继续位于高级区。检查 OpenAI Compatible 空态、多 provider 新增/切换/未保存草稿门控、同 Provider 多模型、隐藏 adapter 保留、OpenRouter 自动 JSON+Base64、custom endpoint warning/confirmation、Clear API Key、Test Provider、对比不足 2 项/超过 4 项/失效项 reconcile、disabled/error/success、Esc 与 `⌘W`。
-- compact 外壳必须为 `96×36`、18 pt 圆角的透明系统 glass/material；SwiftUI 内容层不得出现固定白色/不透明填充或自定义整圈描边，快捷键文字必须随 Light/Dark appearance 使用动态主文字色。内容只能是 6 pt 状态圆点和 15 pt Semibold Monospaced 的当前 voice 快捷键，二者垂直居中、间距 7 pt。修改 voice 后文字必须即时更新，不得继续显示旧组合。不得出现品牌名、旧双白圆资源、SF Symbol、齿轮、计时、状态/错误文字、双击提示、说明或额外 action；录音/流式红点、处理中/失败橙点、idle 绿点应清楚但不抢过快捷键。
+- compact 外壳必须为 `96×36`、18 pt 圆角的透明系统 glass/material；SwiftUI 内容层不得出现固定白色/不透明填充或自定义整圈描边，快捷键文字必须随 Light/Dark appearance 使用动态主文字色。内容只能是 6 pt 状态圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，二者垂直居中、间距 7 pt。修改 voice 后文字必须即时更新，不得继续显示旧组合。不得出现品牌名、旧双白圆资源、SF Symbol、齿轮、计时、状态/错误文字、双击提示、说明或额外 action；录音/流式红点、处理中/失败橙点、idle 绿点应清楚但不抢过快捷键。
 - macOS 26+ 原生 `NSGlassEffectView(style: .regular)` panel 容器、窗口阴影与 macOS 13–25 Material fallback 仍需真机核对。至少把胶囊跨明暗背景移动并分别切换 Light/Dark，确认表面会采样背景、系统边缘高光仍存在且文字保持可读；Reduce Transparency/Increase Contrast 打开后应遵循系统 fallback，而不是退化成代码写死的白底。此前参考图 QA 只证明 `96×36` 几何、内容层级与双击入口，不再作为固定浅色 token 的当前依据。
 
 ## 真机手动验证矩阵
@@ -536,8 +561,8 @@ git status --short
 | AX 未授权 | 拒绝/撤销 Accessibility 后完成三段式语音 | 第三次仍可复制并返回小胶囊，不显示 AX 提示、不发送 `CGEvent`；Settings 不展示 AX 卡 |
 | 麦克风拒绝 | 拒绝 microphone | 会话进入明确 failed，可取消/重试，不遗留 audio engine |
 | Speech 拒绝/设备不支持 | 空 catalog 时启动内部 Apple 设备端 fallback | 明确报告设备端识别不可用，不退回云端；`config.json` 不出现 Apple Provider |
-| 简中系统语言 | 将第一首选语言设为简体中文并重启 App | 胶囊、Settings、App 自定义错误与权限说明均为简中；中文标题使用系统默认字体 |
-| 英文/其他系统语言 | 将第一首选语言设为英文、繁中或其他语言并重启 App | App 自定义界面统一为英文；英文品牌和标题使用 Serif |
+| 简中系统语言 | 将第一首选语言设为简体中文并重启 App | 胶囊、Settings、App 自定义错误与权限说明均为简中；中文 glyph 使用苹方，字符串中的英文/拉丁部分仍使用 JetBrains Mono |
+| 英文/其他系统语言 | 将第一首选语言设为英文、繁中或其他语言并重启 App | App 自定义界面统一为英文；全部英文/拉丁 glyph 使用 JetBrains Mono，不再出现 Serif 或系统正文英文字体 |
 | 多语言顺序 | 第一语言设为日文，后续保留简中并重启 | App 使用英文，不扫描后续简中改写界面语言 |
 
 ### 热键与面板

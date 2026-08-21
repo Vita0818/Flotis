@@ -107,6 +107,7 @@ struct SettingsView: View {
             )
         }
         .frame(minWidth: 820, minHeight: 600)
+        .font(FlotisType.body())
         .onExitCommand {
             closeSettings()
         }
@@ -512,7 +513,7 @@ struct CommandsSettingsView: View {
                                 Text(command.title.isEmpty ? UIStrings.untitledCommand : command.title)
                                     .lineLimit(1)
                                 Text(command.shortcut?.displayString ?? UIStrings.noShortcut)
-                                    .font(.caption)
+                                    .font(FlotisType.caption())
                                     .foregroundColor(.secondary)
                             }
 
@@ -582,11 +583,11 @@ struct CommandsSettingsView: View {
 
                 if let validationMessage {
                     Text(validationMessage)
-                        .font(.caption)
+                        .font(FlotisType.caption())
                         .foregroundColor(.red)
                 } else if let lastError = commandStore.lastError {
                     Text(lastError)
-                        .font(.caption)
+                        .font(FlotisType.caption())
                         .foregroundColor(.red)
                 }
 
@@ -665,16 +666,16 @@ struct CommandEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(UIStrings.commands)
-                .font(.headline)
+                .font(FlotisType.headline())
 
             TextField(UIStrings.title, text: $command.title)
 
             Text(UIStrings.content)
-                .font(.caption)
+                .font(FlotisType.caption())
                 .foregroundColor(.secondary)
 
             TextEditor(text: $command.content)
-                .font(.system(size: 12))
+                .font(FlotisType.body(12))
                 .frame(minHeight: 130)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
@@ -687,7 +688,7 @@ struct CommandEditorView: View {
                 Text("\(UIStrings.shortcut):")
                     .foregroundColor(.secondary)
                 Text(command.shortcut?.displayString ?? UIStrings.none)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(FlotisType.mono(13, .medium))
                 Spacer()
                 Button(recordingCommandID == command.id ? UIStrings.recordingShortcut : UIStrings.recordShortcut) {
                     validationMessage = nil
@@ -1952,7 +1953,7 @@ final class ShortcutRecorderCaptureView: NSView {
         dirtyRect.fill()
         let text = UIStrings.shortcutCaptureHint
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 14, weight: .medium),
+            .font: FlotisType.appKit(14, .medium),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
         let size = text.size(withAttributes: attributes)

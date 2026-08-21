@@ -44,83 +44,167 @@ private struct FlotisLegacyWindowBackground: NSViewRepresentable {
 // MARK: - Typography
 
 enum FlotisType {
+    static let familyName = "JetBrains Mono"
+    static let regularPostScriptName = "JetBrainsMono-Regular"
+
+    private static let bundledResourceName = "JetBrainsMono"
+    private static let bundledResourceExtension = "ttf"
+    private static let requiredPostScriptNames = [
+        "JetBrainsMono-Thin",
+        "JetBrainsMono-ExtraLight",
+        "JetBrainsMono-Light",
+        regularPostScriptName,
+        "JetBrainsMono-Medium",
+        "JetBrainsMono-SemiBold",
+        "JetBrainsMono-Bold",
+        "JetBrainsMono-ExtraBold"
+    ]
+
     static func brand(
         _ size: CGFloat = 30,
         _ weight: Font.Weight = .semibold
     ) -> Font {
-        .system(size: size, weight: weight, design: .serif)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func largeTitle(
-        for text: String,
+        for _: String,
         _ size: CGFloat = 30,
         _ weight: Font.Weight = .semibold
     ) -> Font {
-        displayFont(for: text, size: size, weight: weight)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func title(
-        for text: String,
+        for _: String,
         _ size: CGFloat = 20,
         _ weight: Font.Weight = .semibold
     ) -> Font {
-        displayFont(for: text, size: size, weight: weight)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func headline(
         _ size: CGFloat = 16,
         _ weight: Font.Weight = .semibold
     ) -> Font {
-        .system(size: size, weight: weight)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func body(
         _ size: CGFloat = 14,
         _ weight: Font.Weight = .regular
     ) -> Font {
-        .system(size: size, weight: weight)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func caption(
         _ size: CGFloat = 12,
         _ weight: Font.Weight = .medium
     ) -> Font {
-        .system(size: size, weight: weight)
+        interfaceFont(size: size, weight: weight)
     }
 
     static func mono(
         _ size: CGFloat = 13,
         _ weight: Font.Weight = .regular
     ) -> Font {
-        .system(size: size, weight: weight, design: .monospaced)
+        interfaceFont(size: size, weight: weight)
     }
 
-    private static func displayFont(
-        for text: String,
+    static func appKit(
+        _ size: CGFloat = 14,
+        _ weight: NSFont.Weight = .regular
+    ) -> NSFont {
+        let postScriptName = postScriptName(for: weight)
+        guard let font = NSFont(name: postScriptName, size: size),
+              font.familyName == familyName else {
+            preconditionFailure("Bundled JetBrains Mono font is unavailable: \(postScriptName)")
+        }
+        return font
+    }
+
+    static func validateBundledFont(in bundle: Bundle = .main) throws {
+        guard bundle.url(
+            forResource: bundledResourceName,
+            withExtension: bundledResourceExtension
+        ) != nil else {
+            throw FlotisFontDependencyError.missingResource
+        }
+
+        for postScriptName in requiredPostScriptNames {
+            guard let font = NSFont(name: postScriptName, size: 14),
+                  font.familyName == familyName else {
+                throw FlotisFontDependencyError.unavailableFace(postScriptName)
+            }
+        }
+    }
+
+    private static func interfaceFont(
         size: CGFloat,
         weight: Font.Weight
     ) -> Font {
-        .system(
-            size: size,
-            weight: weight,
-            design: containsChineseText(text) ? .default : .serif
-        )
+        .custom(postScriptName(for: weight), fixedSize: size)
     }
 
-    private static func containsChineseText(_ text: String) -> Bool {
-        text.unicodeScalars.contains { scalar in
-            switch scalar.value {
-            case 0x2E80...0x2FDF,
-                 0x3000...0x303F,
-                 0x31C0...0x31EF,
-                 0x3400...0x4DBF,
-                 0x4E00...0x9FFF,
-                 0xF900...0xFAFF,
-                 0x20000...0x2FA1F:
-                return true
-            default:
-                return false
-            }
+    private static func postScriptName(for weight: Font.Weight) -> String {
+        switch weight {
+        case .thin:
+            return "JetBrainsMono-Thin"
+        case .ultraLight:
+            return "JetBrainsMono-ExtraLight"
+        case .light:
+            return "JetBrainsMono-Light"
+        case .medium:
+            return "JetBrainsMono-Medium"
+        case .semibold:
+            return "JetBrainsMono-SemiBold"
+        case .bold:
+            return "JetBrainsMono-Bold"
+        case .heavy, .black:
+            return "JetBrainsMono-ExtraBold"
+        default:
+            return regularPostScriptName
+        }
+    }
+
+    private static func postScriptName(for weight: NSFont.Weight) -> String {
+        switch weight.rawValue {
+        case ...NSFont.Weight.thin.rawValue:
+            return "JetBrainsMono-Thin"
+        case ...NSFont.Weight.ultraLight.rawValue:
+            return "JetBrainsMono-ExtraLight"
+        case ...NSFont.Weight.light.rawValue:
+            return "JetBrainsMono-Light"
+        case ..<NSFont.Weight.medium.rawValue:
+            return regularPostScriptName
+        case ..<NSFont.Weight.semibold.rawValue:
+            return "JetBrainsMono-Medium"
+        case ..<NSFont.Weight.bold.rawValue:
+            return "JetBrainsMono-SemiBold"
+        case ..<NSFont.Weight.heavy.rawValue:
+            return "JetBrainsMono-Bold"
+        default:
+            return "JetBrainsMono-ExtraBold"
+        }
+    }
+}
+
+enum FlotisFontDependencyError: LocalizedError, Equatable {
+    case missingResource
+    case unavailableFace(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingResource:
+            return UIStrings.localized(
+                english: "The bundled JetBrains Mono font resource is missing.",
+                simplifiedChinese: "应用内置的 JetBrains Mono 字体资源缺失。"
+            )
+        case .unavailableFace(let postScriptName):
+            return UIStrings.localized(
+                english: "macOS could not activate the bundled font face \(postScriptName).",
+                simplifiedChinese: "macOS 无法激活应用内置字体 \(postScriptName)。"
+            )
         }
     }
 }

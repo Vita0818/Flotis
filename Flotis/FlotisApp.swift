@@ -29,6 +29,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyStateCancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard validateTypographyDependency() else { return }
+
         comparisonStore.reconcileAvailableModelSelectors(
             providerStore.availableModelSelectors
         )
@@ -106,6 +108,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 HotkeyManager.shared.setComparisonNavigationEnabled(enabled)
             }
             .store(in: &hotkeyStateCancellables)
+    }
+
+    private func validateTypographyDependency() -> Bool {
+        do {
+            try FlotisType.validateBundledFont()
+            return true
+        } catch {
+            let alert = NSAlert()
+            alert.alertStyle = .critical
+            alert.messageText = UIStrings.localized(
+                english: "Flotis cannot start",
+                simplifiedChinese: "Flotis 无法启动"
+            )
+            alert.informativeText = error.localizedDescription
+            alert.addButton(withTitle: UIStrings.localized(
+                english: "Quit",
+                simplifiedChinese: "退出"
+            ))
+            alert.runModal()
+            NSApplication.shared.terminate(nil)
+            return false
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {

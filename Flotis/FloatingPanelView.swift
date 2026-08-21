@@ -40,6 +40,7 @@ struct FloatingPanelView: View {
         .onExitCommand {
             voiceController.cancel()
         }
+        .font(FlotisType.body())
     }
 
     private var compactCapsule: some View {
@@ -50,7 +51,7 @@ struct FloatingPanelView: View {
                 .accessibilityHidden(true)
 
             Text(hotkeyStore.configuration.toggleVoice.displayString)
-                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                .font(FlotisType.mono(15, .semibold))
                 .foregroundStyle(FlotisTheme.primary(colorScheme))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -318,7 +319,7 @@ private struct ReviewTextEditor: NSViewRepresentable {
         let textView = ReviewNativeTextView()
         textView.delegate = context.coordinator
         textView.string = text
-        textView.font = .systemFont(ofSize: 14)
+        textView.font = FlotisType.appKit(14)
         textView.textColor = .labelColor
         textView.drawsBackground = false
         textView.isEditable = true

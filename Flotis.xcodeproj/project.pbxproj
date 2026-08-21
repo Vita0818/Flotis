@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		031318A4ACAF1F9D78816887 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B00ACC85DA2A64512248CF5 /* AppState.swift */; };
+		06003C852429206A55AE8768 /* JetBrainsMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 54DB8E7A33620052B9DCBC43 /* JetBrainsMono.ttf */; };
 		0C24C753991C9A7B47FEA501 /* InputMethodKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA3E6C64D54FA61AC2F97B83 /* InputMethodKit.framework */; };
 		0E680CE5438419452E6C8ED6 /* DashScopeParaformerRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */; };
 		11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */; };
@@ -51,9 +52,11 @@
 		BF3F565C553D03F68EA39B3F /* FlotisInputMethodService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51CB3145A6EF642E018D3B60 /* FlotisInputMethodService.swift */; };
 		C53EF9FF56A7D0ACF1C5B77F /* OpenAICompatibleTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */; };
 		C6695403E095E7021BD562BC /* VoiceInputMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */; };
+		C8B634E574DC6D46AABA5EEA /* JetBrainsMono-OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4477D7CDB5337BD5EE992DBF /* JetBrainsMono-OFL.txt */; };
 		CAE8A34BD7852F009E363ADB /* PromptCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = A472152491645DCEBDA1AB09 /* PromptCommand.swift */; };
 		D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */; };
 		E09AE47BE888EC3DEA9BF971 /* FlotisInputMethodIcon.tiff in Resources */ = {isa = PBXBuildFile; fileRef = F73CFB41A76D6A273B78ACBC /* FlotisInputMethodIcon.tiff */; };
+		E52CB0BC77AD4FE3C09B78F7 /* JetBrainsMono-AUTHORS.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4F1BC7E3E9AA5BD512D1C9F3 /* JetBrainsMono-AUTHORS.txt */; };
 		EA7B3223509177B2DE9641D2 /* FloatingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */; };
 		EFFFA1FB81B70667EF71D286 /* FlotisConfigurationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8B06A7FFC0B8C2B6BD30E8 /* FlotisConfigurationStore.swift */; };
 		F6B325EA487963662FFDB53C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 90D659983E211310E6A92B75 /* Assets.xcassets */; };
@@ -79,13 +82,16 @@
 		2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
 		33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyConfiguration.swift; sourceTree = "<group>"; };
 		4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRuntimeTests.swift; sourceTree = "<group>"; };
+		4477D7CDB5337BD5EE992DBF /* JetBrainsMono-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "JetBrainsMono-OFL.txt"; sourceTree = "<group>"; };
 		45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRegistry.swift; sourceTree = "<group>"; };
 		47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		499CF9F16A907FAE75F19E1C /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
 		4B00ACC85DA2A64512248CF5 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		4DCDEC0F0155FE9DADC0E3E3 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		4F1BC7E3E9AA5BD512D1C9F3 /* JetBrainsMono-AUTHORS.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "JetBrainsMono-AUTHORS.txt"; sourceTree = "<group>"; };
 		4F8B06A7FFC0B8C2B6BD30E8 /* FlotisConfigurationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisConfigurationStore.swift; sourceTree = "<group>"; };
 		51CB3145A6EF642E018D3B60 /* FlotisInputMethodService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisInputMethodService.swift; sourceTree = "<group>"; };
+		54DB8E7A33620052B9DCBC43 /* JetBrainsMono.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = JetBrainsMono.ttf; sourceTree = "<group>"; };
 		57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashScopeParaformerRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisDesign.swift; sourceTree = "<group>"; };
 		5DC2C707A76B11BD3BB34777 /* Flotis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flotis.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -188,6 +194,7 @@
 				CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */,
 				8BCA4B00B2CF3C1D2B4381D3 /* VoiceSettingsView.swift */,
 				BBCAE70953AE9EB6C6B13C6F /* VolcengineBigASRRealtimeTranscriber.swift */,
+				B23EEC907E158706C1437A88 /* Resources */,
 			);
 			path = Flotis;
 			sourceTree = "<group>";
@@ -230,6 +237,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B23EEC907E158706C1437A88 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F9B900DF547EDAA7AC65972E /* Fonts */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		CD52BDC048792C065B9FF4C0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -244,6 +259,16 @@
 				CCEFFE09537D5AD7B0E5C09C /* FlotisInputMethodServiceTests.swift */,
 			);
 			path = FlotisInputMethodTests;
+			sourceTree = "<group>";
+		};
+		F9B900DF547EDAA7AC65972E /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				4F1BC7E3E9AA5BD512D1C9F3 /* JetBrainsMono-AUTHORS.txt */,
+				4477D7CDB5337BD5EE992DBF /* JetBrainsMono-OFL.txt */,
+				54DB8E7A33620052B9DCBC43 /* JetBrainsMono.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -372,6 +397,9 @@
 				F6B325EA487963662FFDB53C /* Assets.xcassets in Resources */,
 				AC1D8DE2A2679D9BB527F0A3 /* Flotis.icon in Resources */,
 				1D9276E6D2B5559B63A0D687 /* InfoPlist.xcstrings in Resources */,
+				E52CB0BC77AD4FE3C09B78F7 /* JetBrainsMono-AUTHORS.txt in Resources */,
+				C8B634E574DC6D46AABA5EEA /* JetBrainsMono-OFL.txt in Resources */,
+				06003C852429206A55AE8768 /* JetBrainsMono.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
