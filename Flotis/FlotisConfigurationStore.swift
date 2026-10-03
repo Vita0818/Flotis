@@ -61,6 +61,7 @@ struct FlotisConfigurationDocument: Codable, Equatable {
     var comparison: FlotisComparisonConfiguration
     var provider: [String: FlotisProviderConfiguration]
     var shortcuts: FlotisHotkeyConfiguration?
+    var quickAsk: QuickAskCatalogConfiguration?
 
     init(
         schema: String = Self.schemaIdentifier,
@@ -70,7 +71,8 @@ struct FlotisConfigurationDocument: Codable, Equatable {
         enabledProviders: [String],
         comparison: FlotisComparisonConfiguration,
         provider: [String: FlotisProviderConfiguration],
-        shortcuts: FlotisHotkeyConfiguration? = FlotisHotkeyConfiguration.defaults
+        shortcuts: FlotisHotkeyConfiguration? = FlotisHotkeyConfiguration.defaults,
+        quickAsk: QuickAskCatalogConfiguration? = QuickAskCatalogConfiguration.unconfigured
     ) {
         self.schema = schema
         self.schemaVersion = schemaVersion
@@ -80,6 +82,7 @@ struct FlotisConfigurationDocument: Codable, Equatable {
         self.comparison = comparison
         self.provider = provider
         self.shortcuts = shortcuts
+        self.quickAsk = quickAsk
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -91,6 +94,7 @@ struct FlotisConfigurationDocument: Codable, Equatable {
         case comparison
         case provider
         case shortcuts
+        case quickAsk = "quick_ask"
     }
 
     static func fresh() -> FlotisConfigurationDocument {
@@ -229,6 +233,12 @@ struct FlotisConfigurationDocument: Codable, Equatable {
         shortcuts = configuration
     }
 
+    mutating func replaceQuickAsk(_ configuration: QuickAskCatalogConfiguration) {
+        schema = Self.schemaIdentifier
+        schemaVersion = Self.currentSchemaVersion
+        quickAsk = configuration
+    }
+
     var comparisonPreferences: TranscriptionComparisonPreferences {
         Self.normalizedComparisonPreferences(
             TranscriptionComparisonPreferences(
@@ -307,7 +317,8 @@ struct FlotisConfigurationDocument: Codable, Equatable {
               providerOrder.allSatisfy(FlotisModelSelector.isValidProviderID),
               comparison.models.count <= TranscriptionComparisonStore.maximumConnectionCount,
               Set(comparison.models).count == comparison.models.count,
-              shortcuts?.isValid != false else {
+              shortcuts?.isValid != false,
+              quickAsk?.isStructurallyValid != false else {
             return false
         }
 

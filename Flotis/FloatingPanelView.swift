@@ -1,6 +1,23 @@
 import AppKit
 import SwiftUI
 
+enum CompactCapsuleShortcutPresentation {
+    static let separator = "/"
+    static let indicatorSpacing: CGFloat = 5
+    static let fontSize: CGFloat = 14
+
+    static func displayString(for configuration: FlotisHotkeyConfiguration) -> String {
+        configuration.toggleVoice.displayString
+            + separator
+            + configuration.toggleQuickAsk.displayString
+    }
+
+    static func accessibilityLabel(for configuration: FlotisHotkeyConfiguration) -> String {
+        "\(UIStrings.voiceInput): \(configuration.toggleVoice.displayString), "
+            + "\(UIStrings.quickAsk): \(configuration.toggleQuickAsk.displayString)"
+    }
+}
+
 struct FloatingPanelView: View {
     @ObservedObject var appState: AppState
     @ObservedObject var hotkeyStore: HotkeyConfigurationStore
@@ -44,21 +61,36 @@ struct FloatingPanelView: View {
     }
 
     private var compactCapsule: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: CompactCapsuleShortcutPresentation.indicatorSpacing) {
             Circle()
                 .fill(capsuleIndicatorColor)
                 .frame(width: 6, height: 6)
                 .accessibilityHidden(true)
 
-            Text(hotkeyStore.configuration.toggleVoice.displayString)
-                .font(FlotisType.mono(15, .semibold))
+            Text(
+                CompactCapsuleShortcutPresentation.displayString(
+                    for: hotkeyStore.configuration
+                )
+            )
+                .font(
+                    FlotisType.mono(
+                        CompactCapsuleShortcutPresentation.fontSize,
+                        .semibold
+                    )
+                )
                 .foregroundStyle(FlotisTheme.primary(colorScheme))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+                .allowsTightening(true)
+                .layoutPriority(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(hotkeyStore.configuration.toggleVoice.displayString)
+        .accessibilityLabel(
+            CompactCapsuleShortcutPresentation.accessibilityLabel(
+                for: hotkeyStore.configuration
+            )
+        )
         .accessibilityValue(capsuleAccessibilityStatus)
         .accessibilityAction(named: Text(UIStrings.settings)) {
             onOpenSettings()

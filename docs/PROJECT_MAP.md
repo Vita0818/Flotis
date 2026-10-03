@@ -1,6 +1,6 @@
 # PROJECT_MAP
 
-最近自查日期：2026-08-20
+最近自查日期：2026-08-21
 
 本文描述当前仓库结构。事实来源为 `project.yml`、生成后的 `Flotis.xcodeproj/project.pbxproj`、`run.sh`、当前源码和测试。
 
@@ -9,8 +9,8 @@
 ```text
 Flotis/
 ├── Flotis.icon/        主 App 的 Icon Composer 源（icon.json + 图层资源）
-├── Flotis/             31 个 app Swift 源文件 + Assets.xcassets + JetBrains Mono 字体/OFL 资源 + XcodeGen Info.plist + InfoPlist String Catalog
-├── FlotisTests/        6 个 XCTest 源文件
+├── Flotis/             37 个 app Swift 源文件 + Assets.xcassets + JetBrains Mono 字体/OFL 资源 + XcodeGen Info.plist + InfoPlist String Catalog
+├── FlotisTests/        8 个 XCTest 源文件
 ├── FlotisInputMethod/  4 个 InputMethodKit Swift 源文件 + XcodeGen Info.plist + SVG/TIFF 输入源图标
 ├── FlotisInputMethodTests/ 1 个隔离 XCTest 源文件
 ├── Flotis.xcodeproj/   xcodegen 生成工程
@@ -24,7 +24,7 @@ Flotis/
 
 | Target | 类型 | 平台 | 入口 / 依赖 | 职责 |
 |---|---|---|---|---|
-| `Flotis` | application | macOS 13+ | `Flotis/FlotisApp.swift` | `LSUIElement=YES`、禁止多实例的 V0.13 悬浮语音输入胶囊 |
+| `Flotis` | application | macOS 13+ | `Flotis/FlotisApp.swift` | `LSUIElement=YES`、禁止多实例的 V0.13 悬浮语音输入胶囊与同进程临时 Quick Ask 面板 |
 | `FlotisTests` | unit-test bundle | macOS 13+ | depends on `Flotis` | 快捷键/复制返回/旧注入策略、转写组装、provider 配置与迁移、多连接对比策略测试 |
 | `FlotisInputMethod` | application / InputMethodKit bundle | macOS 13+ | `FlotisInputMethod/main.swift` | `LSBackgroundOnly=YES` 的独立输入源声明、客户端会话与直接文字提交接口；当前不含语音/provider 链路 |
 | `FlotisInputMethodTests` | unit-test bundle | macOS 13+ | 直接编译 protocol/service 源码，不启动输入法 host | 协议版本、payload 上限、会话失效、弱 endpoint 与提交结果策略 |
@@ -38,11 +38,11 @@ Flotis/
 
 ## App 源文件
 
-`Flotis/` 当前 31 个 Swift 文件：
+`Flotis/` 当前 37 个 Swift 文件：
 
 | 文件 | 主类型 / 职责 |
 |---|---|
-| `FlotisApp.swift` | `FlotisApp` / `AppDelegate`；装配 provider/comparison/hotkey store、voice controller、capsule panel 与可复用独立 `FlotisSettingsWindowController`；把快捷键配置变化实时转给 Carbon manager，启动时清理对比偏好中已不存在的 model selector；退出时取消语音会话；保留旧 `.injecting` 终止保护 |
+| `FlotisApp.swift` | `FlotisApp` / `AppDelegate`；装配 provider/comparison/hotkey/Quick Ask store、voice/Quick Ask session、单颗 capsule、临时 chat panel 与可复用 `FlotisSettingsWindowController`；把快捷键配置变化实时转给 Carbon manager，退出时取消语音和问答请求；保留旧 `.injecting` 终止保护 |
 | `AppState.swift` | 中央 `ObservableObject` UI/语音状态；持有录音开始时间、对比候选、当前选中 ID 与每个候选的独立审阅编辑文本；安装候选时自动打开首个成功项，并提供跳过失败项的循环导航 |
 | `VoiceInputMode.swift` | `VoiceInputMode`、含 reviewing 的 `VoiceInputState` 与纯 `VoiceHotkeyAction` 映射 |
 | `VoiceInputController.swift` | `@MainActor` session-generation 状态机；默认执行单个三类 runtime plan；对比模式会在开始时快照 2–4 个 recorded-file runtime，用一个 recorder 生成共享文件并并发转写。最终结果先审阅，第三次动作把当前正在查看且原样编辑的文本写入系统剪贴板；暴露前后候选导航，不捕获目标 app、不调用注入器 |
@@ -59,22 +59,28 @@ Flotis/
 | `StreamingAudioCapture.swift` | 16/24 kHz、单声道 PCM16 捕获、深拷贝与串行转换 |
 | `TranscriptionProviderConfig.swift` | 运行时 model route/connection 模型、adapter schema、multipart/JSON+Base64 request encoding、独立 preset catalog、legacy v1/v2/v3 snapshot decode bridge |
 | `FlotisConfigurationStore.swift` | `config.json` schema v2 与 Intatis 式 `provider → shared options + models` 映射；只在 selector 第一个 `/` 分割；canonical v1 自动升级；进程/跨进程锁、目录 fd + `openat/O_NOFOLLOW`、私有权限、限大小校验与同目录原子替换 |
-| `HotkeyConfiguration.swift` | voice、panel 显隐、上一个/下一个对比结果四项可配置 descriptor、默认值、冲突/修饰键校验，以及 canonical `shortcuts` 分区的加载与 read-modify-write 持久化；旧配置缺少 voice 字段时回退到默认 `⌃⌥A` |
+| `HotkeyConfiguration.swift` | voice、Quick Ask、panel 显隐、上一个/下一个对比结果五项可配置 descriptor、默认值、冲突/修饰键校验，以及 canonical `shortcuts` 分区的加载与 read-modify-write 持久化；缺失 Quick Ask 字段时回退默认 `⌃⌥Q` |
 | `TranscriptionProviderStore.swift` | canonical provider-group/model-route/key CRUD、共享 endpoint/凭据、稳定 route UUID 派生、统一文档事务与内存回滚、旧 v1/v2/v3/LKG/comparison/secret 一次性只读迁移；Apple 只作空 catalog 内部 fallback，不进入配置 |
 | `LocalSecretStore.swift` | 仅为旧 `secrets.json` 一次性迁移读取保留的兼容 store；不再是生产运行时配置/凭据真源 |
 | `ClipboardPasteInjector.swift` | 保留但当前产品路径不可达的旧兼容实现：有界注入队列、目标 PID/AX/自身 key window/完整语音快捷键释放核验、PID 定向 `⌘V`、类型化失败结果与剪贴板安全恢复 |
-| `HotkeyManager.swift` | Carbon 全局热键独占增量注册、press/release 门控、错误状态与重试；voice/panel 均使用用户配置 descriptor，仅在多结果 reviewing 中临时注册用户配置的前后导航 descriptor 并在离开时注销；设置变化即时替换旧注册 |
-| `PromptCommand.swift` | 旧命令与快捷键数据模型；V0.13 仍为兼容源码，并为四项可配置快捷键提供默认 descriptor 与显示类型 |
+| `HotkeyManager.swift` | Carbon 全局热键独占增量注册、press/release 门控、错误状态与重试；常驻注册 panel `100`、voice `200`、Quick Ask `500`，仅在多结果 reviewing 中临时注册 previous `300` / next `400`；设置变化即时替换旧注册 |
+| `PromptCommand.swift` | 旧命令与快捷键数据模型；V0.13 仍为兼容源码，并为五项可配置快捷键提供默认 descriptor 与显示类型 |
 | `CommandStore.swift` | 旧命令 JSON CRUD 与安全策略；V0.13 主入口不实例化、不展示、不注册命令热键 |
 | `FlotisDesign.swift` | 胶囊与 Settings 共用的 Presentation / Design System：动态系统色、canvas、Material/Liquid Glass fallback、JetBrains Mono weight 映射、AppKit 字体入口、资源激活校验与共享设置组件 |
 | `FloatingPanelController.swift` | 首次位于屏幕底边中央的 borderless/nonactivating floating `NSPanel`；鼠标事件之外保持 `isMovable=false`，阻止 Window Server 在 Space/显示环境过渡中自行搬动。非审阅单次 mouse-down 直接调用原生 `performDrag(with:)`，使整粒 SwiftUI 胶囊仍可拖动；双击复用现有 Settings 窗口，reviewing 只在原生 mouse-down 分发期间临时允许 background drag，文本/按钮继续优先。圆角 material mask 同时约束窗口阴影；合并尺寸请求，以独立逻辑位置锚点保持用户选择的中心/底边，状态 resize 的可见区临时钳位不覆盖锚点，用户拖动才更新 |
-| `FloatingPanelView.swift` | reviewing 之外统一为 `96×36`、18 pt 圆角的最小胶囊，可见内容只有 6 pt 语义状态圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，配置变化后即时更新；不显示品牌名、录音/设置图标、计时、状态/错误句、说明或动作按钮；完整状态通过 accessibility value 暴露。`420×160` 单结果审阅和 `560×300` 对比审阅保持原样；原生审阅编辑器也使用 JetBrains Mono 为英文主字体、中文由 Core Text 回退苹方；对比页用固定双列网格展示 2–4 个成功/失败候选，四项为 2×2，首个成功项直接显示在原生编辑器；候选优先只显示 Model Display name，无名称时显示主 Model ID + 次 Provider，不显示 endpoint；保留复制全部、取消、复制并返回 |
-| `VoiceSettingsView.swift` | 内容默认 `1100×760`、最小 `820×600` 的独立 Settings 窗口根视图；固定侧栏分为快捷键/转写，左上品牌区不显示图标；快捷键页只用一张紧凑卡展示 voice、panel 与前后对比导航，四行各 `52` pt，四项均为 `156×38`、15 pt 的轻量可点击 surface 与同尺寸原生录制控件，常态不显示流程、说明、铅笔或恢复动作，只保留真实错误；转写页装配 Intatis 式 provider/model editor，其他 adapter 及旧权限/概览/命令 view 仍不可达 |
+| `FloatingPanelView.swift` | reviewing 之外统一为 `96×36`、18 pt 圆角的最小胶囊，可见内容只有 6 pt 语义状态圆点和 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>` 双快捷键，默认 `⌃⌥A/⌃⌥Q`，两项配置变化后即时更新；不显示品牌名、录音/设置图标、计时、状态/错误句、说明或动作按钮；完整状态通过 accessibility value 暴露。`420×160` 单结果审阅和 `560×300` 对比审阅保持原样；原生审阅编辑器也使用 JetBrains Mono 为英文主字体、中文由 Core Text 回退苹方；对比页用固定双列网格展示 2–4 个成功/失败候选，四项为 2×2，首个成功项直接显示在原生编辑器；候选优先只显示 Model Display name，无名称时显示主 Model ID + 次 Provider，不显示 endpoint；保留复制全部、取消、复制并返回 |
+| `VoiceSettingsView.swift` | 内容默认 `1100×760`、最小 `820×600` 的统一 Settings 根视图；固定侧栏分为快捷键/转写/快速 AI 问答；快捷键页同一卡片展示 voice、Quick Ask、panel 与前后对比导航五个 `52` pt 行，全部为 `156×38` / 15 pt 可点击录制 surface；聊天齿轮通过共享 navigation model 直接打开 Quick Ask 页 |
+| `QuickAskConfiguration.swift` | canonical 顶层 `quick_ask` 的独立 Provider/Models catalog、active selector、共享 provider options/key、可选模型 Display name、HTTPS/custom-host 校验、credential boundary 与 CRUD store；运行时派生不可变 chat route |
+| `QuickAskClient.swift` | 非流式 OpenAI-compatible Chat Completions；ephemeral URLSession、no redirect、HTTPS、严格 JSON、4 MiB 上限、超时/取消与服务端错误 exact-key 脱敏/限长 |
+| `QuickAskSession.swift` | `@MainActor` 临时 messages/draft/request 状态；会话开始快照配置与历史，generation 阻止取消/关闭后的陈旧回写；关闭清空全部内容 |
+| `QuickAskPanelController.swift` | `420×560` borderless/nonactivating/floating/keyable 问答 panel；以 `orderFrontRegardless()` 跨应用置前并只让自身成为 key，不调用 `NSApp.activate` 抢前整个 Flotis；锚定唯一语音胶囊，跟随主 panel 移动/resize 并做同屏可见区钳制；平时禁止系统管理移动，标题栏左/中单击显式进入原生 `performDrag(with:)`，右侧设置/关闭按钮和正文交互继续转发；不创建第二颗胶囊 |
+| `QuickAskView.swift` | 临时对话 UI、可选/复制回复、错误横幅、停止/发送、macOS 13 AppKit composer；IME marked text 时 Return 交给输入法，Shift+Return 换行 |
+| `QuickAskSettingsView.swift` | `IntatisStyleQuickAskProviderSettingsView`；与转写同模式的左 Provider/右详情主卡、共享 key、Active model、Connection/Models、Test Provider/Save，以及 chat-only Advanced |
 | `IntatisStyleSpeechProviderSettingsView.swift` | Intatis 式 Provider/Models 主卡：左侧 Provider 列表与模型数，右侧 Provider name、共享 API key、Active model、Connection/Models 区、逐模型 Model ID/Display name 与 Add/Delete；Provider 行至少 48 pt，折叠标题与对比 route 整行至少 44 pt 可点；卡下提供 Test Provider/Save，并把 2–4 route Comparison 和高级转写参数保留为独立扩展区 |
 | `UIStrings.swift` | `AppLanguage` 第一首选语言解析与集中简中/英文 UI 文案，包括 Settings 的标准退出动作 |
 | `AccessibilityPermission.swift` | 保留但当前产品路径不可达的 AX 状态检查、提示式授权请求与系统设置入口；复制并返回流程不使用 |
 
-实际文件数以 `rg --files Flotis -g '*.swift'` 为准，当前为 31。
+实际文件数以 `rg --files Flotis -g '*.swift'` 为准，当前为 37。
 
 `Flotis/Info.plist` 是 XcodeGen 生成的源 plist，包含版本变量、`LSUIElement`、`LSMultipleInstancesProhibited` 与权限说明基值；`Flotis/InfoPlist.xcstrings` 提供麦克风与 Speech Recognition 权限说明的英文/简中版本并进入 App resources build phase。
 
@@ -101,9 +107,9 @@ Flotis/
 - `FlotisSystemCanvas` 在 macOS 14+ 使用 SwiftUI `windowBackground`，macOS 13 使用 `.windowBackground` `NSVisualEffectView` fallback，保持系统窗口 canvas 且不引入固定品牌底色。
 - 结构化内容统一使用 `regularMaterial`、1 pt 系统 separator 与 continuous rounded rectangle。macOS 26 且编译器支持时，交互表面和按钮可使用 Liquid Glass；macOS 13–15 回退为原生 `regularMaterial`、`.bordered` / `.borderedProminent`。
 - `FlotisType` 把 brand/title/headline/body/caption/mono 与两个 AppKit 文本入口统一映射到 JetBrains Mono 的 variable weight 实例；SwiftUI 根视图为未显式指定字号的控件提供同一默认字体。JetBrains Mono 覆盖英文/拉丁字形，缺少的中文 glyph 由 macOS Core Text 正常 cascade 到 `PingFang` 家族，不再按整段文本在 Serif/系统字体之间切换。
-- `FloatingPanelView` 与 `VoiceSettingsView` 共用上述 palette、字体和系统控件；视觉层不改变语音状态机、canonical config 或保留的旧注入安全边界。非审阅内容统一为 `96×36`、18 pt 圆角的小胶囊，仅含 6 pt 语义圆点和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键；SwiftUI compact 内容保持透明，快捷键使用动态主文字色，由 panel 的原生 glass/material 容器提供唯一底面与系统边缘高光。idle、录音/流式、请求/连接/停止/转写、失败均不增加品牌名、可见图标、计时、状态句、错误句、说明或动作按钮；单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`。
+- `FloatingPanelView` 与 `VoiceSettingsView` 共用上述 palette、字体和系统控件；视觉层不改变语音状态机、canonical config 或保留的旧注入安全边界。非审阅内容统一为 `96×36`、18 pt 圆角的小胶囊，仅含 6 pt 语义圆点和 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>` 双快捷键，圆点间距 5 pt；SwiftUI compact 内容保持透明，快捷键使用动态主文字色，由 panel 的原生 glass/material 容器提供唯一底面与系统边缘高光。idle、录音/流式、请求/连接/停止/转写、失败均不增加品牌名、可见图标、计时、状态句、错误句、说明或动作按钮；单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`。
 - 当前仓库没有 LaTeX、TeX、MathJax、KaTeX 或其他公式 renderer/source。字体根配置只属于 Flotis 自有界面；任何后续或外部 LaTeX formula surface 必须显式保留其 renderer 当前公式字体，不得接入 `FlotisType`。
-- panel 在用户 mouse-down 分发之外保持不可由系统移动，维持跨 Space 的相对屏幕位置；非审阅胶囊的单次 mouse-down 显式进入原生窗口拖动，双击调用 AppDelegate 持有的 `FlotisSettingsWindowController`。reviewing 的 mouse-down 只在转发给 AppKit/SwiftUI 时临时恢复原生 background-drag 判定，因此文本编辑和按钮仍优先。同一 Settings 窗口以 `1100×760` 内容尺寸打开、最小内容尺寸 `820×600`，复用且不依赖字符串 selector，也不再附着到胶囊 sheet。HostingController 装配后显式设置 `contentMinSize` 与 `setContentSize`，防止实际窗口被 SwiftUI 最小尺寸收窄而破坏 Intatis 式双栏。固定左侧栏承载无图标的 `Flotis`/版本、“快捷键 / 转写”和退出，右侧页面独立滚动；`SettingsView` 同时可作为系统 Settings scene 的根视图。“退出 Flotis / Quit Flotis”调用标准 `NSApplication.terminate`，由 `AppDelegate.applicationWillTerminate` 统一停止热键并取消语音资源。
+- panel 在用户 mouse-down 分发之外保持不可由系统移动，维持跨 Space 的相对屏幕位置；非审阅胶囊的单次 mouse-down 显式进入原生窗口拖动，双击调用 AppDelegate 持有的 `FlotisSettingsWindowController`。reviewing 的 mouse-down 只在转发给 AppKit/SwiftUI 时临时恢复原生 background-drag 判定，因此文本编辑和按钮仍优先。同一 Settings 窗口以 `1100×760` 内容尺寸打开、最小内容尺寸 `820×600`，复用且不依赖字符串 selector，也不再附着到任何 panel sheet。固定左侧栏承载无图标的 `Flotis`/版本、“快捷键 / 转写 / 快速 AI 问答”和退出；`SettingsView` 同时可作为系统 Settings scene 的根视图，Quick Ask 齿轮通过共享 navigation model 直达自己的页面。“退出 Flotis / Quit Flotis”调用标准 `NSApplication.terminate`，由 `AppDelegate.applicationWillTerminate` 统一停止热键、取消语音资源并销毁 Quick Ask 会话。
 - `SpeechSettingsPresentation` 是纯 adapter 展示 allowlist，目前只匹配 `openai-audio-transcriptions-http-v1`。筛选结果用于 Intatis 式 Provider 列表、详情 editor 与 model-route 对比选择，绝不写回或裁剪 `SpeechProviderStore`；一个 provider 共享 endpoint/key 并可拥有多个带可选显示名称的模型，不同 provider 仍各自隔离。Flotis 特有 comparison/advanced 区位于主 Provider/Models 卡下方，不改变 canonical 配置边界。
 
 ## 界面语言地图
@@ -132,12 +138,14 @@ Flotis/
 
 | 文件 | 覆盖 |
 |---|---|
-| `HotkeyAndInjectionPolicyTests.swift` | 26 tests：V0.13 start/stop/copy-and-return 动作策略、voice 默认值与可修改/旧配置缺字段兼容、四项快捷键冲突校验及 canonical 持久化、`96×36` 非审阅胶囊和 reviewing 尺寸、Space/显示环境之间禁用系统管理移动、非审阅单击显式原生拖动/双击 Settings 与 reviewing 原生事件转发策略、录音计时生命周期、`560×300` 对比布局、复制成功重置/复用小胶囊、复制失败保留审阅、Carbon 独占/press-release 门控、胶囊 resize/钳位后缩回位置恢复，以及保留旧注入器的安全策略回归 |
+| `HotkeyAndInjectionPolicyTests.swift` | 28 tests：V0.13 start/stop/copy-and-return 动作策略、voice/Quick Ask 默认值与可修改/缺字段回退、`⌃⌥A/⌃⌥Q` 双快捷键/14 pt/5 pt/`96×36` 契约、五项快捷键冲突校验及 canonical 持久化、Space/显示环境之间禁用系统管理移动、非审阅单击显式原生拖动/双击 Settings 与 reviewing 原生事件转发策略、录音计时生命周期、`560×300` 对比布局、复制成功重置/复用小胶囊、复制失败保留审阅、Carbon 独占/press-release 门控、胶囊 resize/钳位后缩回位置恢复，以及保留旧注入器的安全策略回归 |
 | `TranscriptAssemblyTests.swift` | Apple 空 final/停顿/纠错/相邻片段、OpenAI 多 item 乱序/partial-final、Dash 重复句、ASCII/CJK 边界 |
 | `SpeechProviderConfigurationTests.swift` | canonical v2 shape、空 catalog 不写 Apple、旧数据迁移、同 provider 多模型/共享 key、provider/key 同文件 CRUD 与回滚、权限/损坏防护、preset 与凭据/test fingerprint 边界；旧 secret reader 安全性仍作兼容回归 |
 | `TranscriptionAdapterRuntimeTests.swift` | 六 adapter registry/runtime plan、HTTP multipart 与 OpenRouter JSON+Base64、严格响应、WAV/M4A、自定义 endpoint、Key 回显脱敏、GLM SSE、Realtime GA scripted lifecycle |
 | `LocalizationTests.swift` | 第一首选语言矩阵、繁中/其他语言英文回退、偏好顺序与双语选择 |
 | `TranscriptionComparisonTests.swift` | 5 tests：同一 provider 多 model selector 的 2–4 项偏好/持久化/坏数据保留、同一文件 fan-out、单 route 失败隔离、按顺序自动打开首个成功项、跳过失败项的前后循环导航、切换时分别保留编辑内容与当前项复制 |
+| `QuickAskClientTests.swift` | Chat Completions URL/header/body、非流式请求、HTTP 拒绝、custom HTTPS host approval、JSON 响应、超时状态与任意形态 key 回显脱敏/限长 |
+| `QuickAskLifecycleTests.swift` | 11 tests：临时发送/失败/关闭/取消、messages+draft 销毁、陈旧回复门控、canonical 分区保留、对话内容不落盘、credential destination、panel 位置、标题栏拖动/控件排除，以及 nonactivating/floating/跨 Space/keyable 窗口排序契约 |
 | `FlotisInputMethodTests/FlotisInputMethodServiceTests.swift` | 8 个隔离测试：精确文本交付、协议/空白/大小拒绝、旧 session 失效、deactivate、endpoint 释放与客户端失败 |
 
 当前没有 UI-test target、SwiftUI snapshot test 或 preview fixture；两个 unit-test target 都不替代胶囊、Settings 或真实输入法客户端的 macOS 运行态验证。
@@ -145,7 +153,8 @@ Flotis/
 ## 持久化与临时数据
 
 - 旧命令：`~/Library/Application Support/Flotis/commands.json`，V0.13 主入口不加载、不修改、不删除；兼容 store 仍保持 JSON 数组与 atomic write contract。
-- Provider、active model、显示顺序、对比选择、四项可配置全局快捷键与 API key 的唯一真源：`~/Library/Application Support/Flotis/config.json`。schema version `2`，顶层为 `$schema`、`schema_version`、`model`、`provider_order`、`enabled_providers`、`comparison.models`、可选 `shortcuts`、`provider`；`provider.<id>.options` 只保存一次共享 endpoint/key，`provider.<id>.models` 可列出多个模型，每个 model entry 可选保存 `name` 作为 Display name。`shortcuts.toggle_voice` 缺失时使用默认 `⌃⌥A`。
+- Provider、active model、显示顺序、对比选择、五项快捷键、Quick Ask 与全部 API key 的唯一真源：`~/Library/Application Support/Flotis/config.json`。schema v2 的独立 `quick_ask` 内部同样包含 `model`、`provider_order`、`enabled_providers` 与 `provider`；聊天 key 位于 `quick_ask.provider.<id>.options.apiKey`，每个聊天 Provider 的模型共享一份连接和 key。缺少 Quick Ask catalog/shortcut 时分别保持未配置与默认 `⌃⌥Q`。
+- Quick Ask 的 messages、draft、回复、错误与连接测试结果只在内存；关闭面板、退出 App 或取消请求不会写入 UserDefaults、Keychain、canonical 文件或日志。
 - selector 格式为 `<provider-id>/<model-id>`，只在第一个 `/` 分割；因此 OpenRouter 的 `openai/...` model ID 可原样保存。`config.json` 不持久化 Apple provider。
 - 手工编写、字段约束、完整 OpenRouter 同 Provider 双模型对比模板、权限和损坏恢复流程见 [`docs/CONFIGURATION_GUIDE.md`](CONFIGURATION_GUIDE.md)。
 - Settings 的可见性过滤不裁剪 canonical document；打开、编辑或关闭设置页不会删除隐藏 provider、改写隐藏 active selector 或清理其 key/reference。
@@ -174,9 +183,22 @@ Flotis/
 
 2026-08-20 JetBrains Mono 字体源码尚未安装。主 App Debug build `/private/tmp/FlotisTypographyMainBuild-20260820`、完整 85 tests、输入法 Debug build与 8 tests 均通过；唯一 bundle ID 的签名预览位于 `/private/tmp/FlotisTypographyPreview-20260820/Build/Products/Debug/Flotis.app`。Light appearance 的 compact、Shortcuts 与 Transcription 原生截图分别位于 `/private/tmp/Flotis-JetBrainsMono-Capsule-20260820.jpeg`、`/private/tmp/Flotis-JetBrainsMono-Shortcuts-20260820.jpeg`、`/private/tmp/Flotis-JetBrainsMono-Transcription-20260820.jpeg`，无文字裁切或双栏回归。`/Applications/Flotis.app` 仍是上一段的透明玻璃修复 `0.13 (4)`。
 
+2026-08-21 同进程 Quick Ask 当前源码已通过主 App Debug build `/private/tmp/FlotisQuickAskFinalMainBuild-20260821`、唯一 bundle ID 完整 99 tests，以及输入法 Debug build `/private/tmp/FlotisQuickAskFinalInputBuild-20260821` 与 8 tests。没有启动或安装产物、没有真实 Chat Completions/转写请求，也没有读取或修改真实 `config.json`；`/Applications/Flotis.app` 与用户 Input Methods 副本均未改动。
+
+2026-08-22 Quick Ask 配置已改为与转写相同的 Provider/Models 工作模式并通过最终回归：主 App Debug build `/private/tmp/FlotisQuickAskProviderModeFinalMainBuild-20260822-R2`、唯一 bundle ID xcresult `/private/tmp/FlotisQuickAskProviderModeFinalMainTests-20260822-R2.xcresult` 为 101 tests/0 failures，输入法 Debug build `/private/tmp/FlotisQuickAskProviderModeFinalInputBuild-20260822-R2` 与 xcresult `/private/tmp/FlotisQuickAskProviderModeFinalInputTests-20260822-R2.xcresult` 为 8 tests/0 failures。空 Quick Ask catalog 的双栏主卡已目视；展开态预览因 Computer Use 未获授权而保留人工确认。没有安装产品、真实 provider 请求或用户配置改写。
+
+同日用户明确要求安装后，当前 `0.13 (4)` arm64 ad-hoc Release 已从 `/private/tmp/FlotisQuickAskProviderModeRelease-20260822-R2/Build/Products/Release/Flotis.app` 安装到 `/Applications/Flotis.app`、注册 Launch Services 并完成来源路径启动冒烟；安装 executable、`Flotis.icns`、`Assets.car` 与 Release 逐字节一致，严格验签通过。旧透明玻璃修复版保存在 `/private/tmp/Flotis-before-quick-ask-provider-mode-install-20260822.app` 且可恢复；用户 Input Methods 副本与真实配置未改动。
+
+随后用户报告 Quick Ask 问答窗口无法拖动。根因是该 borderless panel 固定 `isMovable=false` 却没有像主胶囊一样显式分派 mouse-down；现已为标题栏左/中区域接入 AppKit 原生 `performDrag(with:)`，并让右侧按钮、正文/输入和双击继续转发。最终主 App 102 tests、输入法 8 tests 与两个 application Debug build 均通过；Release `/private/tmp/FlotisQuickAskDragFixRelease-20260822/Build/Products/Release/Flotis.app` 已严格验签、安装并从 `/Applications/Flotis.app` 启动，替换前安装保存在 `/private/tmp/Flotis-before-quick-ask-drag-fix-install-20260822.app`。Computer Use 被 ScreenCaptureKit `-3811` 阻止，因此真实鼠标拖动仍由用户直接确认；输入法与真实配置未改动。
+
+用户随后要求在不改变胶囊大小的前提下同时展示两组快捷键。第一版保持 `96×36`、18 pt 圆角和 6 pt 状态圆点，把文字改为 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>`，默认 `⌃⌥A/⌃⌥Q`，圆点间距收为 5 pt；两项设置变化均即时更新，极长组合最低缩至 70%。最终主 App 103 tests、输入法 8 tests 与两个 application Debug build 通过；Release `/private/tmp/FlotisDualShortcutRelease-20260822/Build/Products/Release/Flotis.app` 已安装并从 `/Applications/Flotis.app` 启动，替换前拖动修复版备份为 `/private/tmp/Flotis-before-dual-shortcut-install-20260822.app`。Computer Use 原生截图 `/private/tmp/Flotis-Dual-Shortcut-Capsule-20260822.jpeg` 精确为 `96×36`，双快捷键完整可见，AX 分别暴露 Voice Input/Quick Ask；真实配置、provider 与输入法未改动。
+
+2026-08-23 用户报告 Quick Ask 临时对话框的置顶逻辑异常，而胶囊正常。源码差异确认在 Quick Ask 缺少 `.nonactivatingPanel`、使用 `makeKeyAndOrderFront` 后又强制 `NSApp.activate`；当前改为与胶囊一致的非激活 floating/跨 Space 层级，以 `orderFrontRegardless()` 显示并单独 `makeKey()`，同时保留默认 `becomesKeyOnlyIfNeeded=false` 保障聊天输入。最终两个 application Debug build、主 App 104 tests、输入法 8 tests 与 Release 均通过；Release `/private/tmp/FlotisQuickAskOrderingFixRelease-20260823/Build/Products/Release/Flotis.app` 已严格验签、安装并从 `/Applications/Flotis.app` 启动，前一双快捷键安装版备份在 `/private/tmp/Flotis-before-quick-ask-ordering-fix-install-20260823.app`。Computer Use 可读取新进程与胶囊，但合成组合键不触发 Carbon，因此物理 `⌃⌥Q` 跨 App/Space 层级仍需用户确认；输入法和真实配置未改动。
+
 ## 需要后续确认
 
 - `VoiceInputMode` / `AppState.voiceMode` 是否应移除或接入产品 UI：`UNKNOWN`。
 - UI 状态是否应跨重启持久化：`UNKNOWN`。
+- Quick Ask 的物理 `⌃⌥Q`、macOS 13/当前系统 IME marked-text、Light/Dark/无障碍、主 panel move/resize 跟随、跨 Space 与真实 OpenAI-compatible endpoint 仍需运行态确认；当前自动化不替代这些矩阵。
 - 正式签名、notarization、hardened runtime 与分发方式：尚未配置。
 - 输入法 target 的固定 Apple Development 身份仍未配置；ad-hoc build `3` 已实际安装并可稳定启动，但输入源发现需要重新登录，跨 app 文本客户端矩阵与主 App 本地 IPC仍需后续确认。

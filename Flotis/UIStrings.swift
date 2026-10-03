@@ -80,6 +80,291 @@ enum UIStrings {
         english: "Configure providers with multiple models and compare selected model routes.",
         simplifiedChinese: "配置支持多模型的 Provider，并对比选中的模型路由。"
     )
+    static let quickAsk = localized(
+        english: "Quick Ask",
+        simplifiedChinese: "快速 AI 问答"
+    )
+    static let quickAskSettingsSubtitle = localized(
+        english: "Configure one OpenAI-compatible Chat Completions route for disposable conversations.",
+        simplifiedChinese: "配置一个 OpenAI-compatible Chat Completions 路由，用于关闭即销毁的临时对话。"
+    )
+    static let quickAskDefaultSystemPrompt = localized(
+        english: "You are a concise temporary assistant. Answer directly. Do not assume prior context.",
+        simplifiedChinese: "你是一个简洁的临时助手。请直接回答，不要假设存在此前上下文。"
+    )
+    static let quickAskReady = localized(english: "Ready", simplifiedChinese: "就绪")
+    static let quickAskMissingModel = localized(
+        english: "Missing model",
+        simplifiedChinese: "模型缺失"
+    )
+    static let quickAskConnectionFailed = localized(
+        english: "Connection failed",
+        simplifiedChinese: "连接失败"
+    )
+    static let quickAskRequestTimeout = localized(
+        english: "Request timeout",
+        simplifiedChinese: "请求超时"
+    )
+    static let quickAskBaseURLRequired = localized(
+        english: "Enter a Quick Ask Base URL.",
+        simplifiedChinese: "请输入快速问答基础地址。"
+    )
+    static let quickAskHTTPSRequired = localized(
+        english: "Quick Ask requires a valid https:// Base URL without embedded credentials, query, or fragment.",
+        simplifiedChinese: "快速问答必须使用有效的 https:// 基础地址，且地址中不能包含凭据、查询参数或片段。"
+    )
+    static let quickAskPathInvalid = localized(
+        english: "The Chat Completions path must begin with one '/' and cannot contain a URL, query, fragment, or backslash.",
+        simplifiedChinese: "Chat Completions 路径必须以单个“/”开头，且不能包含完整 URL、查询、片段或反斜杠。"
+    )
+    static func quickAskCustomHostApprovalRequired(_ host: String) -> String {
+        localized(
+            english: "Confirm the custom HTTPS host before sending the API key or conversation to \(host).",
+            simplifiedChinese: "向自定义 HTTPS 主机 \(host) 发送 API key 或对话前，请先明确确认。"
+        )
+    }
+    static let quickAskModelRequired = localized(
+        english: "Enter a Chat Completions model.",
+        simplifiedChinese: "请输入 Chat Completions 模型。"
+    )
+    static let quickAskTemperatureInvalid = localized(
+        english: "Temperature must be between 0 and 2.",
+        simplifiedChinese: "Temperature 必须在 0 到 2 之间。"
+    )
+    static let quickAskMaxTokensInvalid = localized(
+        english: "Max tokens must be between 64 and 32768.",
+        simplifiedChinese: "最大 token 数必须在 64 到 32768 之间。"
+    )
+    static let quickAskTimeoutInvalid = localized(
+        english: "Timeout must be between 5 and 600 seconds.",
+        simplifiedChinese: "超时时间必须在 5 到 600 秒之间。"
+    )
+    static let quickAskAPIKeyTooLarge = localized(
+        english: "The Quick Ask API key is too large.",
+        simplifiedChinese: "快速问答 API key 过大。"
+    )
+    static let quickAskSystemPromptTooLarge = localized(
+        english: "The Quick Ask system prompt is too large.",
+        simplifiedChinese: "快速问答系统提示词过大。"
+    )
+    static let quickAskConfigurationUnavailable = localized(
+        english: "Quick Ask configuration is unavailable because config.json could not be read safely.",
+        simplifiedChinese: "无法安全读取 config.json，因此快速问答配置当前不可用。"
+    )
+    static let quickAskConfigurationSaveFailed = localized(
+        english: "Could not save Quick Ask configuration to config.json.",
+        simplifiedChinese: "无法将快速问答配置保存到 config.json。"
+    )
+    static let quickAskCredentialBoundaryChanged = localized(
+        english: "The Quick Ask credential destination changed. Clear or explicitly re-enter the API Key before saving.",
+        simplifiedChinese: "快速问答凭据目标已改变。保存前请清除或明确重新输入 API Key。"
+    )
+    static let quickAskMissingModelDetail = localized(
+        english: "No model is configured, or the endpoint does not serve this model.",
+        simplifiedChinese: "尚未配置模型，或该接口不提供此模型。"
+    )
+    static let quickAskRequestTimedOutDetail = localized(
+        english: "The Quick Ask request timed out.",
+        simplifiedChinese: "快速问答请求已超时。"
+    )
+    static func quickAskConnectionFailedDetail(_ reason: String) -> String {
+        localized(
+            english: "Connection failed: \(reason)",
+            simplifiedChinese: "连接失败：\(reason)"
+        )
+    }
+    static func quickAskServerError(status: Int, message: String) -> String {
+        localized(
+            english: "Server error (\(status)): \(message)",
+            simplifiedChinese: "服务端错误（\(status)）：\(message)"
+        )
+    }
+    static let quickAskEmptyResponse = localized(
+        english: "The model returned an empty response.",
+        simplifiedChinese: "模型返回了空响应。"
+    )
+    static let quickAskResponseTooLarge = localized(
+        english: "The Quick Ask response exceeded the safe size limit.",
+        simplifiedChinese: "快速问答响应超过安全大小限制。"
+    )
+    static let quickAskRequestCancelled = localized(
+        english: "Quick Ask request cancelled.",
+        simplifiedChinese: "快速问答请求已取消。"
+    )
+    static let quickAskUnexpectedResponse = localized(
+        english: "The endpoint returned an unexpected Chat Completions response.",
+        simplifiedChinese: "接口返回了非预期的 Chat Completions 响应。"
+    )
+    static func quickAskConnected(model: String) -> String {
+        localized(
+            english: "Connected · \(model)",
+            simplifiedChinese: "连接成功 · \(model)"
+        )
+    }
+    static let quickAskCloseAndDestroy = localized(
+        english: "Close and destroy this conversation",
+        simplifiedChinese: "关闭并销毁本次对话"
+    )
+    static let quickAskNotConfigured = localized(
+        english: "Quick Ask is not configured",
+        simplifiedChinese: "尚未配置快速 AI 问答"
+    )
+    static let quickAskConfigurePrompt = localized(
+        english: "Set an HTTPS OpenAI-compatible endpoint and chat model in Flotis Settings.",
+        simplifiedChinese: "请在 Flotis 设置中配置 HTTPS OpenAI-compatible 接口和聊天模型。"
+    )
+    static let quickAskOpenSettings = localized(
+        english: "Open Quick Ask Settings",
+        simplifiedChinese: "打开快速问答设置"
+    )
+    static let quickAskEphemeralConversation = localized(
+        english: "Ephemeral conversation",
+        simplifiedChinese: "临时对话"
+    )
+    static let quickAskEphemeralDescription = localized(
+        english: "Nothing is saved. Closing this panel destroys the messages and draft.",
+        simplifiedChinese: "对话不会保存；关闭面板会销毁全部消息和草稿。"
+    )
+    static let quickAskComposerPlaceholder = localized(
+        english: "Ask anything…",
+        simplifiedChinese: "输入你的问题…"
+    )
+    static let quickAskStopRequest = localized(
+        english: "Stop request",
+        simplifiedChinese: "停止请求"
+    )
+    static let quickAskSend = localized(
+        english: "Send (Return)",
+        simplifiedChinese: "发送（回车）"
+    )
+    static let quickAskCopied = localized(english: "Copied", simplifiedChinese: "已复制")
+    static let quickAskDismissError = localized(
+        english: "Dismiss error",
+        simplifiedChinese: "关闭错误提示"
+    )
+    static let quickAskProviderAndModel = localized(
+        english: "Provider and model",
+        simplifiedChinese: "Provider 与模型"
+    )
+    static let quickAskEndpointPath = localized(
+        english: "Endpoint path",
+        simplifiedChinese: "接口路径"
+    )
+    static let quickAskModelPlaceholder = localized(
+        english: "required chat model",
+        simplifiedChinese: "必填的聊天模型"
+    )
+    static let quickAskAPIKeyOptional = localized(
+        english: "optional",
+        simplifiedChinese: "可选"
+    )
+    static let quickAskApproveCustomHost = localized(
+        english: "Approve this custom HTTPS host",
+        simplifiedChinese: "确认使用此自定义 HTTPS 主机"
+    )
+    static func quickAskCredentialDestination(_ host: String) -> String {
+        localized(
+            english: "The API key and conversation will be sent to \(host).",
+            simplifiedChinese: "API key 和对话内容将发送到 \(host)。"
+        )
+    }
+    static let quickAskParameters = localized(
+        english: "Chat parameters",
+        simplifiedChinese: "对话参数"
+    )
+    static let quickAskTemperature = "Temperature"
+    static func quickAskMaxTokens(_ value: Int) -> String {
+        localized(
+            english: "Max tokens: \(value)",
+            simplifiedChinese: "最大 token 数：\(value)"
+        )
+    }
+    static func quickAskTimeout(_ seconds: Int) -> String {
+        localized(
+            english: "Timeout: \(seconds)s",
+            simplifiedChinese: "超时：\(seconds) 秒"
+        )
+    }
+    static let quickAskSystemPrompt = localized(
+        english: "System prompt",
+        simplifiedChinese: "系统提示词"
+    )
+    static let quickAskPrivacyNotice = localized(
+        english: "Messages and drafts stay in memory only and are destroyed when the Quick Ask panel closes. The configured service may retain requests under its own policy.",
+        simplifiedChinese: "消息和草稿只存在于内存中，关闭快速问答面板即销毁；所配置的服务仍可能按其自身政策保留请求。"
+    )
+    static let quickAskTestRequestNotice = localized(
+        english: "Test Connection sends a real short ping request and may incur a small provider charge.",
+        simplifiedChinese: "连接测试会发送一次真实的短 ping 请求，并可能产生少量服务费用。"
+    )
+    static let quickAskConfigurationSaved = localized(
+        english: "Quick Ask configuration saved.",
+        simplifiedChinese: "快速问答配置已保存。"
+    )
+    static let quickAskTesting = localized(
+        english: "Testing…",
+        simplifiedChinese: "正在测试…"
+    )
+    static let quickAskTestConnection = localized(
+        english: "Test Connection",
+        simplifiedChinese: "测试连接"
+    )
+    static let quickAskClearAPIKey = localized(
+        english: "Clear API Key",
+        simplifiedChinese: "清除 API Key"
+    )
+    static let quickAskAPIKeyCleared = localized(
+        english: "Quick Ask API Key cleared.",
+        simplifiedChinese: "快速问答 API Key 已清除。"
+    )
+    static let quickAskNewProviderName = localized(
+        english: "Quick Ask Provider",
+        simplifiedChinese: "快速问答 Provider"
+    )
+    static let quickAskAddProvider = localized(
+        english: "Add Quick Ask provider",
+        simplifiedChinese: "新增快速问答 Provider"
+    )
+    static let quickAskAddProviderToConfigure = localized(
+        english: "Add a Quick Ask provider to configure its shared connection and models.",
+        simplifiedChinese: "新增快速问答 Provider，以配置共享连接和模型。"
+    )
+    static let quickAskProviderNameRequired = localized(
+        english: "Enter a Quick Ask provider name.",
+        simplifiedChinese: "请输入快速问答 Provider 名称。"
+    )
+    static let quickAskModelsRequired = localized(
+        english: "Add at least one unique chat model and choose the active model.",
+        simplifiedChinese: "请至少添加一个唯一的聊天模型并选择当前模型。"
+    )
+    static let quickAskProviderNotFound = localized(
+        english: "The Quick Ask provider could not be found.",
+        simplifiedChinese: "找不到快速问答 Provider。"
+    )
+    static let quickAskDeleteProviderTitle = localized(
+        english: "Delete Quick Ask provider?",
+        simplifiedChinese: "删除快速问答 Provider？"
+    )
+    static let quickAskDeleteProviderMessage = localized(
+        english: "Its models and shared API key will be removed from Flotis config.json.",
+        simplifiedChinese: "其模型和共享 API key 将从 Flotis config.json 中移除。"
+    )
+    static let quickAskDisplayNamePlaceholder = localized(
+        english: "Optional display name",
+        simplifiedChinese: "可选显示名称"
+    )
+    static let quickAskProviderSaved = localized(
+        english: "Quick Ask provider and models saved.",
+        simplifiedChinese: "快速问答 Provider 和模型已保存。"
+    )
+    static let quickAskProviderDeleted = localized(
+        english: "Quick Ask provider deleted.",
+        simplifiedChinese: "快速问答 Provider 已删除。"
+    )
+    static let quickAskCredentialClearedForNewHost = localized(
+        english: "Provider saved. The previous API key was cleared because the credential destination changed.",
+        simplifiedChinese: "Provider 已保存。由于凭据目标已改变，原 API key 已清除。"
+    )
     static let commands = localized(english: "Commands", simplifiedChinese: "命令")
     static let speech = localized(english: "Speech", simplifiedChinese: "语音")
     static let transcriptionProviders = localized(

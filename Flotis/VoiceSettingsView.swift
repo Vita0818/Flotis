@@ -33,9 +33,10 @@ enum SettingsCloseMode {
     }
 }
 
-private enum SettingsDestination: Hashable {
+enum SettingsDestination: Hashable {
     case shortcuts
     case transcription
+    case quickAsk
 
     var title: String {
         switch self {
@@ -43,6 +44,8 @@ private enum SettingsDestination: Hashable {
             return UIStrings.shortcutSettings
         case .transcription:
             return UIStrings.transcriptionSettings
+        case .quickAsk:
+            return UIStrings.quickAsk
         }
     }
 
@@ -52,7 +55,17 @@ private enum SettingsDestination: Hashable {
             return "keyboard"
         case .transcription:
             return "waveform.badge.mic"
+        case .quickAsk:
+            return "sparkles"
         }
+    }
+}
+
+final class SettingsNavigationModel: ObservableObject {
+    @Published var destination: SettingsDestination
+
+    init(destination: SettingsDestination = .shortcuts) {
+        self.destination = destination
     }
 }
 
@@ -61,10 +74,11 @@ struct SettingsView: View {
     @ObservedObject var providerStore: SpeechProviderStore
     @ObservedObject var comparisonStore: TranscriptionComparisonStore
     @ObservedObject var hotkeyStore: HotkeyConfigurationStore
+    @ObservedObject var quickAskStore: QuickAskConfigurationStore
+    @ObservedObject var navigation: SettingsNavigationModel
+    let quickAskClient: QuickAskClient
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-
-    @State private var destination: SettingsDestination = .shortcuts
 
     let closeMode: SettingsCloseMode
     let onClose: (() -> Void)?
@@ -74,6 +88,9 @@ struct SettingsView: View {
         providerStore: SpeechProviderStore,
         comparisonStore: TranscriptionComparisonStore,
         hotkeyStore: HotkeyConfigurationStore,
+        quickAskStore: QuickAskConfigurationStore,
+        quickAskClient: QuickAskClient,
+        navigation: SettingsNavigationModel,
         closeMode: SettingsCloseMode = .done,
         onClose: (() -> Void)? = nil
     ) {
@@ -81,6 +98,9 @@ struct SettingsView: View {
         _providerStore = ObservedObject(wrappedValue: providerStore)
         _comparisonStore = ObservedObject(wrappedValue: comparisonStore)
         _hotkeyStore = ObservedObject(wrappedValue: hotkeyStore)
+        _quickAskStore = ObservedObject(wrappedValue: quickAskStore)
+        _navigation = ObservedObject(wrappedValue: navigation)
+        self.quickAskClient = quickAskClient
         self.closeMode = closeMode
         self.onClose = onClose
     }
@@ -127,6 +147,7 @@ struct SettingsView: View {
             VStack(spacing: 6) {
                 sidebarButton(.shortcuts)
                 sidebarButton(.transcription)
+                sidebarButton(.quickAsk)
             }
 
             Spacer(minLength: 24)
@@ -154,7 +175,7 @@ struct SettingsView: View {
 
     private func sidebarButton(_ item: SettingsDestination) -> some View {
         Button {
-            destination = item
+            navigation.destination = item
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: item.systemImage)
@@ -167,14 +188,14 @@ struct SettingsView: View {
             .frame(height: 34)
             .contentShape(Rectangle())
             .background {
-                if destination == item {
+                if navigation.destination == item {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(Color.accentColor.opacity(colorScheme == .dark ? 0.24 : 0.13))
                 }
             }
         }
         .buttonStyle(.plain)
-        .foregroundStyle(destination == item ? Color.primary : Color.secondary)
+        .foregroundStyle(navigation.destination == item ? Color.primary : Color.secondary)
     }
 
     private var appVersionText: String {
@@ -186,7 +207,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-        switch destination {
+        switch navigation.destination {
         case .shortcuts:
             ShortcutSettingsPage(
                 appState: appState,
@@ -205,7 +226,24 @@ struct SettingsView: View {
                 IntatisStyleSpeechProviderSettingsView(
                     providerStore: providerStore,
                     comparisonStore: comparisonStore,
-                    isActive: destination == .transcription
+                    isActive: navigation.destination == .transcription
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        case .quickAsk:
+            VStack(alignment: .leading, spacing: 0) {
+                FlotisPageHeader(
+                    title: UIStrings.quickAsk,
+                    subtitle: UIStrings.quickAskSettingsSubtitle
+                )
+                .padding(.horizontal, 28)
+                .padding(.top, 26)
+                .padding(.bottom, 20)
+
+                IntatisStyleQuickAskProviderSettingsView(
+                    store: quickAskStore,
+                    client: quickAskClient,
+                    isActive: navigation.destination == .quickAsk
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }

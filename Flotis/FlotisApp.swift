@@ -12,20 +12,32 @@ struct FlotisApp: App {
                 appState: appDelegate.appState,
                 providerStore: appDelegate.providerStore,
                 comparisonStore: appDelegate.comparisonStore,
-                hotkeyStore: appDelegate.hotkeyStore
+                hotkeyStore: appDelegate.hotkeyStore,
+                quickAskStore: appDelegate.quickAskStore,
+                quickAskClient: appDelegate.quickAskClient,
+                navigation: appDelegate.settingsNavigation
             )
         }
     }
 }
 
+@MainActor
 class AppDelegate: NSObject, NSApplicationDelegate {
     var panelController: FloatingPanelController?
+    var quickAskPanelController: QuickAskPanelController?
     var settingsWindowController: FlotisSettingsWindowController?
     let appState = AppState()
     let providerStore = SpeechProviderStore.shared
     let comparisonStore = TranscriptionComparisonStore.shared
     let hotkeyStore = HotkeyConfigurationStore.shared
+    let quickAskStore = QuickAskConfigurationStore.shared
+    let settingsNavigation = SettingsNavigationModel()
     var voiceController: VoiceInputController?
+    lazy var quickAskClient = QuickAskClient()
+    lazy var quickAskSession = QuickAskSession(
+        service: quickAskClient,
+        configurationStore: quickAskStore
+    )
     private var hotkeyStateCancellables = Set<AnyCancellable>()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -43,7 +55,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             appState: appState,
             providerStore: providerStore,
             comparisonStore: comparisonStore,
-            hotkeyStore: hotkeyStore
+            hotkeyStore: hotkeyStore,
+            quickAskStore: quickAskStore,
+            quickAskClient: quickAskClient,
+            navigation: settingsNavigation
         )
 
         panelController = FloatingPanelController(
@@ -51,10 +66,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             voiceController: voiceController!,
             hotkeyStore: hotkeyStore,
             onOpenSettings: { [weak self] in
-                self?.settingsWindowController?.showWindow(nil)
+                self?.settingsWindowController?.showWindow(destination: .shortcuts)
             }
         )
         panelController?.showWindow(nil)
+
+        quickAskPanelController = QuickAskPanelController(
+            session: quickAskSession,
+            configurationStore: quickAskStore,
+            onOpenSettings: { [weak self] in
+                self?.settingsWindowController?.showWindow(destination: .quickAsk)
+            }
+        )
+        quickAskPanelController?.setAnchorWindow(panelController?.window)
 
         HotkeyManager.shared.onTogglePanel = { [weak self] in
             guard let self else { return }
@@ -70,6 +94,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self.voiceController?.toggleRecording()
             if self.panelController?.window?.isVisible != true {
                 self.panelController?.showWindow(nil)
+            }
+        }
+
+        HotkeyManager.shared.onToggleQuickAsk = { [weak self] in
+            guard let self, let quickAskPanelController = self.quickAskPanelController else {
+                return
+            }
+            if quickAskPanelController.isVisible {
+                quickAskPanelController.close()
+            } else {
+                quickAskPanelController.show(adjacentTo: self.panelController?.window?.frame)
             }
         }
 
@@ -136,6 +171,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyStateCancellables.removeAll()
         HotkeyManager.shared.stop()
         voiceController?.cancel()
+        quickAskPanelController?.close()
     }
 
     func applicationShouldTerminate(
@@ -148,12 +184,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 final class FlotisSettingsWindowController: NSWindowController {
+    private let navigation: SettingsNavigationModel
+
     init(
         appState: AppState,
         providerStore: SpeechProviderStore,
         comparisonStore: TranscriptionComparisonStore,
-        hotkeyStore: HotkeyConfigurationStore
+        hotkeyStore: HotkeyConfigurationStore,
+        quickAskStore: QuickAskConfigurationStore,
+        quickAskClient: QuickAskClient,
+        navigation: SettingsNavigationModel
     ) {
+        self.navigation = navigation
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -171,6 +213,9 @@ final class FlotisSettingsWindowController: NSWindowController {
                 providerStore: providerStore,
                 comparisonStore: comparisonStore,
                 hotkeyStore: hotkeyStore,
+                quickAskStore: quickAskStore,
+                quickAskClient: quickAskClient,
+                navigation: navigation,
                 onClose: { [weak window] in
                     window?.performClose(nil)
                 }
@@ -191,5 +236,10 @@ final class FlotisSettingsWindowController: NSWindowController {
         super.showWindow(sender)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
+    }
+
+    func showWindow(destination: SettingsDestination) {
+        navigation.destination = destination
+        showWindow(nil)
     }
 }

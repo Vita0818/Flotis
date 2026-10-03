@@ -1,6 +1,6 @@
 # Flotis `config.json` 配置教程
 
-本文适用于 Flotis `0.13 (4)` 的 canonical config schema v2。Flotis 使用一个 JSON 文件串联 Provider、共享 endpoint、API key、多个模型、当前模型、对比选择和可配置的全局快捷键：
+本文适用于 Flotis 当前 canonical config schema v2。Flotis 使用一个 JSON 文件串联转写 Provider、共享 endpoint/API key、多个模型、当前模型、对比选择、Quick Ask 和可配置的全局快捷键：
 
 ```text
 ~/Library/Application Support/Flotis/config.json
@@ -33,11 +33,24 @@
 打开 Flotis Settings 的“快捷键”页，在唯一的紧凑快捷键卡片中点击当前组合键，然后直接按下新组合。可以修改：
 
 - 语音输入，默认 `⌃⌥A`；
+- 快速 AI 问答，默认 `⌃⌥Q`；
 - 显示/隐藏悬浮胶囊，默认 `⌘⌥⇧0`；
 - 上一个转写结果，默认 `⌥←`；
 - 下一个转写结果，默认 `⌥→`。
 
-新组合会立即写入同一个 `config.json` 并重新注册，不需要另点 Save。每项至少要包含一个修饰键，四项不能重复。当前极简页面不显示单项或全部恢复按钮；需要回到默认值时，直接重新录制上方列出的默认组合。上一个/下一个结果仍只在对比审阅中至少有两个成功候选时临时生效。
+新组合会立即写入同一个 `config.json` 并重新注册，不需要另点 Save。每项至少要包含一个修饰键，五项不能重复。当前极简页面不显示单项或全部恢复按钮；需要回到默认值时，直接重新录制上方列出的默认组合。上一个/下一个结果仍只在对比审阅中至少有两个成功候选时临时生效。
+
+## 配置快速 AI 问答
+
+“快速 AI 问答”与“转写”使用相同的 Provider/Models 工作模式，但拥有独立 catalog，不会把聊天模型塞进 ASR provider：
+
+1. 左栏 `Providers` 点击 `+`；右栏填写 Provider name 和该 Provider 全部模型共享的 API Key。
+2. 在 Active model 选择默认聊天 route；Connection 中填写 HTTPS Base URL 和 `/chat/completions` Path。
+3. Models 中添加一个或多个模型 ID，可分别填写 Display name；模型不复制 endpoint 或 key。
+4. Advanced 中按 Provider 设置 Temperature、Max tokens、Timeout 和 System prompt。
+5. OpenAI/OpenRouter 以外的 HTTPS host 必须明确确认；Test Provider 会发送一次真实短请求，可能计费；最后点击 Save。
+
+Quick Ask 只支持 HTTPS 非流式 `/chat/completions`。本机或局域网 `http://`、redirect、userinfo、query/fragment 和歧义 path 会明确拒绝。关闭聊天面板会销毁 messages、未发送 draft 和错误；这些内容永远不写入 `config.json`。
 
 ## 可直接使用的 OpenRouter 完整模板
 
@@ -71,6 +84,15 @@
         "shift": false
       }
     },
+    "toggle_quick_ask": {
+      "keyCode": 12,
+      "modifiers": {
+        "command": false,
+        "control": true,
+        "option": true,
+        "shift": false
+      }
+    },
     "toggle_panel": {
       "keyCode": 29,
       "modifiers": {
@@ -96,6 +118,31 @@
         "control": false,
         "option": true,
         "shift": false
+      }
+    }
+  },
+  "quick_ask": {
+    "model": "openrouter-chat/REPLACE_WITH_CHAT_MODEL",
+    "provider_order": ["openrouter-chat"],
+    "enabled_providers": ["openrouter-chat"],
+    "provider": {
+      "openrouter-chat": {
+        "name": "OpenRouter Chat",
+        "options": {
+          "baseURL": "https://openrouter.ai/api/v1",
+          "path": "/chat/completions",
+          "apiKey": "REPLACE_WITH_OPENROUTER_KEY",
+          "temperature": 0.7,
+          "maxTokens": 2048,
+          "timeoutSeconds": 120,
+          "systemPrompt": "You are a concise temporary assistant. Answer directly. Do not assume prior context.",
+          "customEndpointApproved": false
+        },
+        "models": {
+          "REPLACE_WITH_CHAT_MODEL": {
+            "name": "Default Chat"
+          }
+        }
       }
     }
   },
@@ -166,7 +213,8 @@ Provider ID 本身不能包含 `/`，可使用字母、数字、`-`、`_`、`.`�
 | `provider_order` | 是 | Provider 显示与处理顺序；必须与 `provider` 的键集合完全一致且不能重复。 |
 | `enabled_providers` | 是 | 已启用 Provider ID；当前必须与 `provider` 的键集合完全一致。它不是对比模型列表。 |
 | `comparison` | 是 | `enabled` 控制对比开关，`models` 保存按展示顺序排列的 0–4 个完整 selector；开启时至少 2 个。 |
-| `shortcuts` | 否 | voice、panel 显隐及前后对比导航的四项全局快捷键；旧 schema v2 文件省略整个对象或 `toggle_voice` 时使用对应默认值。 |
+| `shortcuts` | 否 | voice、Quick Ask、panel 显隐及前后对比导航的五项全局快捷键；省略对象或字段时使用对应默认值。 |
+| `quick_ask` | 否 | 独立 Provider/Models catalog，内部含 active `model`、provider order/enabled set/provider dictionary；省略时未配置。不得写入消息、草稿或回复。 |
 | `provider` | 是 | 以语义化 Provider ID 为键的字典；最多 64 个 Provider。 |
 
 JSON 对象本身的文本排列顺序不决定业务顺序；Provider 顺序以 `provider_order` 为准，对比候选顺序以 `comparison.models` 为准。App 保存时会按 pretty-printed、sorted-keys 格式重写文件。
@@ -203,6 +251,42 @@ JSON 对象本身的文本排列顺序不决定业务顺序；Provider 顺序以
 - `multipart-form-data`：OpenAI 官方端点及传统 OpenAI-compatible 文件上传接口；OpenRouter 当前也支持。该形式可发送 `prompt`、`temperature` 和 `response_format=json`。
 
 Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON 参数表没有把它列为通用字段；OpenRouter 的 multipart 兼容路径会接受但忽略 `prompt`。
+
+## Quick Ask catalog 的结构
+
+`quick_ask` 与顶层转写 catalog 使用同一种 Provider/Models 层级，但两者是完全独立的数据域：
+
+| 字段 | 必填 | 含义与约束 |
+|---|---:|---|
+| `model` | 是 | 默认聊天 route 的完整 selector；没有 Quick Ask Provider 时必须为空字符串。 |
+| `provider_order` | 是 | Quick Ask Provider 的显示顺序；必须与 `provider` 的键集合完全一致且不能重复。 |
+| `enabled_providers` | 是 | 当前启用的 Quick Ask Provider ID；目前必须与 `provider` 的键集合完全一致。 |
+| `provider` | 是 | Quick Ask 专用 Provider 字典；不得引用或复用顶层转写 `provider`。 |
+
+每个 `quick_ask.provider.<provider-id>` 使用下面的结构：
+
+| 字段 | 必填 | 含义 |
+|---|---:|---|
+| `name` | 是 | Settings 左栏显示的 Provider name。 |
+| `options` | 是 | 该 Provider 全部聊天模型共享的连接、凭据和生成参数。 |
+| `models` | 是 | Model ID 到可选 Display name 的字典；至少 1 个、最多 64 个。 |
+
+Quick Ask 的 `options` 只包含聊天需要的字段：
+
+| 字段 | 含义 |
+|---|---|
+| `baseURL` | HTTPS 基础地址；OpenRouter 常用 `https://openrouter.ai/api/v1`。 |
+| `path` | Chat Completions path，必须以 `/` 开头，默认 `/chat/completions`。 |
+| `apiKey` | 该 Quick Ask Provider 的共享明文 API key；不会复制到各模型。 |
+| `temperature` | 生成温度，范围 `0...2`。 |
+| `maxTokens` | 最大输出 token，范围 `64...32768`。 |
+| `timeoutSeconds` | 请求超时秒数，范围 `5...600`。 |
+| `systemPrompt` | 本 Provider 共享的临时问答 system prompt，最多 32768 个字符。 |
+| `customEndpointApproved` | 非内建可信 HTTPS host 时必须显式为 `true`。 |
+
+Quick Ask 不使用转写的 `adapter`、音频参数、request encoding、language、转写 prompt 或 `comparison`。Settings 只是复用同一套左 Provider / 右共享配置 / Models 的工作模式。Quick Ask selector 同样只在第一个 `/` 分割，因此 `openrouter-chat/openai/gpt-4.1-mini` 表示 Provider ID 为 `openrouter-chat`、Model ID 为 `openai/gpt-4.1-mini`。
+
+修改已有 Quick Ask Provider 的 host 或有效端口时，凭据目的地也随之改变。若本次保存没有输入新 key，Flotis 会自动清除旧目的地的 key；不会把旧凭据静默发送给新 host。
 
 ## 不启用对比时
 
@@ -257,7 +341,7 @@ Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON �
 }
 ```
 
-默认 key code 为：字母 `A` = `0`、数字 `0` = `29`、左方向键 = `123`、右方向键 = `124`。四项都必须包含至少一个修饰键并且彼此不同。推荐直接在“快捷键”设置中点击对应组合键并录制，避免手工查虚拟键码；修改 voice 后，胶囊文字与 Carbon 注册会立即使用新组合，旧组合不再触发 voice。
+默认 key code 为：字母 `A` = `0`、字母 `Q` = `12`、数字 `0` = `29`、左方向键 = `123`、右方向键 = `124`。五项都必须包含至少一个修饰键并且彼此不同。推荐直接在“快捷键”设置中点击对应组合键并录制；修改 voice 后胶囊文字立即更新，修改 Quick Ask 后旧组合立即停止切换聊天面板。
 
 ## 空配置与 Apple Speech
 
@@ -277,6 +361,15 @@ Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON �
   "shortcuts": {
     "toggle_voice": {
       "keyCode": 0,
+      "modifiers": {
+        "command": false,
+        "control": true,
+        "option": true,
+        "shift": false
+      }
+    },
+    "toggle_quick_ask": {
+      "keyCode": 12,
       "modifiers": {
         "command": false,
         "control": true,
@@ -311,6 +404,12 @@ Flotis 的 OpenRouter JSON 请求目前不发送 `prompt`，因为官方 JSON �
         "shift": false
       }
     }
+  },
+  "quick_ask": {
+    "model": "",
+    "provider_order": [],
+    "enabled_providers": [],
+    "provider": {}
   },
   "provider": {}
 }
@@ -361,7 +460,10 @@ App 还会以同目录 `.config.lock` 协调写入。不要把 `config.json` 或
 - 以为 OpenRouter 只能使用一种编码。它当前同时支持 JSON+Base64 和 multipart；本模板与 Flotis 自动默认使用 `json-base64`，若手动切换则应确认服务端和测试结果与所选编码匹配。
 - Base URL 写成完整 API URL，同时 Path 又写一次 `/v1/audio/transcriptions`，导致路径重复。
 - `comparison.models` 引用了不存在的模型，或开启对比但不足两个 selector。
-- 四个可配置快捷键有任一项没有修饰键，或任意两项重复。
+- 五个可配置快捷键有任一项没有修饰键，或任意两项重复。
+- 把 Quick Ask chat model 写进顶层转写 `provider`，或把 messages/draft/reply 写进 `quick_ask`。聊天模型必须放进 `quick_ask.provider.<id>.models`，内容仅驻内存。
+- 把 Quick Ask 配置写成旧的单组 `baseURL` / `model` 扁平对象。当前结构必须是独立的 Provider/Models catalog；本轮不保留旧扁平结构的兼容读取。
+- 给 Quick Ask 填 `http://localhost`/局域网明文地址，或误以为切换 host 会继续复用旧 API key。当前实现只接受 HTTPS；credential destination 改变且未输入新 key 时会明确清除旧 key。
 - 在 App 运行时手工编辑，随后又在 Settings 保存，导致手工版本被旧内存状态覆盖。
 - 把真实 API key 写进教程、截图、日志或 Git。
 

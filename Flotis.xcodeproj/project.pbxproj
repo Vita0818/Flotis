@@ -11,14 +11,17 @@
 		06003C852429206A55AE8768 /* JetBrainsMono.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 54DB8E7A33620052B9DCBC43 /* JetBrainsMono.ttf */; };
 		0C24C753991C9A7B47FEA501 /* InputMethodKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AA3E6C64D54FA61AC2F97B83 /* InputMethodKit.framework */; };
 		0E680CE5438419452E6C8ED6 /* DashScopeParaformerRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */; };
+		0F463D35BCBD9354F28AADB6 /* QuickAskSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9BE75B1B83F4D05899A61A4 /* QuickAskSettingsView.swift */; };
 		11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */; };
 		1349C582187301D655A8523B /* CommandStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC40FD954EBB9D2B3FA9E5F9 /* CommandStore.swift */; };
 		1718A5A97B805BED69E18303 /* TranscriptionConnectionTester.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5B716D80E0378261099D87 /* TranscriptionConnectionTester.swift */; };
 		1A3741FE995BAC94ECAC3CAC /* TranscriptionComparisonTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC4F508EA038E58CEAF7142D /* TranscriptionComparisonTests.swift */; };
 		1D9276E6D2B5559B63A0D687 /* InfoPlist.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B2823B966CB0E73292DA20C7 /* InfoPlist.xcstrings */; };
 		21E8EDC9E6DBAD4EF5E46B53 /* FlotisInputMethodProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4702B102FF4B47344F64AB /* FlotisInputMethodProtocol.swift */; };
+		277B42DF8FD8B387104911C4 /* QuickAskClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBD9C5621C621C3CAEFC427 /* QuickAskClientTests.swift */; };
 		34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */; };
 		357C097A630C05D50077BE8B /* TranscriptionProviderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B3FE1F916017519575049B3 /* TranscriptionProviderStore.swift */; };
+		39022B74739AD1086124ECF6 /* QuickAskPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18BEEB47AC262DD3D8FDE2E7 /* QuickAskPanelController.swift */; };
 		3C26D369AFEB44306C389A12 /* StreamingAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */; };
 		41BFF3458041CF89BF51EC2E /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 037EC58D9A17FE68E6493AED /* AudioRecorder.swift */; };
 		45F74C4CD55307FABB9AFE45 /* FlotisInputMethodIcon.svg in Resources */ = {isa = PBXBuildFile; fileRef = BC99B196743113781A8526E0 /* FlotisInputMethodIcon.svg */; };
@@ -26,6 +29,7 @@
 		53FEC5007B881844D15242CD /* FlotisInputMethodProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4702B102FF4B47344F64AB /* FlotisInputMethodProtocol.swift */; };
 		57102622D3CE1B0C5E90FDA9 /* ClipboardPasteInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */; };
 		58958616F2F70A7B493E9A94 /* LocalSecretStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDFD05DA53886AE768CE1C4F /* LocalSecretStore.swift */; };
+		60E6C7D9756845BD16A75DC8 /* QuickAskClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6789331F3F42A155E1D8AC35 /* QuickAskClient.swift */; };
 		62C3B5080784C6FC4357C6FA /* HotkeyAndInjectionPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */; };
 		640E7E457885CD5599ABA73D /* HotkeyConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */; };
 		6527988C7E53A8309F3A0C71 /* VolcengineBigASRRealtimeTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBCAE70953AE9EB6C6B13C6F /* VolcengineBigASRRealtimeTranscriber.swift */; };
@@ -34,8 +38,11 @@
 		71CF548B550202212782B0D7 /* FloatingPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */; };
 		7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */; };
 		7F53C851DB98DE68333BF928 /* FlotisApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F201255CBA9778664C71C9E5 /* FlotisApp.swift */; };
+		837DD7B46DC9256E777801DA /* QuickAskSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149FCBD15D914C3D4CAC1A89 /* QuickAskSession.swift */; };
 		8B54DC924DFBBA60DDC03423 /* FlotisInputMethodService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51CB3145A6EF642E018D3B60 /* FlotisInputMethodService.swift */; };
+		8C67052502698D3CA47C35FA /* QuickAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44EBBC87200CF0DE10F032B0 /* QuickAskView.swift */; };
 		8DEB31F1A067D7E1047E15BD /* FlotisDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */; };
+		97F651FFC6AAAB8B799CFB17 /* QuickAskLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA83BEB5CCF70B747DD2B5A7 /* QuickAskLifecycleTests.swift */; };
 		9956F2073C00DD6D05816073 /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE19A11654280B40753B3CAF /* HotkeyManager.swift */; };
 		9B26D8F9B91863D11D5359CE /* TranscriptionProviderConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D35C8553893E49C234B5792 /* TranscriptionProviderConfig.swift */; };
 		A0F7DA3F0359948F9DFBFF9C /* VoiceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BCA4B00B2CF3C1D2B4381D3 /* VoiceSettingsView.swift */; };
@@ -45,6 +52,7 @@
 		AC1D8DE2A2679D9BB527F0A3 /* Flotis.icon in Resources */ = {isa = PBXBuildFile; fileRef = F796B54F46FB10F061EB8FE1 /* Flotis.icon */; };
 		AD05ECEF680D1F2D2F185FFC /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */; };
 		B17F60CD12470C4CD07044D7 /* FlotisInputMethodServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEFFE09537D5AD7B0E5C09C /* FlotisInputMethodServiceTests.swift */; };
+		B36686A33D1DC92F4F1708FA /* QuickAskConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE6BE41B31636332EC9BF41 /* QuickAskConfiguration.swift */; };
 		BAA0CE55B27C665FB85F2956 /* TranscriptionComparison.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DAE49136E83BF489F5141D /* TranscriptionComparison.swift */; };
 		BB4E3BAE59A0540D50ABDFFC /* TranscriptionAdapterRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */; };
 		BB7973DF4EDBE3EF587A5235 /* FlotisInputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079B58D5B6857E020AA0E879 /* FlotisInputController.swift */; };
@@ -77,12 +85,15 @@
 		079B58D5B6857E020AA0E879 /* FlotisInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisInputController.swift; sourceTree = "<group>"; };
 		0D35C8553893E49C234B5792 /* TranscriptionProviderConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderConfig.swift; sourceTree = "<group>"; };
 		146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAIRealtimeTranscriber.swift; sourceTree = "<group>"; };
+		149FCBD15D914C3D4CAC1A89 /* QuickAskSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskSession.swift; sourceTree = "<group>"; };
+		18BEEB47AC262DD3D8FDE2E7 /* QuickAskPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskPanelController.swift; sourceTree = "<group>"; };
 		24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscribing.swift; sourceTree = "<group>"; };
 		2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechProviderConfigurationTests.swift; sourceTree = "<group>"; };
 		2E40AAD19A7897ADA46C3240 /* VoiceInputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputController.swift; sourceTree = "<group>"; };
 		33446EF80396CE90D195FF8B /* HotkeyConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyConfiguration.swift; sourceTree = "<group>"; };
 		4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRuntimeTests.swift; sourceTree = "<group>"; };
 		4477D7CDB5337BD5EE992DBF /* JetBrainsMono-OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "JetBrainsMono-OFL.txt"; sourceTree = "<group>"; };
+		44EBBC87200CF0DE10F032B0 /* QuickAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskView.swift; sourceTree = "<group>"; };
 		45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionAdapterRegistry.swift; sourceTree = "<group>"; };
 		47B5F2BA49CBF9EF7159EF17 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		499CF9F16A907FAE75F19E1C /* AccessibilityPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermission.swift; sourceTree = "<group>"; };
@@ -95,10 +106,12 @@
 		57932C80DCC3BD00C5D6209F /* DashScopeParaformerRealtimeTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashScopeParaformerRealtimeTranscriber.swift; sourceTree = "<group>"; };
 		5BB5C7534225D2ED892ECEEE /* FlotisDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisDesign.swift; sourceTree = "<group>"; };
 		5DC2C707A76B11BD3BB34777 /* Flotis.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Flotis.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6789331F3F42A155E1D8AC35 /* QuickAskClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskClient.swift; sourceTree = "<group>"; };
 		67AD53AD7D7DC5B0CDEA2003 /* FlotisTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlotisTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		683B6D897EDC12F348A483FE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7B3FE1F916017519575049B3 /* TranscriptionProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionProviderStore.swift; sourceTree = "<group>"; };
 		7D837E2116BD756CE114B1FC /* FlotisInputMethod.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlotisInputMethod.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7FBD9C5621C621C3CAEFC427 /* QuickAskClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskClientTests.swift; sourceTree = "<group>"; };
 		8BCA4B00B2CF3C1D2B4381D3 /* VoiceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceSettingsView.swift; sourceTree = "<group>"; };
 		90D659983E211310E6A92B75 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		91630E9F834A9E9A96F7BEC2 /* FlotisInputMethodTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FlotisInputMethodTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -116,11 +129,14 @@
 		BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleTranscriber.swift; sourceTree = "<group>"; };
 		C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		C59E51A6CEE6706077735A6B /* ClipboardPasteInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPasteInjector.swift; sourceTree = "<group>"; };
+		CA83BEB5CCF70B747DD2B5A7 /* QuickAskLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskLifecycleTests.swift; sourceTree = "<group>"; };
 		CCD86A6A17F5F79A238D0DB9 /* VoiceInputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceInputMode.swift; sourceTree = "<group>"; };
 		CCEFFE09537D5AD7B0E5C09C /* FlotisInputMethodServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlotisInputMethodServiceTests.swift; sourceTree = "<group>"; };
 		CF4A5052134FDE3F34B4622F /* IntatisStyleSpeechProviderSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntatisStyleSpeechProviderSettingsView.swift; sourceTree = "<group>"; };
 		D8BD35E568FE4FC08BF1FB25 /* FloatingPanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelController.swift; sourceTree = "<group>"; };
+		D9BE75B1B83F4D05899A61A4 /* QuickAskSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskSettingsView.swift; sourceTree = "<group>"; };
 		DC4F508EA038E58CEAF7142D /* TranscriptionComparisonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionComparisonTests.swift; sourceTree = "<group>"; };
+		DFE6BE41B31636332EC9BF41 /* QuickAskConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAskConfiguration.swift; sourceTree = "<group>"; };
 		E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamingAudioCapture.swift; sourceTree = "<group>"; };
 		ECBECDF0BB1DC73D4DECCEE8 /* UIStrings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIStrings.swift; sourceTree = "<group>"; };
 		EE19A11654280B40753B3CAF /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
@@ -149,6 +165,8 @@
 			children = (
 				B7D55800835B814B38BF10A0 /* HotkeyAndInjectionPolicyTests.swift */,
 				C59C1EEF4D05A132D11D22B4 /* LocalizationTests.swift */,
+				7FBD9C5621C621C3CAEFC427 /* QuickAskClientTests.swift */,
+				CA83BEB5CCF70B747DD2B5A7 /* QuickAskLifecycleTests.swift */,
 				2D4CF1F274E7F92C37273EFD /* SpeechProviderConfigurationTests.swift */,
 				B10AE123F4CBDD35135C1684 /* TranscriptAssemblyTests.swift */,
 				4412B66BC2111B6D9357DC6A /* TranscriptionAdapterRuntimeTests.swift */,
@@ -182,6 +200,12 @@
 				BEED66002D473AE8E2E5C3DE /* OpenAICompatibleTranscriber.swift */,
 				146562F3092C2C5579B4E68C /* OpenAIRealtimeTranscriber.swift */,
 				A472152491645DCEBDA1AB09 /* PromptCommand.swift */,
+				6789331F3F42A155E1D8AC35 /* QuickAskClient.swift */,
+				DFE6BE41B31636332EC9BF41 /* QuickAskConfiguration.swift */,
+				18BEEB47AC262DD3D8FDE2E7 /* QuickAskPanelController.swift */,
+				149FCBD15D914C3D4CAC1A89 /* QuickAskSession.swift */,
+				D9BE75B1B83F4D05899A61A4 /* QuickAskSettingsView.swift */,
+				44EBBC87200CF0DE10F032B0 /* QuickAskView.swift */,
 				24832C5E01A2C89D1E7D3774 /* SpeechTranscribing.swift */,
 				E0B0D37D69CE8B9BE6D36D8C /* StreamingAudioCapture.swift */,
 				45D9C42C80B4B605D12F7A58 /* TranscriptionAdapterRegistry.swift */,
@@ -423,6 +447,8 @@
 			files = (
 				62C3B5080784C6FC4357C6FA /* HotkeyAndInjectionPolicyTests.swift in Sources */,
 				AD05ECEF680D1F2D2F185FFC /* LocalizationTests.swift in Sources */,
+				277B42DF8FD8B387104911C4 /* QuickAskClientTests.swift in Sources */,
+				97F651FFC6AAAB8B799CFB17 /* QuickAskLifecycleTests.swift in Sources */,
 				7A1A8D056F9644E104861657 /* SpeechProviderConfigurationTests.swift in Sources */,
 				D077A31C8B3897BBEBE54CF0 /* TranscriptAssemblyTests.swift in Sources */,
 				11A4629E264D279ED9F72EB1 /* TranscriptionAdapterRuntimeTests.swift in Sources */,
@@ -453,6 +479,12 @@
 				C53EF9FF56A7D0ACF1C5B77F /* OpenAICompatibleTranscriber.swift in Sources */,
 				34DA15F252607D001CB2ABFF /* OpenAIRealtimeTranscriber.swift in Sources */,
 				CAE8A34BD7852F009E363ADB /* PromptCommand.swift in Sources */,
+				60E6C7D9756845BD16A75DC8 /* QuickAskClient.swift in Sources */,
+				B36686A33D1DC92F4F1708FA /* QuickAskConfiguration.swift in Sources */,
+				39022B74739AD1086124ECF6 /* QuickAskPanelController.swift in Sources */,
+				837DD7B46DC9256E777801DA /* QuickAskSession.swift in Sources */,
+				0F463D35BCBD9354F28AADB6 /* QuickAskSettingsView.swift in Sources */,
+				8C67052502698D3CA47C35FA /* QuickAskView.swift in Sources */,
 				A1F2D6BF7605AAB7F2795951 /* SpeechTranscribing.swift in Sources */,
 				3C26D369AFEB44306C389A12 /* StreamingAudioCapture.swift in Sources */,
 				BB4E3BAE59A0540D50ABDFFC /* TranscriptionAdapterRegistry.swift in Sources */,

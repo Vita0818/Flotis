@@ -43,6 +43,7 @@ final class SpeechProviderConfigurationTests: XCTestCase {
         XCTAssertEqual(document.providerOrder, [])
         XCTAssertEqual(document.provider, [:])
         XCTAssertEqual(document.model, "")
+        XCTAssertEqual(document.quickAsk, .unconfigured)
         XCTAssertFalse(document.provider.values.contains { $0.adapter == .appleOnDevice })
         XCTAssertNil(defaults.data(forKey: "flotis.transcriptionConnections.v3"))
         XCTAssertNil(defaults.data(forKey: "flotis.speechProviders.v2"))

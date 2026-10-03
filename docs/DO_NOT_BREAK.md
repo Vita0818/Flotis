@@ -11,7 +11,7 @@
 - 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
 - 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
 
-最近自查日期：2026-08-20
+最近自查日期：2026-08-22
 
 本文件记录当前可构建实现中的稳定边界。修改相关代码前必须同时核对源码、`project.yml` 与测试；若文档冲突，以当前源码/配置为准并报告差异。
 
@@ -56,7 +56,7 @@
 ### Canonical config
 
 - 唯一路径：`~/Library/Application Support/Flotis/config.json`；当前 schema version 为 `2`，`$schema` 标识固定为 `https://flotis.app/config/v2`。
-- 顶层 shape 必须保持 Intatis 式 `$schema`、`schema_version`、`model`、`provider_order`、`enabled_providers`、`comparison.models`、可选 `shortcuts`、`provider`。`model` 与对比项为 `<provider-id>/<model-id>`；只能在第一个 `/` 分割，Provider ID 禁止 `/`，Model ID 允许包含 `/`。`provider_order` 与 `enabled_providers` 当前都必须与 provider 字典键集合精确对应。
+- 顶层 shape 必须保持 `$schema`、`schema_version`、`model`、`provider_order`、`enabled_providers`、`comparison.models`、可选 `shortcuts`、`provider` 与独立 `quick_ask`。`model` 与对比项为 `<provider-id>/<model-id>`；只能在第一个 `/` 分割，Provider ID 禁止 `/`，Model ID 允许包含 `/`。`provider_order` 与 `enabled_providers` 当前都必须与 provider 字典键集合精确对应。Quick Ask 不是转写 provider/model route，不得塞入 `provider` 或 comparison。
 - 每个 `provider.<id>` 必须保存一次 `name`、`adapter`、共享 `options`、多项 `models` 与 credential revision；endpoint 和 API key 必须只位于共享 `options`，不得为每个模型复制，也不得重新拆成另一个运行时 JSON 真源。每个模型只可附带自己的显示名/安全测试摘要。
 - canonical schema v1 是可识别的原地迁移输入：必须在安全校验与同一文件锁下原子升级到 v2，移除 Apple 条目并尽量保留网络 Provider/模型/endpoint/key/选择。旧键 `flotis.transcriptionConnections.v3`/LKG、`flotis.speechProviders.v2`/LKG、`flotis.speechProviders.v1`、`flotis.transcriptionComparison.v1` 与旧 `secrets.json` 只能在 canonical 文件不存在时作为一次性只读 migration input；canonical v2 一旦存在不得再从旧源补写或覆盖。
 - 全新安装创建空 provider catalog；`apple-on-device` 不得写入 schema v2 的 `provider`、`provider_order`、`enabled_providers` 或 `comparison.models`。Apple on-device 仅可作为空 catalog 的内部 fallback；独立 preset catalog 不能被自动实例化成用户 Provider。
@@ -75,15 +75,15 @@
 
 ### 可配置全局快捷键
 
-- voice、panel 显隐、上一个对比结果、下一个对比结果只允许存于 canonical 顶层 `shortcuts.toggle_voice`、`toggle_panel`、`previous_comparison_result`、`next_comparison_result`；不得另建 UserDefaults 或第二个运行时 JSON 真源。
-- 旧 schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：voice `⌃⌥A`、panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison 或 API key。
-- 四项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键并且彼此不同；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
+- voice、Quick Ask、panel 显隐、上一个与下一个对比结果只允许存于 canonical 顶层 `shortcuts.toggle_voice`、`toggle_quick_ask`、`toggle_panel`、`previous_comparison_result`、`next_comparison_result`；不得另建 UserDefaults 或第二个运行时 JSON 真源。
+- schema v2 缺少整个 `shortcuts` 或缺少其中某项时必须使用当前默认值：voice `⌃⌥A`、Quick Ask `⌃⌥Q`、panel `⌘⌥⇧0`、previous `⌥←`、next `⌥→`。补写默认值和任意修改都必须使用 `FlotisConfigurationStore` 的同锁 read-modify-write，不能覆盖 provider、active model、comparison、quick_ask 或 API key。
+- 五项持久化 descriptor 必须至少包含一个 Command/Option/Shift/Control 修饰键并且彼此不同；Settings 应在写入前给出可理解错误。外部进程占用等 Carbon 注册失败仍必须可见并自动重试，不得因注册失败回退为静默抢占或引入 Input Monitoring。
 - descriptor 变化只允许差异注销/注册对应 Carbon ID；未变化项不能被无条件全量重建。previous/next 无论配置为何，都只能在对比 reviewing 且至少两个成功候选时临时注册，离开后立即注销。
-- Settings 侧栏必须保持“快捷键 / 转写”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留 voice、panel 与前后对比导航的一张紧凑卡和四个 `52` pt 行，不得重新加入语音流程、胶囊拖动、对比生效条件、重复 section、hover help、铅笔或常驻恢复控件。四项都保持 `156×38` / 15 pt JetBrains Mono 的轻量 surface，整块可点并在同尺寸录制态获得键盘焦点。真实校验、持久化或 Carbon 注册错误仍必须可见。
+- Settings 侧栏必须保持“快捷键 / 转写 / 快速 AI 问答”；左上 `Flotis` 与版本旁不得重新添加应用图标。“快捷键”页只保留 voice、Quick Ask、panel 与前后导航的一张紧凑卡和五个 `52` pt 行，不得重新加入语音流程、胶囊拖动、对比生效条件、重复 section、hover help、铅笔或常驻恢复控件。五项都保持 `156×38` / 15 pt JetBrains Mono 的轻量 surface，整块可点并在同尺寸录制态获得键盘焦点。真实校验、持久化或 Carbon 注册错误仍必须可见。
 
 ### API key / 应用自管本地存储
 
-- API key 明文不得进入 UserDefaults、日志或项目文档；只允许存在当前会话内存与 canonical `provider.<id>.options.apiKey`。同一 Provider 的模型必须共享这一份 key；运行时 `apiKeyReference` 只能作为 provider/key 的内存匹配 ID，禁止拼接为文件路径。
+- API key 明文不得进入 UserDefaults、日志或项目文档；只允许存在当前会话内存与 canonical 转写 `provider.<id>.options.apiKey` 或 `quick_ask.provider.<id>.options.apiKey`。同一域内一个 Provider 的模型必须共享自己的 key；Quick Ask key 不得进入转写 provider，也不得从独立参考项目的 Keychain/UserDefaults 自动读取或迁移。
 - `FlotisConfigurationStore` 是唯一生产凭据后端；`LocalSecretStore` 只保留为旧 `secrets.json` 迁移读取器。Flotis app 源码不得导入 `Security`、调用 `SecItem*`，不得读取、迁移或删除旧系统钥匙串条目。
 - `~/Library/Application Support/Flotis` 必须保持 `0700`，`config.json` 与 `.config.lock` 必须保持 `0600`。读写必须使用不跟随符号链接的目录 fd 与 `openat`；进程内使用共享锁，多进程使用 `.config.lock` 的 advisory write lock 覆盖完整 read-modify-write，且竞争必须有限等待、不可永久阻塞 UI。写入必须使用同目录私有临时文件、`fsync`、`renameat` 原子替换与目录同步。
 - 必须拒绝符号链接、非普通文件、非当前用户所有、损坏/未知 schema、结构不一致或超过 4 MiB 的 canonical 文件，以及空白或超限 key；遇到损坏数据时禁止静默按 fresh document 覆写。
@@ -93,6 +93,19 @@
 - Connection Test 的成功/失败记录只能保存固定成功摘要或受限脱敏错误；服务端原样回显任意形态的本次 API key 时，必须先按完整值精确脱敏，不能只依赖 `sk-*` 等 provider-specific pattern。
 - 保存、替换或清除 credential 必须推进 `credentialRevision`，使旧 Test Connection fingerprint 失效；显示名称变化不应使测试失效。
 - 本地文件不具备独立加密能力，只依赖 macOS 当前用户权限与可选 FileVault；文案不得暗示其具备钥匙串级隔离。删除也不得宣称完成物理介质安全擦除。
+
+### Quick Ask
+
+- 只能保留一颗现有语音胶囊；Quick Ask 必须是同一 `Flotis` process 的 `420×560` 临时 panel，不得重新接入独立 `@main`、第二颗 capsule、第二个 app 生命周期、IPC、第二配置文件、Keychain 或 UserDefaults store。
+- `quick_ask` 必须保持独立 Provider/Models catalog：自己的 active selector/provider order/enabled set/provider dictionary；每个 Provider 保存一次 name、共享 HTTPS baseURL/path/apiKey/temperature/maxTokens/timeoutSeconds/systemPrompt/customEndpointApproved，并以 models dictionary 保存 1–64 个模型及可选 Display name。不得退化为扁平单 endpoint/model，也不得复用或写入转写 provider/comparison。messages、draft、reply、error、连接测试结果、复制内容和远端响应正文不得编码或持久化。
+- Quick Ask Settings 必须与转写保持同一种工作模式而非只模仿配色：左 Provider 列表/模型数，右 Provider name/共享 API key/Active model/Connection/Models，卡下 Test Provider/Save；Provider 行至少 48 pt，Connection/Models/Advanced header 至少 44 pt 全行可点。chat-only Advanced 放 temperature/maxTokens/timeout/systemPrompt；不得出现音频、Comparison、language 或 transcription prompt。
+- Quick Ask borderless panel 必须可从标题栏左/中区域拖动：用户事件之外保持 `isMovable=false`，单次左键 mouse-down 显式调用 AppKit `performDrag(with:)`。右侧设置/关闭按钮范围、标题栏以下消息/滚动/复制/输入区以及双击不得被拖动分派截获；不得用全窗 `isMovableByWindowBackground` 破坏文本和控件交互。
+- Quick Ask 必须从初始化起保持 `.nonactivatingPanel` / `.floating` / `hidesOnDeactivate=false` / `.canJoinAllSpaces`，显示时用 `orderFrontRegardless()` 跨应用置前并只让自身 `makeKey()`。不得重新调用 `NSApp.activate`、`activate(ignoringOtherApps:)` 或通过抬升整个 Flotis 达成“置顶”；聊天面板必须保持 keyable 且 `becomesKeyOnlyIfNeeded=false`，避免失焦后点击输入区不能立即恢复键盘输入。
+- 固定 Carbon ID `500`、默认 `⌃⌥Q`；第二次热键、Esc、关闭按钮与 App 退出必须取消 task、推进 generation 并清空 messages/draft/error。voice 和 Quick Ask 不得隐式取消或改写对方状态。
+- 只允许 HTTPS；拒绝 userinfo、query、fragment、反斜杠/双斜杠 path 与 redirect。除 `api.openai.com:443`、`openrouter.ai:443` 外的 HTTPS host/port 必须由用户明确批准。scheme/host/effective port 改变时不得静默复用已有 key，必须清除或明确重输。
+- v1 只允许非流式 `POST .../chat/completions`，请求字段固定为 model/messages/temperature/max_tokens；响应只接受 2xx JSON 的 `choices[0].message.content`，最大 4 MiB。失败不得换 endpoint/model/provider、猜测其他 shape、启用 streaming 或调用 mock/cache/旧实现。
+- 服务端 error message 展示前必须按当前完整 key 精确脱敏并限制 512 字符；Authorization、完整请求/响应和会话内容不得记录。Test Connection 必须明确它会发送真实短请求并可能计费。
+- composer 必须兼容 macOS 13 与 IME marked text：组合文字存在时 Return 不发送，普通 Return 发送，Shift+Return 换行。所有自有文字继续使用 JetBrains Mono/PingFang cascade。
 
 ## Provider schema 与 endpoint
 
@@ -177,7 +190,7 @@
 ## 热键、当前复制与旧注入安全边界
 
 - `VoiceInputState.reviewing.hotkeyAction` 必须保持 `copyAndReturn`；idle/failed→start、recording/streaming→stop、requesting/connecting→cancel、stopping/transcribing/injecting→none 的其余映射不得回归。
-- voice descriptor 由用户配置、默认 `⌃⌥A`（Carbon virtual key `0`，Control+Option）；panel descriptor 默认 `⌘⌥⇧0`，previous/next 默认 `⌥←` / `⌥→`。previous/next 只能在对比 reviewing 且至少两个成功候选时临时注册，离开后必须注销；不得在 idle、单结果 reviewing 或后台普通使用中长期抢占任何用户配置的导航按键。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
+- voice descriptor 由用户配置、默认 `⌃⌥A`（Carbon virtual key `0`，Control+Option）；Quick Ask 默认 `⌃⌥Q` 且固定 Carbon ID `500`；panel 默认 `⌘⌥⇧0`，previous/next 默认 `⌥←` / `⌥→`。previous/next 只能在对比 reviewing 且至少两个成功候选时临时注册，离开后必须注销；不得在 idle、单结果 reviewing 或后台普通使用中长期抢占任何用户配置的导航按键。不得藉热键调整重新接入 Accessibility/Input Monitoring、改写系统键盘/听写设置或改变当前复制并返回状态机。
 - 当前复制写入成功后必须直接清空会话并回 idle，不得恢复 `.closePanel` outcome 或窗口关闭回调。失败或纯空白必须保持 panel 与 review 可恢复；复制后的文字必须留在剪贴板，不能用旧注入器的 snapshot restore 覆盖。
 - `ClipboardPasteInjector` 当前只作为不可达兼容实现保留；没有用户新的明确产品决策，不得重新接入 AppDelegate、`VoiceInputController` 或审阅按钮。
 
@@ -194,7 +207,7 @@
 - panel 的真实 `window.isVisible` 与 `AppState.isPanelVisible` 必须同步；voice hotkey 在 panel 隐藏时应恢复胶囊可见性，reviewing 第三次热键复制成功后必须保持 panel 可见并缩回 idle 小胶囊，复制失败时则继续显示 reviewing panel。对比结果只要至少一项成功就必须已有自动 selection；不得重新引入等待人工首次选择的空 selection 状态。
 - panel 必须允许用户从非审阅胶囊的任意可见位置拖动，但在用户鼠标事件之外必须保持 `isMovable=false`，使系统在 Space/显示环境过渡中维持相对屏幕位置，不能重新长期开启系统管理移动而产生动画结束后的瞬移。单次 mouse-down 必须由 panel 直接进入原生 `performDrag(with:)`，不得只依赖被全尺寸 SwiftUI surface 吞掉的 background drag。reviewing 的 mouse-down 可仅在原生事件分发调用期间临时允许 background drag，使非交互背景仍可拖、文本与按钮继续优先；不得把可移动状态留到事件之外。尺寸变更要合并旧请求、只应用最后一次，并以独立逻辑锚点保持用户选择的水平中心与底边、将实际 frame 钳制在目标屏幕可见区。程序 resize 为可见性产生的临时钳位不得覆盖逻辑锚点，idle→reviewing→取消或复制成功都必须恢复展开前的小胶囊位置；只有用户主动拖动才更新锚点。reviewing 的鼠标事件必须继续转发给原生编辑器，避免窗口拖动抢占文本拖选或双击选词。Settings 必须使用独立窗口，不能重新附着成推动胶囊的 sheet；其内容滚动不得把侧栏或页头推入标题栏。
 - Settings 的窗口内容默认尺寸必须保持 `1100×760`、最小内容尺寸保持 `820×600`；HostingController 赋值后必须显式应用 `contentMinSize` 和 `setContentSize`，不能再次让 SwiftUI fitting size 把实际内容宽度缩成 820 pt、破坏 Provider/Models 双栏。若后续调整尺寸，必须同时用折叠和 Models 展开状态做与 Intatis 参考同屏的运行态视觉回归。
-- 当前 compact Presentation contract 为 reviewing 之外所有状态统一 `96×36`、18 pt 连续圆角的透明系统 glass/material 表面；AppKit 原生容器必须是唯一底面，SwiftUI compact 内容不得绘制固定白色/不透明填充或自定义整圈描边，快捷键必须使用随 Light/Dark appearance 解析的动态主文字色。可见内容严格只有 6 pt 语义圆点、7 pt 间距和 15 pt JetBrains Mono Semibold 的当前 voice 快捷键。不得重新增加品牌名、麦克风、设置齿轮、计时、状态/错误句、说明、hover 提示、动作按钮或任何其他可见元素，也不得把参考图中的 `Ask` 当作提示词移植。idle/成功为绿色，录音/流式为红色，请求/连接/停止/转写/失败/热键错误为橙色；完整状态与错误只通过 accessibility value 暴露。voice 快捷键的 start/stop/copy-and-return 状态映射不得因键位配置或视觉精简改变。
+- 当前 compact Presentation contract 为 reviewing 之外所有状态统一 `96×36`、18 pt 连续圆角的透明系统 glass/material 表面；AppKit 原生容器必须是唯一底面，SwiftUI compact 内容不得绘制固定白色/不透明填充或自定义整圈描边，快捷键必须使用随 Light/Dark appearance 解析的动态主文字色。可见内容严格只有 6 pt 语义圆点、5 pt 间距和 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>` 双快捷键，默认 `⌃⌥A/⌃⌥Q`；两项配置变化都必须即时更新，极长组合只允许文字最低缩至 70%，不得扩大胶囊。不得重新增加品牌名、麦克风、设置齿轮、计时、状态/错误句、说明、hover 提示、动作按钮或任何其他可见元素，也不得把参考图中的 `Ask` 当作提示词移植。idle/成功为绿色，录音/流式为红色，请求/连接/停止/转写/失败/热键错误为橙色；完整状态与错误只通过 accessibility value 暴露。voice 快捷键的 start/stop/copy-and-return 状态映射不得因键位配置或视觉精简改变。
 - Settings 的 compact 入口必须是非审阅胶囊双击：单击不得打开设置；double-click 复用现有独立 Settings 窗口；reviewing 中不得由 panel 截获双击，以免破坏原生文本选词。最小胶囊上不得为该交互增加齿轮、文字提示或其他可见 affordance。
 - 单结果 reviewing 的 Presentation contract 保持 `420×160`；对比 reviewing 为 `560×300`，必须用固定双列网格容纳 2–4 个候选，四项为 2×2，不能退化为需要横向滚动的一行。首个成功项直接打开原生编辑器，不显示额外的“先选择”提示；既有复制/取消/复制并返回动作保留。候选有非空 Model Display name 时可见卡片只能显示该名称；没有时必须以 Model ID 为主要文字、Provider 名称为次要文字，不能显示 endpoint。失败状态不能只靠颜色表达，长 Display name/model/provider 必须截断，panel 不能超过当前 `600×300` 上限。
 - macOS 26+ 的 panel 容器必须继续由原生 `NSGlassEffectView(style: .regular)` 承载，macOS 13–25 的 material fallback 与窗口阴影路径仍须保留。compact SwiftUI 层必须透明，禁止再用固定浅色/深色填充、固定 tint 或覆盖 material 的额外表面压平系统 Liquid Glass；reviewing/Settings 的既有原生 glass/material 兼容路径也不得因最小胶囊改版退化。

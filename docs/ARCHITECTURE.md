@@ -11,7 +11,7 @@
 - 现有 fallback、adapter 或重复实现不构成先例，后续不得扩展。安全 fail-closed 与明确要求的旧数据解码/迁移不是功能兜底，但必须保持最窄范围，不能演化成备用产品实现。
 - 只有用户针对 exact 依赖、exact 范围和退出条件作出的新明文决定才能例外。
 
-最近自查日期：2026-08-20
+最近自查日期：2026-08-22
 
 ## 总体架构
 
@@ -44,7 +44,36 @@ VoiceInputController
           clear session + visible idle capsule
 ```
 
-`AppDelegate` 装配 `AppState`、`SpeechProviderStore`、`TranscriptionComparisonStore`、`VoiceInputController`、`FloatingPanelController`、可复用的 `FlotisSettingsWindowController` 与 `HotkeyManager`。启动时 comparison store 会用完整 model selector 集合移除已不存在的选择；voice action 直接改变语音状态。reviewing 复制成功后 controller 回到 `idle`，现有 panel 尺寸监听把审阅框缩回小胶囊，窗口层不再接收 close outcome。panel 在用户鼠标事件之外保持 `isMovable=false`，让 AppKit/Window Server 在 Space 或显示环境过渡时维持相对屏幕位置；非审阅胶囊由 `FlotisFloatingPanel.sendEvent` 在单次 mouse-down 时直接调用 AppKit `performDrag(with:)`，避免全尺寸 SwiftUI surface 吞掉显式拖动；双击直接调用持有的设置窗口。reviewing 的 mouse-down 只在调用 `super.sendEvent` 时临时允许原生 background drag，使文本、按钮与非交互背景继续由 AppKit/SwiftUI 命中规则区分。独立逻辑锚点仍只由真实用户移动更新，程序 resize 的可见区钳位不回写。设置窗口不依赖字符串 selector，也不挂接会推动父 panel 的 sheet；HostingController 装配后设置 `contentMinSize=820×600`，再显式执行 `setContentSize(1100×760)`，确保 Intatis 式 Provider/Models 双栏不会被 SwiftUI 最小尺寸收窄。Settings 左侧栏的一键退出使用 `NSApplication.shared.terminate(nil)`，因此应用退出仍统一进入 `applicationWillTerminate`，先停止热键并取消当前语音会话。旧 `.injecting` 终止保护、`ClipboardPasteInjector`、`AccessibilityPermission`、`CommandStore`/`PromptCommand` 源码仍保留作兼容，但当前产品入口不会调用旧注入链路或命令链路。
+`AppDelegate` 装配 `AppState`、转写 provider/comparison、统一 hotkey/config、`VoiceInputController`、唯一胶囊、`QuickAskSession` / `QuickAskPanelController` 与可复用的 `FlotisSettingsWindowController`。voice action 只改变语音状态；Quick Ask action 只显示或销毁临时聊天面板，两者不隐式取消彼此。应用退出统一停止热键、取消语音资源并关闭 Quick Ask。主 panel 的拖动、resize、跨 Space 位置锚点和 reviewing 行为保持原设计；Quick Ask 观察主窗口 move/resize notification，只在自身可见时重新计算相邻位置。Quick Ask panel 是 `.nonactivatingPanel` / `.floating`，显示时通过 `orderFrontRegardless()` 跨应用置前后仅让自身成为 key，不激活整个 Flotis；它在用户事件外保持不可由系统移动，标题栏左/中单击由 `sendEvent` 直接进入原生 `performDrag(with:)`，右侧两个按钮和标题栏以下交互继续转发。设置窗口仍不使用 sheet 或字符串 selector，并由共享 navigation model 打开快捷键、转写或 Quick Ask 页面。旧 `.injecting`、`ClipboardPasteInjector`、`AccessibilityPermission` 与命令源码仍只作不可达兼容。
+
+## 同进程 Quick Ask
+
+Quick Ask 不采用独立 `FloatingCapsuleChatApp`、第二颗 `CapsulePanel`、第二个设置后端或 IPC。它是 Flotis application target 内的平行功能域：
+
+```text
+HotkeyManager ID 500 / Settings navigation
+                    │
+                    ▼
+          QuickAskPanelController
+          420×560 keyable NSPanel
+                    │
+                    ▼
+             QuickAskSession
+       messages + draft + generation
+                    │ snapshot
+                    ▼
+              QuickAskClient
+  POST HTTPS .../chat/completions (non-streaming)
+```
+
+- 默认 `⌃⌥Q` 打开并聚焦 composer；再次按下、Esc 或关闭按钮执行同一个 `close()`，取消在途 task、推进 generation 并清空 messages/draft/error。
+- 面板和胶囊同属 `.floating` / `hidesOnDeactivate=false` / `.canJoinAllSpaces` 层级，但 Quick Ask 额外保持 keyable。它从初始化即使用 `.nonactivatingPanel`，以 `orderFrontRegardless()` 置前、随后 `makeKey()`；不调用 `NSApp.activate`。`becomesKeyOnlyIfNeeded` 保持默认 `false`，因此再次点击聊天区域可以直接恢复键盘输入，而不会激活同进程的 Settings 或其他窗口。
+- `QuickAskMessage` 不实现 `Codable`；会话内容没有进入配置、UserDefaults、Keychain、日志或数据库的写入口。用户主动复制 assistant 回复是唯一剪贴板动作。
+- `QuickAskClient` 在发送前快照已保存配置和当前窗口历史；请求固定为非流式 Chat Completions `model/messages/temperature/max_tokens`，system prompt 仅作为请求首项，不进入消息数组。
+- canonical `quick_ask` 不是扁平 connection：它有独立 Provider/Models catalog 与 active `<provider-id>/<model-id>`。一个聊天 Provider 共享 HTTPS endpoint/key/Advanced，多个模型只保存 ID、可选 Display name；运行时从 active selector 派生不可变 `QuickAskConfiguration`，不会读取转写 provider 或 comparison。
+- endpoint 只允许 HTTPS、无 userinfo/query/fragment/反斜杠歧义，path 必须是单 `/` 开头的相对 path；`api.openai.com:443` 与 `openrouter.ai:443` 为内建可信目标，其他 HTTPS host/port 需明确批准。所有 session 使用 ephemeral configuration 和共享 no-redirect delegate。
+- 响应只接受 2xx JSON 与 `choices[0].message.content`，最大 4 MiB；404 或明确 model 400 映射为 missing model，其他服务端 message 先替换本次完整 key、再限制 512 字符。没有 streaming、备用 endpoint/model/provider、宽松 response 猜测或协议 fallback。
+- composer 使用 macOS 13 的 AppKit `NSTextView`：存在 IME marked text 时 Return 交给输入法，普通 Return 发送，Shift+Return 插入换行。
 
 ## 隔离的 InputMethodKit 接口
 
@@ -86,9 +115,9 @@ future authenticated local transport (尚未实现)
 - **窗口 canvas**：Settings 在 macOS 14+ 使用 SwiftUI `windowBackground`；macOS 13 通过 `.windowBackground` `NSVisualEffectView` fallback。胶囊仍由透明 borderless `NSPanel` 承载：编译器支持且运行于 macOS 26+ 时，hosting content 进入原生 `NSGlassEffectView(style: .regular)`，macOS 27+ 开启 interactive glass；macOS 13–25 回退到 `.popover` `NSVisualEffectView`，其可拉伸圆角 `maskImage` 同时限定 material 与窗口服务器阴影，CALayer mask 仅裁切 hosted subviews，并在显示或静态尺寸切换后刷新原生阴影。compact SwiftUI 内容不再绘制固定白色填充或自定义整圈描边，保持透明并让原生 glass/material 直接采样背景；快捷键使用动态主文字色。reviewing 继续使用既有原生 glass/material 内容结构，窗口服务器阴影与兼容路径继续由 AppKit 管理。
 - **内容表面**：结构化内容使用 `regularMaterial`、1 pt separator 和 continuous rounded rectangle；长文本与表单内容保持在系统 canvas / Material 层，不用 glass 覆盖全部正文。
 - **Liquid Glass 与兼容路径**：在编译器支持且运行于 macOS 26+ 时，panel 容器继续使用 AppKit `NSGlassEffectView(style: .regular)`，并作为 compact 胶囊的唯一表面；结构化 reviewing/Settings 交互表面仍可使用原生 glass。compact 内容层禁止再用固定白色/不透明 surface 覆盖系统高光、折射与背景采样。macOS 13–25 的 panel 继续回退到 `.popover` material，其他内容/按钮回退到 `regularMaterial` 与原生 `.bordered` / `.borderedProminent`，因此 deployment target 仍为 macOS 13。
-- **字体与图标**：Flotis 自有界面所有英文/拉丁字形统一使用 JetBrains Mono；中文 glyph 继续由 Core Text 回退到苹方。标题、正文、caption、快捷键和技术字段保留既有字号/weight 层级，不再切换 Serif、系统正文或系统 Monospaced family。最小胶囊只用 15 pt JetBrains Mono Semibold 的当前 voice 快捷键与一个原生 `Circle`，不显示品牌名、raster image set、SF Symbol 或 emoji；reviewing 与 Settings 的既有功能图标继续使用 SF Symbols。LaTeX 公式 renderer（当前仓库不存在）保持自己的既有公式字体，不属于该界面字体层。
+- **字体与图标**：Flotis 自有界面所有英文/拉丁字形统一使用 JetBrains Mono；中文 glyph 继续由 Core Text 回退到苹方。标题、正文、caption、快捷键和技术字段保留既有字号/weight 层级，不再切换 Serif、系统正文或系统 Monospaced family。最小胶囊只用 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>` 双快捷键与一个原生 `Circle`，不显示品牌名、raster image set、SF Symbol 或 emoji；reviewing 与 Settings 的既有功能图标继续使用 SF Symbols。LaTeX 公式 renderer（当前仓库不存在）保持自己的既有公式字体，不属于该界面字体层。
 - **应用图标**：根目录 `Flotis.icon` 是主 App 的 Icon Composer source of truth，并以 target resource 交给 `actool`；build setting 使用名称 `Flotis`。因此产物由 Xcode 生成系统多尺寸 `Flotis.icns` 和 `Assets.car`，Info.plist 的 icon name/file 也来自编译结果。历史录音/设置 raster image set 暂时保留但不再用于当前最小胶囊；输入法仍使用自己的 TIFF 输入源图标。
-- **共享组合**：reviewing 之外所有状态统一使用 `96×36` compact frame 与 18 pt 连续圆角的透明原生 glass/material 表面，内部只含 6 pt 语义圆点与 15 pt JetBrains Mono Semibold 的当前 voice 快捷键，间距 7 pt；快捷键为动态主文字色，默认显示 `⌃⌥A`，配置变化后即时更新。idle 为绿点，录音/流式为红点，请求/连接/停止/转写/失败或热键错误为橙点；完整状态继续通过 accessibility value 暴露，视觉层不显示品牌名、计时、状态/错误句、图标、动作按钮或设置提示。单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`；对比页顶部继续用固定双列网格表达 2–4 个成功/失败候选与耗时，四项为 2×2。开始会话时从 canonical model entry 快照可选 Display name，有名称的候选只显示该名称，没有名称的候选以 Model ID 为主要文字、Provider 名称为次要文字，endpoint 不进入可见卡片。首个成功项直接在原生编辑器打开，不显示额外选择提示，也不需要横向滚动。尺寸请求只保留最后一次，panel 首次位于屏幕底部中央；panel 平时禁止系统管理移动，非审阅单次 mouse-down 显式进入原生窗口拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 的临时钳位不回写逻辑锚点。Settings 使用固定侧栏和右侧独立滚动页面；当前可达页面不展示 AX 状态。
+- **共享组合**：reviewing 之外所有状态统一使用 `96×36` compact frame 与 18 pt 连续圆角的透明原生 glass/material 表面，内部只含 6 pt 语义圆点与 14 pt JetBrains Mono Semibold 的 `<voice>/<Quick Ask>` 双快捷键，间距 5 pt；快捷键为动态主文字色，默认显示 `⌃⌥A/⌃⌥Q`，任一配置变化后即时更新。组合过长时文字可最低缩放到 70%，外壳不增长。idle 为绿点，录音/流式为红点，请求/连接/停止/转写/失败或热键错误为橙点；完整状态继续通过 accessibility value 暴露，视觉层不显示品牌名、计时、状态/错误句、图标、动作按钮或设置提示。单结果 reviewing 仍为 `420×160`，对比 reviewing 仍为 `560×300`；对比页顶部继续用固定双列网格表达 2–4 个成功/失败候选与耗时，四项为 2×2。开始会话时从 canonical model entry 快照可选 Display name，有名称的候选只显示该名称，没有名称的候选以 Model ID 为主要文字、Provider 名称为次要文字，endpoint 不进入可见卡片。首个成功项直接在原生编辑器打开，不显示额外选择提示，也不需要横向滚动。尺寸请求只保留最后一次，panel 首次位于屏幕底部中央；panel 平时禁止系统管理移动，非审阅单次 mouse-down 显式进入原生窗口拖动。`FloatingPanelPositionAnchor` 独立保存用户位置的水平中心与底边；状态 resize 的临时钳位不回写逻辑锚点。Settings 使用固定侧栏和右侧独立滚动页面；当前可达页面不展示 AX 状态。
 
 ## 界面语言与本地化
 
@@ -123,10 +152,10 @@ model route / TranscriptionConnection ──adapterID──▶ 版本化 adapter
 ## V0.13 热键链路与旧命令兼容
 
 1. `HotkeyManager` 安装 Carbon `kEventHotKeyPressed` 与 `kEventHotKeyReleased` handler；press gate 保证一次物理按下只分派一次，release 后才允许下一次。
-2. V0.13 App 传入空 command 列表，常驻注册 panel ID `100` 和 voice ID `200`。voice descriptor 从 canonical `shortcuts.toggle_voice` 读取，默认 `⌃⌥A`（Carbon virtual key `0`，Control+Option）；panel descriptor 来自 `shortcuts.toggle_panel`，默认 `⌘⌥⇧0`。仅当对比 reviewing 中至少有两个成功候选时，增量注册 previous ID `300` 与 next ID `400`，descriptor 分别来自 `shortcuts.previous_comparison_result` / `next_comparison_result`（默认 `⌥←` / `⌥→`）；离开该状态立即注销，避免普通使用时长期抢占用户配置的按键。底层从 `1000` 开始的命令 ID 映射仍为旧数据兼容实现，但当前不可达。
+2. V0.13 App 传入空 command 列表，常驻注册 panel ID `100`、voice ID `200` 与 Quick Ask ID `500`。voice 默认 `⌃⌥A`，Quick Ask 默认 `⌃⌥Q`，panel 默认 `⌘⌥⇧0`。仅当对比 reviewing 中至少有两个成功候选时，增量注册 previous `300` / next `400`（默认 `⌥←` / `⌥→`）；离开后立即注销。底层从 `1000` 开始的命令映射仍不可达。
 3. 注册使用 Carbon `kEventHotKeyExclusive` 并保持差异同步；生成的 Info.plist 以 `LSMultipleInstancesProhibited=true` 阻止两个 Flotis 进程同时竞争。失败状态保留并通过最小胶囊的橙点与 accessibility value 暴露，同时每 2 秒重试；event handler 安装失败时不会注册孤立 hotkey。
 4. `VoiceInputState.hotkeyAction` 是纯策略映射：idle/failed→start，recording/streaming→stop，reviewing→copyAndReturn，requesting/connecting→cancel，stopping/transcribing/injecting→none。
-5. `HotkeyConfigurationStore` 从同一 `config.json` 的可选 `shortcuts` 分区加载 voice、panel、previous、next 四项 descriptor；旧 schema v2 缺少整个分区或缺少 `toggle_voice` 时采用对应默认值。设置录制后先拒绝无修饰键或四项重复，再原子持久化；`AppDelegate` 订阅配置变化并调用 manager 的差异同步，未改变的注册不重建。Carbon 冲突仍由既有错误发布与 2 秒重试处理。
+5. `HotkeyConfigurationStore` 从同一 `config.json` 加载 voice、Quick Ask、panel、previous、next 五项 descriptor；缺少字段时采用当前默认。设置录制先拒绝无修饰键或五项重复，再原子持久化；manager 只差异重注册，Carbon 冲突仍可见并每 2 秒重试。
 6. 当前配置的语音热键在 panel 隐藏时会确保胶囊可见；reviewing 的第三次动作同步写入系统剪贴板。对比 reviewing 已自动持有首个成功项，可配置的前后导航快捷键切换当前成功项后，第三次 voice hotkey 与单结果路径一致地复制当前编辑文本。写入成功直接清空会话并回 `idle`，panel 保持可见、由尺寸监听缩回小胶囊；写入失败保留 reviewing 文本并显示可重试错误。该路径不等待物理组合键释放，因为它不发送键盘事件。
 7. 旧 `commands.json` 不被 V0.13 主入口加载、修改或删除；恢复命令产品能力必须另行做显式产品与迁移决策。
 
@@ -228,19 +257,19 @@ controller 将 chunk 写入容量为 512 的有界 `AsyncStream`，由单一 wri
 - 支持的 language/prompt/temperature/Volc two-pass 字段；
 - 录音时长和上传字节限制。
 
-当前 Settings 以固定侧栏分为“快捷键 / 转写”，左上品牌区只显示 `Flotis` 与版本，不再显示应用图标。“快捷键”页只保留一张紧凑内容卡，按四个 `52` pt 行显示 voice、panel 显隐及前后对比导航。四项都使用 `156×38`、15 pt JetBrains Mono 的轻量可点击 surface，点击后在相同尺寸的原生录制态直接接收新组合。常态不显示语音流程、胶囊拖动、对比生效条件、第二层 section、hover help、铅笔或恢复控件；只有真实校验、持久化或 Carbon 注册错误才在卡片下出现。当前可达 Settings 不展示与主流程无关的 AX 权限。转写页只会为 OpenAI Compatible HTTP 实例化 editor。主 Provider/Models 卡复刻 Intatis 的信息层级：左侧 Provider 列表/Add，右侧 Provider name、API key、Active model、Connection/Models disclosure，Models 中按行提供 Model ID、Display name 与删除动作，卡片下方是 Test Provider / Save。Flotis 特有的 2–4 route Comparison 与 Language/Prompt/Temperature 位于主卡之后的独立 disclosure，不把 route 选择或高级参数混进 Provider 共享字段。preset 与其他 adapter 选择不可见。没有现有 OpenAI provider 时只显示明确空态，创建内存 draft 后 Cancel 不落盘。底层六套 schema 与多 provider/model route 数据仍用于迁移、normalize、校验、连接测试和 runtime；可见性不是新的 runtime discriminator。URL 校验继续拒绝非 HTTPS、userinfo、query、fragment、反斜杠和歧义 path。自定义 host 仍需用户显式确认，UI 仍显示凭据的精确目标 host。
+当前 Settings 固定侧栏为“快捷键 / 转写 / 快速 AI 问答”。转写与 Quick Ask 都采用 Intatis Provider/Models 工作模式：响应式双栏主卡左侧管理 Provider/模型数，右侧为 Provider name、共享 API key、Active model、全行 Connection/Models disclosure，卡下 Test Provider/Save。Quick Ask 使用自己的 catalog/store，不复用转写类型；Connection 只含 Chat Completions HTTPS base/path 与 credential target，Models 支持同 Provider 多模型和 Display name，Advanced 只含 temperature/maxTokens/timeout/systemPrompt。它没有音频设置、Comparison、language 或 transcription prompt。聊天齿轮通过共享 navigation model 直达该页。
 
 adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBoundaryIdentifier`：store 生成新 `apiKeyReference`，并在同一次 `config.json` 原子事务里替换 provider 配置、写入可选新 key、移除旧 reference 对应的内存映射，防止旧服务凭据被发送到新目标。文件提交失败时 provider catalog 与 key 一起回滚。
 
 ## Canonical 配置持久化与恢复
 
-- 唯一主数据为 `~/Library/Application Support/Flotis/config.json` schema v2。布局参考 Intatis：顶层 `$schema` 与 `schema_version` 标识格式，`model` 保存 `<provider-id>/<model-id>` active selector，`provider_order` 保留 UI 顺序，`enabled_providers` 保存启用 Provider，`comparison.models` 保存有序对比 selector，可选 `shortcuts` 保存 voice、panel、previous、next 四项可配置全局快捷键，`provider` 以语义化 ID 为字典键。旧 schema v2 没有 `shortcuts.toggle_voice` 时解码为默认 `⌃⌥A`。
+- 唯一主数据为 `~/Library/Application Support/Flotis/config.json` schema v2。顶层独立 `quick_ask` 内部保存自己的 active `model` selector、`provider_order`、`enabled_providers` 与 `provider` dictionary；每个 provider 保存 name、共享 options（baseURL/path/apiKey/temperature/maxTokens/timeoutSeconds/systemPrompt/customEndpointApproved）和 models dictionary（可选 name）。它不保存连接测试或任何对话内容。缺少 catalog/descriptor 时使用未配置状态与默认 `⌃⌥Q`。
 - selector 只在第一个 `/` 分割，Provider ID 不含 `/`，Model ID 可包含 `/`；因此 `openrouter/openai/gpt-4o-transcribe` 能无损表示 OpenRouter 模型。
 - 每个 provider 对象保存 `name`、版本化 `adapter`、多 model 的 `models` 字典、共享 `options`（`baseURL`、`path`、`apiKey`、reference、language、authentication、audio、transcription）及 credential revision；每个 model 可保存可选 `name`（Settings 的 Display name）和独立安全测试摘要。录音、候选 transcript、响应正文和完整失败响应不进入文件。
 - Settings 从完整 provider groups/routes 计算可见数组，但绝不把过滤结果写回 store。隐藏 provider、隐藏 active selector 及其 key 不会因打开、编辑或关闭 Settings 而删除或改写。
 - canonical schema v1 会在原文件安全校验后原子升级为 v2 并移除 Apple 条目。旧 `flotis.transcriptionConnections.v3`/LKG、`flotis.speechProviders.v2`/LKG、`flotis.speechProviders.v1`、`flotis.transcriptionComparison.v1` 与 `secrets.json` 只在 canonical 文件不存在时作为一次性只读迁移输入；文件建立后不再读取旧源。
 - canonical JSON 损坏、schema 未知、符号链接、非普通文件、异常大或非当前用户所有时拒绝覆盖。全新安装创建空 provider catalog；Apple on-device 只作内部 fallback且不持久化。active selector 必须指向存在且有效的 route，需要 key 的 route 还必须从其 provider 的 `options.apiKey` 取得非空值，否则不能激活。
-- create/update/delete/clear credential 与 provider/comparison/shortcuts 分区更新均通过 `FlotisConfigurationStore` 的同锁 read-modify-write 提交；一个分区更新不能覆盖另两个分区。失败恢复原内存状态；models/provider 变化时 comparison store 移除不存在的 selector，剩余少于 2 个会自动关闭。
+- create/update/delete/clear credential 与 provider/comparison/shortcuts/quick_ask 分区更新均通过 `FlotisConfigurationStore` 的同锁 read-modify-write 提交；一个分区更新不能覆盖其他分区。失败恢复原内存状态；Quick Ask credential 的 scheme/host/effective-port boundary 改变时，已保存 key 必须清除或由用户明确重输。
 
 ## Test Connection
 
@@ -254,7 +283,7 @@ adapter、scheme、host、effective port 或 auth type 改变会改变 `secretBo
 
 ## 单文件配置与凭据边界
 
-- `FlotisConfigurationStore` 是唯一生产配置/凭据后端，路径固定为 `~/Library/Application Support/Flotis/config.json`。API key 明文位于对应 `provider.<id>.options.apiKey`，由该 Provider 全部模型共享；`apiKeyReference` 只供运行时 route/key 快照匹配，不参与文件路径拼接，也不再指向第二个 JSON。
+- `FlotisConfigurationStore` 是唯一生产配置/凭据后端。转写 key 位于 `provider.<id>.options.apiKey`，Quick Ask key 位于 `quick_ask.provider.<id>.options.apiKey`；二者 catalog 隔离但共享同一文件锁/原子事务。Quick Ask 不导入 `Security`/`SecItem*`，也不访问独立参考项目的 Keychain/UserDefaults。
 - Flotis 目录强制为 `0700`，`config.json` 与 `.config.lock` 为 `0600`。读写先打开不跟随符号链接的目录描述符；同一进程由共享 `NSLock` 串行化，多进程通过 `.config.lock` 的 POSIX advisory write lock 覆盖完整 read-modify-write。锁竞争使用单调时钟短间隔重试并在 500 ms 后失败。数据写入同目录 `0600` 随机临时文件并 `fsync`，再用 `renameat` 原子替换并同步目录。
 - 文件最大 4 MiB、provider 最多 64 个；读取只接受当前 schema、结构一致的 provider order/字典、普通文件、当前用户所有和合法 JSON。符号链接、目录、其他文件类型、损坏或异常大的文件均返回失败，保存不得覆盖坏文件。
 - 删除 provider、切换到无需 key 的 adapter、改变 secret boundary 或 UI Clear 会在同一文档事务中清理对应 `options.apiKey`；只删除一个 model 不复制或移动共享 key。文件系统原子替换不承诺物理介质上的安全擦除。
@@ -286,6 +315,7 @@ V0.13 胶囊为 borderless panel，不提供红色关闭按钮；panel toggle �
 - UI 与 controller 状态在 MainActor。
 - WebSocket sender 串行；协议解析/connection/transcript 状态使用 actor 或锁隔离。
 - 网络仅允许 HTTPS/WSS；HTTP 与 WebSocket session 共用 no-redirect delegate，携带凭据的请求不跟随重定向。
-- API key 不进入 UserDefaults、项目文档或日志；明文只存在当前会话内存与私有权限 `config.json` 的 `options.apiKey`。
+- API key 不进入 UserDefaults、项目文档或日志；明文只存在当前会话内存与私有权限 `config.json` 的转写或 Quick Ask provider `options.apiKey`。
+- Quick Ask messages/draft/reply/error/test result 只属于当前内存会话；关闭、取消或退出时清理，网络 task 回写必须匹配 generation。用户主动复制回复不改变该持久化边界。
 - 对比配置只保存完整 model selector 与开关；共享录音、候选转写、逐项错误和耗时只属于当前会话内存/临时文件生命周期，不进入持久化或日志。
 - temp cleanup 仅匹配 Flotis 自有前缀、普通文件且超过 24 小时，避免清理无关文件。

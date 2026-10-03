@@ -161,6 +161,21 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         )
     }
 
+    func testCompactCapsuleShowsVoiceAndQuickAskShortcutsWithoutGrowing() {
+        let configuration = FlotisHotkeyConfiguration.defaults
+
+        XCTAssertEqual(
+            CompactCapsuleShortcutPresentation.displayString(for: configuration),
+            "⌃⌥A/⌃⌥Q"
+        )
+        XCTAssertEqual(CompactCapsuleShortcutPresentation.indicatorSpacing, 5)
+        XCTAssertEqual(CompactCapsuleShortcutPresentation.fontSize, 14)
+        XCTAssertEqual(
+            FloatingPanelLayout(state: .idle, hasStatusArea: false).panelSize,
+            CGSize(width: 96, height: 36)
+        )
+    }
+
     func testPanelResizePreservesDraggedCenterAndBottomEdge() {
         let origin = FloatingPanelController.resizedOrigin(
             currentFrame: NSRect(x: 320, y: 140, width: 96, height: 36),
@@ -310,10 +325,18 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         XCTAssertEqual(KeyboardShortcutDescriptor.toggleVoice.displayString, "⌃⌥A")
     }
 
+    func testQuickAskShortcutDefaultUsesControlOptionQAndReservedID() {
+        XCTAssertEqual(KeyboardShortcutDescriptor.toggleQuickAsk.keyCode, 12)
+        XCTAssertEqual(KeyboardShortcutDescriptor.toggleQuickAsk.modifiers, .controlOption)
+        XCTAssertEqual(KeyboardShortcutDescriptor.toggleQuickAsk.displayString, "⌃⌥Q")
+        XCTAssertEqual(HotkeyManager.quickAskHotKeyID, 500)
+    }
+
     func testConfigurableHotkeysKeepExistingDefaults() {
         let configuration = FlotisHotkeyConfiguration.defaults
 
         XCTAssertEqual(configuration.toggleVoice, .toggleVoice)
+        XCTAssertEqual(configuration.toggleQuickAsk, .toggleQuickAsk)
         XCTAssertEqual(configuration.togglePanel.keyCode, 29)
         XCTAssertEqual(configuration.togglePanel.modifiers, .commandOptionShift)
         XCTAssertEqual(configuration.togglePanel.displayString, "⌥⇧⌘0")
@@ -357,6 +380,12 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
             store.validationError(
                 for: store.configuration.togglePanel,
                 hotkey: .toggleVoice
+            )
+        )
+        XCTAssertNotNil(
+            store.validationError(
+                for: store.configuration.toggleVoice,
+                hotkey: .toggleQuickAsk
             )
         )
         XCTAssertNotNil(
@@ -424,6 +453,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
         )
 
         XCTAssertEqual(configuration.toggleVoice, .toggleVoice)
+        XCTAssertEqual(configuration.toggleQuickAsk, .toggleQuickAsk)
         XCTAssertTrue(configuration.isValid)
     }
 
@@ -444,14 +474,21 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
             keyCode: 2,
             modifiers: .commandOptionShift
         )
+        let quickAskShortcut = KeyboardShortcutDescriptor(
+            keyCode: 14,
+            modifiers: .controlOption
+        )
 
         XCTAssertTrue(store.setShortcut(voiceShortcut, for: .toggleVoice))
+        XCTAssertTrue(store.setShortcut(quickAskShortcut, for: .toggleQuickAsk))
         XCTAssertTrue(store.setShortcut(panelShortcut, for: .togglePanel))
         XCTAssertEqual(store.configuration.toggleVoice, voiceShortcut)
+        XCTAssertEqual(store.configuration.toggleQuickAsk, quickAskShortcut)
         XCTAssertEqual(store.configuration.togglePanel, panelShortcut)
 
         let reloaded = HotkeyConfigurationStore(configurationStore: configurationStore)
         XCTAssertEqual(reloaded.configuration.toggleVoice, voiceShortcut)
+        XCTAssertEqual(reloaded.configuration.toggleQuickAsk, quickAskShortcut)
         XCTAssertEqual(reloaded.configuration.togglePanel, panelShortcut)
         XCTAssertEqual(reloaded.configuration.previousComparisonResult.displayString, "⌥←")
 
@@ -459,6 +496,7 @@ final class HotkeyAndInjectionPolicyTests: XCTestCase {
             return XCTFail("Expected canonical config.json to load")
         }
         XCTAssertEqual(document.shortcuts?.toggleVoice, voiceShortcut)
+        XCTAssertEqual(document.shortcuts?.toggleQuickAsk, quickAskShortcut)
         XCTAssertEqual(document.shortcuts?.togglePanel, panelShortcut)
         XCTAssertEqual(document.provider, [:])
         XCTAssertEqual(document.comparison, FlotisComparisonConfiguration(enabled: false, models: []))

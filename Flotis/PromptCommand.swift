@@ -57,6 +57,11 @@ extension KeyboardShortcutDescriptor {
         modifiers: .controlOption
     )
 
+    static let toggleQuickAsk = KeyboardShortcutDescriptor(
+        keyCode: 12, // kVK_ANSI_Q
+        modifiers: .controlOption
+    )
+
     static let previousComparisonResult = KeyboardShortcutDescriptor(
         keyCode: 123, // kVK_LeftArrow
         modifiers: .optionOnly

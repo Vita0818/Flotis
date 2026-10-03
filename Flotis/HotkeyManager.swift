@@ -20,10 +20,12 @@ struct HotKeyPressGate {
 final class HotkeyManager {
     static let shared = HotkeyManager()
     static let registrationOptions = UInt32(kEventHotKeyExclusive)
+    static let quickAskHotKeyID: UInt32 = 500
 
     var onCommandHotkeyPressed: ((UUID) -> Void)?
     var onTogglePanel: (() -> Void)?
     var onToggleVoice: (() -> Void)?
+    var onToggleQuickAsk: (() -> Void)?
     var onPreviousComparisonResult: (() -> Void)?
     var onNextComparisonResult: (() -> Void)?
     var onRegistrationError: ((String?) -> Void)?
@@ -33,6 +35,7 @@ final class HotkeyManager {
         static let toggleVoice: UInt32 = 200
         static let previousComparisonResult: UInt32 = 300
         static let nextComparisonResult: UInt32 = 400
+        static let toggleQuickAsk = HotkeyManager.quickAskHotKeyID
         static let firstCommand: UInt32 = 1000
     }
 
@@ -162,6 +165,11 @@ final class HotkeyManager {
                 descriptor: currentHotkeyConfiguration.toggleVoice,
                 commandID: nil,
                 displayName: UIStrings.voiceInput
+            ),
+            FixedHotKeyID.toggleQuickAsk: DesiredHotKey(
+                descriptor: currentHotkeyConfiguration.toggleQuickAsk,
+                commandID: nil,
+                displayName: UIStrings.quickAsk
             )
         ]
         if comparisonNavigationEnabled {
@@ -427,6 +435,11 @@ final class HotkeyManager {
 
         if id == FixedHotKeyID.toggleVoice {
             onToggleVoice?()
+            return
+        }
+
+        if id == FixedHotKeyID.toggleQuickAsk {
+            onToggleQuickAsk?()
             return
         }
 

@@ -3,6 +3,7 @@ import Foundation
 
 enum ConfigurableHotkey: String, CaseIterable, Identifiable {
     case toggleVoice
+    case toggleQuickAsk
     case togglePanel
     case previousComparisonResult
     case nextComparisonResult
@@ -13,6 +14,8 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
         switch self {
         case .toggleVoice:
             return .toggleVoice
+        case .toggleQuickAsk:
+            return .toggleQuickAsk
         case .togglePanel:
             return .togglePanel
         case .previousComparisonResult:
@@ -26,6 +29,8 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
         switch self {
         case .toggleVoice:
             return UIStrings.voiceInput
+        case .toggleQuickAsk:
+            return UIStrings.quickAsk
         case .togglePanel:
             return UIStrings.showHideFloatingPanel
         case .previousComparisonResult:
@@ -38,12 +43,14 @@ enum ConfigurableHotkey: String, CaseIterable, Identifiable {
 
 struct FlotisHotkeyConfiguration: Codable, Equatable {
     var toggleVoice: KeyboardShortcutDescriptor
+    var toggleQuickAsk: KeyboardShortcutDescriptor
     var togglePanel: KeyboardShortcutDescriptor
     var previousComparisonResult: KeyboardShortcutDescriptor
     var nextComparisonResult: KeyboardShortcutDescriptor
 
     static let defaults = FlotisHotkeyConfiguration(
         toggleVoice: .toggleVoice,
+        toggleQuickAsk: .toggleQuickAsk,
         togglePanel: .togglePanel,
         previousComparisonResult: .previousComparisonResult,
         nextComparisonResult: .nextComparisonResult
@@ -51,11 +58,13 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
 
     init(
         toggleVoice: KeyboardShortcutDescriptor,
+        toggleQuickAsk: KeyboardShortcutDescriptor,
         togglePanel: KeyboardShortcutDescriptor,
         previousComparisonResult: KeyboardShortcutDescriptor,
         nextComparisonResult: KeyboardShortcutDescriptor
     ) {
         self.toggleVoice = toggleVoice
+        self.toggleQuickAsk = toggleQuickAsk
         self.togglePanel = togglePanel
         self.previousComparisonResult = previousComparisonResult
         self.nextComparisonResult = nextComparisonResult
@@ -63,6 +72,7 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case toggleVoice = "toggle_voice"
+        case toggleQuickAsk = "toggle_quick_ask"
         case togglePanel = "toggle_panel"
         case previousComparisonResult = "previous_comparison_result"
         case nextComparisonResult = "next_comparison_result"
@@ -74,6 +84,10 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
             KeyboardShortcutDescriptor.self,
             forKey: .toggleVoice
         ) ?? Self.defaults.toggleVoice
+        toggleQuickAsk = try container.decodeIfPresent(
+            KeyboardShortcutDescriptor.self,
+            forKey: .toggleQuickAsk
+        ) ?? Self.defaults.toggleQuickAsk
         togglePanel = try container.decodeIfPresent(
             KeyboardShortcutDescriptor.self,
             forKey: .togglePanel
@@ -93,6 +107,8 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
             switch hotkey {
             case .toggleVoice:
                 return toggleVoice
+            case .toggleQuickAsk:
+                return toggleQuickAsk
             case .togglePanel:
                 return togglePanel
             case .previousComparisonResult:
@@ -105,6 +121,8 @@ struct FlotisHotkeyConfiguration: Codable, Equatable {
             switch hotkey {
             case .toggleVoice:
                 toggleVoice = newValue
+            case .toggleQuickAsk:
+                toggleQuickAsk = newValue
             case .togglePanel:
                 togglePanel = newValue
             case .previousComparisonResult:
